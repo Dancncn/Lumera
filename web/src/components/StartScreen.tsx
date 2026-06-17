@@ -60,7 +60,7 @@ export function StartScreen() {
         <p className="start-desc">{t('盖牌、说谎、拆穿 —— 一缕意志，抢着先汇成。')}</p>
 
         <div className="start-how">
-          <p>{t('盖牌出、报出它是什么（可真可假）；下家放行或截牌摊牌，输的一方掷骰赌命。')}</p>
+          <p>{t('盖牌出、报出它是什么（可以撒谎），全场在场玩家选择放行或截牌拆穿。')}</p>
           <p className="start-how-more">{t('先出光手牌、或截穿对手攒牌者赢 · 不熟规则先点下方「新手引导」，细则见右上角「?」')}</p>
         </div>
 

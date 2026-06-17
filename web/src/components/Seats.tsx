@@ -56,16 +56,33 @@ function useSkippedSeat(events: GameEvent[], view: PlayerView): number | null {
   return seat;
 }
 
+function useJudgingSeat(events: GameEvent[]): number | null {
+  const [seat, setSeat] = useState<number | null>(null);
+  useEffect(() => {
+    if (events.some((e) => e.type === 'PlayAccepted' || e.type === 'Challenged' || e.type === 'TurnStarted'))  {
+      setSeat(null);
+      return;
+    }
+    const played = events.find((e) => e.type === 'CardPlayed') as { seat: number } | undefined;
+    if (played) setSeat(played.seat);
+  }, [events]);
+  return seat;
+}
+
 function Seat({
   p,
   view,
   isPenalty,
   isSkipped,
+  isJudging,
+  isNext,
 }: {
   p: PublicPlayer;
   view: PlayerView;
   isPenalty: boolean;
   isSkipped: boolean;
+  isJudging: boolean;
+  isNext: boolean;
 }) {
   const { t, tn } = useT();
   const isCurrent = view.current === p.seat && !p.out;
@@ -76,6 +93,8 @@ function Seat({
     p.out ? 'seat-out' : '',
     isPenalty ? 'seat-penalty' : '',
     isSkipped ? 'seat-skipped' : '',
+    isJudging ? 'seat-judging' : '',
+    isNext ? 'seat-next' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -96,8 +115,10 @@ function Seat({
         {p.escalation > 1 && <span className="stat stat-warn" title={t('下次受罚投骰次数')}>{t('受罚')}×{p.escalation}</span>}
       </div>
       {p.out && <span className="seat-out-tag">{t('复归')}</span>}
+      {isJudging && <span className="seat-judging-tag">{t('待裁断')}</span>}
       {isPenalty && <span className="seat-penalty-tag">{t('受罚中')}</span>}
       {isSkipped && <span className="seat-skip-tag">{t('被跳过')}</span>}
+      {isNext && !p.out && <span className="seat-next-tag">▸ {t('下家')}</span>}
       {thinking && (
         <span className="seat-thinking">
           {t('凝神')}
@@ -116,18 +137,20 @@ export function Seats({ view }: { view: PlayerView }) {
   const events = useGame((s) => s.lastEvents);
   const penaltySeat = useGame((s) => s.penaltySeat);
   const skippedSeat = useSkippedSeat(events, view);
+  const judgingSeat = useJudgingSeat(events);
+  const nextSeat = nextAlive(view.players, view.current, view.direction);
   const opponents = view.players.filter((p) => p.seat !== view.you);
   const mid = Math.ceil(opponents.length / 2);
   return (
     <div className="opp-row">
       <div className="opp-side opp-left">
         {opponents.slice(0, mid).map((p) => (
-          <Seat key={p.seat} p={p} view={view} isPenalty={penaltySeat === p.seat} isSkipped={skippedSeat === p.seat} />
+          <Seat key={p.seat} p={p} view={view} isPenalty={penaltySeat === p.seat} isSkipped={skippedSeat === p.seat} isJudging={judgingSeat === p.seat} isNext={nextSeat === p.seat && nextSeat !== view.current} />
         ))}
       </div>
       <div className="opp-side opp-right">
         {opponents.slice(mid).map((p) => (
-          <Seat key={p.seat} p={p} view={view} isPenalty={penaltySeat === p.seat} isSkipped={skippedSeat === p.seat} />
+          <Seat key={p.seat} p={p} view={view} isPenalty={penaltySeat === p.seat} isSkipped={skippedSeat === p.seat} isJudging={judgingSeat === p.seat} isNext={nextSeat === p.seat && nextSeat !== view.current} />
         ))}
       </div>
     </div>

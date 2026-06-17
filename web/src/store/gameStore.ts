@@ -38,12 +38,15 @@ interface Store {
   lastDie: DieFlash | null;
   penaltySeat: number | null;
   tutorial: boolean;
+  tutorialStage: number | null;
   turnDeadline: number | null;
   notice: string | null;
   difficulty: Difficulty;
   players: number;
   newGame: (players: number, difficulty?: Difficulty, firstSeat?: number, deck?: Card[]) => void;
   startTutorial: () => void;
+  stageGame: (firstSeat: number, deck: Card[]) => void;
+  stageCmd: (seat: number, cmd: Command) => void;
   quitToMenu: () => void;
   human: (cmd: Command) => void;
   pass: () => void;
@@ -185,6 +188,7 @@ export const useGame = create<Store>((set, get) => {
 
   function loop(): void {
     clearTimers();
+    if (get().tutorialStage !== null) return;
     const s = get().state;
     if (!s || s.phase.kind === 'over') {
       set({ thinking: null, turnDeadline: null });
@@ -247,6 +251,7 @@ export const useGame = create<Store>((set, get) => {
     lastDie: null,
     penaltySeat: null,
     tutorial: false,
+    tutorialStage: null,
     turnDeadline: null,
     notice: null,
     difficulty: 'normal',
@@ -277,7 +282,36 @@ export const useGame = create<Store>((set, get) => {
     startTutorial: () => {
       // 2 人易局、你先手、固定牌序（保证演示 0/万能/跑成），跟着提示走一遍
       get().newGame(2, 'easy', 0, buildTutorialDeck());
-      set({ tutorial: true });
+      set({ tutorial: true, tutorialStage: null });
+    },
+
+    stageGame: (firstSeat: number, deck: Card[]) => {
+      clearTimers();
+      const seed = 42;
+      ais = new Map();
+      const seats = [
+        { name: '你 · Lumir', isAI: false },
+        { name: 'Aurel · 对手', isAI: true },
+      ];
+      ais.set(1, new AiPlayer({ seat: 1, seed, profile: 'steady', difficulty: 'easy' }));
+      const { state, events } = createGame({ ...DEFAULT_CONFIG, players: 2, seed }, seats, firstSeat, deck);
+      set({ state, lastEvents: events, lastDie: null, penaltySeat: null, thinking: null });
+    },
+
+    stageCmd: (seat: number, cmd: Command) => {
+      const cur = get().state;
+      if (!cur || cur.phase.kind === 'over') return;
+      try {
+        const res = apply(cur, seat, cmd);
+        set({
+          state: res.state,
+          lastEvents: res.events,
+          lastDie: nextDie(res.events, get().lastDie),
+          penaltySeat: trackPenalty(res.events, get().penaltySeat),
+        });
+      } catch (err) {
+        console.error('stageCmd error', cmd, err);
+      }
     },
 
     quitToMenu: () => {
@@ -298,6 +332,7 @@ export const useGame = create<Store>((set, get) => {
         turnDeadline: null,
         notice: null,
         tutorial: false,
+        tutorialStage: null,
       });
     },
 

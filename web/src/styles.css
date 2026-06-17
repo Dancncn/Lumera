@@ -2853,6 +2853,131 @@ kbd {
 }
 
 /* ============================================================
+   教学关卡 · 手把手实操练习
+   ============================================================ */
+.stage-overlay {
+  z-index: 40;
+}
+.stage-panel {
+  position: relative;
+  z-index: 1;
+  width: min(480px, 92vw);
+  background: linear-gradient(180deg, #fffdf8, #f6efe0);
+  border: 1px solid var(--gold);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(60, 48, 28, 0.34);
+  padding: 28px 28px 22px;
+  text-align: center;
+  animation: bubble-in 0.22s var(--ease);
+}
+.stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.stage-kicker {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--gold-muted);
+}
+.stage-tag {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--gold-dark);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 2px 14px;
+  margin-bottom: 6px;
+}
+.stage-title {
+  margin: 8px 0;
+  font-family: var(--display);
+  font-size: 21px;
+  letter-spacing: 1px;
+  color: var(--ink);
+}
+.stage-done-title {
+  color: var(--gold-dark);
+}
+.stage-desc {
+  font-size: 14.5px;
+  line-height: 1.8;
+  color: var(--ink);
+  margin: 8px 0 18px;
+  text-align: left;
+}
+.stage-nav {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+.stage-skip {
+  background: transparent;
+  border: none;
+  color: var(--gold-muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 14px;
+}
+.stage-skip:hover {
+  color: var(--ink);
+}
+.stage-go {
+  background: var(--gold);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 22px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: background 0.16s var(--ease);
+}
+.stage-go:hover {
+  background: var(--gold-dark);
+}
+.stage-result {
+  border-color: var(--gold-dark);
+}
+/* floating guide during play */
+.stage-guide {
+  position: fixed;
+  bottom: 200px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 35;
+  pointer-events: none;
+  animation: bubble-in 0.22s var(--ease);
+}
+.stage-guide-bubble {
+  background: linear-gradient(180deg, #fffdf8, #f6efe0);
+  border: 1px solid var(--gold);
+  border-radius: 14px;
+  padding: 14px 20px;
+  box-shadow: 0 8px 28px rgba(60, 48, 28, 0.26);
+  max-width: min(440px, 88vw);
+  text-align: center;
+  pointer-events: auto;
+}
+.stage-guide-tag {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--gold-muted);
+  margin-bottom: 6px;
+}
+.stage-guide-text {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* ============================================================
    读对面 · 对面打法（教学末页 / 规则弹窗共用）
    ============================================================ */
 .persona-guide {
@@ -3781,6 +3906,51 @@ kbd {
   z-index: 2;
 }
 
+.seat-judging {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 0 2px rgba(180, 126, 36, 0.35), 0 0 18px rgba(180, 126, 36, 0.15) !important;
+  animation: judging-pulse 1.4s ease-in-out infinite !important;
+}
+@keyframes judging-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(180, 126, 36, 0.25), 0 0 12px rgba(180, 126, 36, 0.1); }
+  50% { box-shadow: 0 0 0 3px rgba(180, 126, 36, 0.5), 0 0 22px rgba(180, 126, 36, 0.2); }
+}
+.seat-judging-tag {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--gold-deep), var(--gold-light));
+  border-radius: 999px;
+  padding: 2px 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(180, 126, 36, 0.4);
+  animation: tag-pop 0.3s ease-out;
+  z-index: 2;
+}
+.seat-next {
+  border-color: rgba(100, 160, 100, 0.5);
+}
+.seat-next-tag {
+  position: absolute;
+  bottom: -10px;
+  right: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: #5a8a55;
+  background: rgba(245, 250, 240, 0.95);
+  border: 1px solid rgba(100, 160, 100, 0.35);
+  border-radius: 999px;
+  padding: 1px 10px;
+  white-space: nowrap;
+  z-index: 1;
+}
+
 .self-penalty {
   border-color: #c34a38 !important;
   box-shadow: 0 0 0 2px rgba(195, 74, 56, 0.3) !important;
@@ -3816,5 +3986,6 @@ kbd {
 }
 @media (prefers-reduced-motion: reduce) {
   .seat-penalty { animation: none !important; }
+  .seat-judging { animation: none !important; }
   .seat-skipped::after { animation: none; opacity: 1; }
 }

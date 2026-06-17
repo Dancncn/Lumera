@@ -2,22 +2,34 @@ import { useEffect, useState } from 'react';
 import { PlayerView } from '../engine/types';
 import { useT } from '../i18n';
 import { useGame } from '../store/gameStore';
+import { buildTutorialDeck } from '../engine/game';
 import { TutorialLesson } from './TutorialLesson';
+import { TutorialStages } from './TutorialStages';
 
 interface Step {
   key: string;
   text: string;
 }
 
-// 新手引导 = 开打前的「整本教学」（TutorialLesson）+ 实战时贴边的简短指令气泡（不挡对面、不挡桌心）。
+type CoachPhase = 'lesson' | 'stages' | 'play';
+
+// 新手引导 = 开打前的「整本教学」（TutorialLesson）→ 教学关卡（TutorialStages）→ 实战时贴边的简短指令气泡。
 export function Coach({ view }: { view: PlayerView }) {
   const { t } = useT();
-  const [lesson, setLesson] = useState(true);
+  const [phase, setPhase] = useState<CoachPhase>('lesson');
   const [shown, setShown] = useState<Set<string>>(() => new Set());
   const [current, setCurrent] = useState<Step | null>(null);
 
+  function enterFreePlay() {
+    // 关卡结束后进入自由练习局
+    const { newGame } = useGame.getState();
+    newGame(2, 'easy', 0, buildTutorialDeck());
+    useGame.setState({ tutorial: true, tutorialStage: null });
+    setPhase('play');
+  }
+
   useEffect(() => {
-    if (lesson || current) return; // 教学中 / 已有气泡：不打断
+    if (phase !== 'play' || current) return; // 教学中 / 已有气泡：不打断
     const p = view.prompt;
     const hand = view.yourHand;
     let step: Step | null = null;
@@ -39,12 +51,12 @@ export function Coach({ view }: { view: PlayerView }) {
         step = { key: 'runout', text: '只剩最后一张！出掉且不被截就「跑成」、独吞牌堆，再摸 6 张继续。' };
       }
     } else if (p.kind === 'respond' && !shown.has('respond')) {
-      step = { key: 'respond', text: '轮到你裁断：信下家点「放行」，疑他点「截牌」当场摊牌对质。' };
+      step = { key: 'respond', text: '有人出牌了——信他点「放行」，疑他点「截牌」当场翻牌对质。任何在场玩家都能截。' };
     } else if (p.kind === 'penalty' && !shown.has('penalty')) {
       step = { key: 'penalty', text: '你受罚了——不是卡住了！点下方高亮的任意一个骰子＝赌那个点数并掷出，掷中就掉 1 命。连环受罚越来越险。' };
     }
     if (step) setCurrent(step);
-  }, [view, current, shown, lesson]);
+  }, [view, current, shown, phase]);
 
   function dismiss() {
     if (current) setShown((s) => new Set(s).add(current.key));
@@ -52,17 +64,31 @@ export function Coach({ view }: { view: PlayerView }) {
   }
 
   function endTutorial() {
-    useGame.setState({ tutorial: false });
+    useGame.setState({ tutorial: false, tutorialStage: null });
   }
 
-  if (lesson) {
-    return <TutorialLesson onStart={() => setLesson(false)} onSkip={() => setLesson(false)} />;
+  if (phase === 'lesson') {
+    return (
+      <TutorialLesson
+        onStart={() => setPhase('stages')}
+        onSkip={() => enterFreePlay()}
+      />
+    );
+  }
+
+  if (phase === 'stages') {
+    return (
+      <TutorialStages
+        onDone={() => enterFreePlay()}
+        onSkip={() => enterFreePlay()}
+      />
+    );
   }
 
   if (!current) {
     return (
       <div className="coach-tabs">
-        <button className="coach-tab" type="button" onClick={() => setLesson(true)} title={t('重看教学')}>
+        <button className="coach-tab" type="button" onClick={() => setPhase('lesson')} title={t('重看教学')}>
           {t('重看教学')}
         </button>
         <button className="coach-tab" type="button" onClick={endTutorial} title={t('结束引导')}>

@@ -57,23 +57,49 @@ export function pickProfile(seed: number, seat: number): AiProfile {
 
 function applyDifficulty(t: Traits, d: Difficulty): Traits {
   if (d === 'easy') {
-    return { ...t, rationality: t.rationality * 0.7, read: t.read * 0.55, challenge: t.challenge * 0.9 };
+    return {
+      ...t,
+      rationality: t.rationality * 0.55,
+      read: t.read * 0.4,
+      challenge: t.challenge * 0.75,
+      bluff: clamp(t.bluff * 1.3),
+      tilt: clamp(t.tilt * 1.8 + 0.15),
+    };
   }
   if (d === 'master') {
+    // 大师：从博弈论最优基线出发，性格仅作 ±7% 的轻度调味噪声。
+    // 所有 profile 都能解锁全部智能特性（MC/EV/风险/战略诈牌），几乎不上头。
+    const noise = 0.10;
     return {
-      bluff: clamp(t.bluff * 0.85 + 0.12),
-      challenge: clamp(t.challenge * 1.15 + 0.10),
-      risk: clamp(t.risk * 0.9 + 0.08),
-      read: clamp(t.read * 1.35 + 0.18),
-      rationality: clamp(t.rationality * 1.35 + 0.20),
-      tilt: t.tilt * 0.5,
-      patience: clamp(t.patience + 0.15),
+      bluff: clamp(0.52 + (t.bluff - 0.5) * noise),
+      challenge: clamp(0.82 + (t.challenge - 0.5) * 0.08),
+      risk: clamp(0.50 + (t.risk - 0.5) * 0.08),
+      read: clamp(0.98 + (t.read - 0.5) * 0.03),
+      rationality: clamp(0.99 + (t.rationality - 0.5) * 0.02),
+      tilt: t.tilt * 0.02,
+      patience: clamp(0.75 + (t.patience - 0.5) * 0.08),
     };
   }
   if (d === 'hard') {
-    return { ...t, rationality: clamp(t.rationality * 1.2 + 0.12), read: clamp(t.read * 1.25 + 0.12), challenge: clamp(t.challenge * 1.1 + 0.05) };
+    return {
+      ...t,
+      rationality: Math.min(0.86, clamp(t.rationality * 1.35 + 0.22)),
+      read: Math.min(0.82, clamp(t.read * 1.35 + 0.18)),
+      challenge: clamp(t.challenge * 1.2 + 0.10),
+      bluff: clamp(t.bluff * 0.85 + 0.05),
+      tilt: t.tilt * 0.4,
+      patience: clamp(t.patience * 1.2 + 0.08),
+    };
   }
-  return { ...t, rationality: clamp(t.rationality * 1.1 + 0.06), read: clamp(t.read * 1.12 + 0.06), challenge: clamp(t.challenge * 1.05 + 0.03) };
+  if (d === 'normal') {
+    return {
+      ...t,
+      rationality: clamp(t.rationality * 1.08 + 0.06),
+      read: clamp(t.read * 1.1 + 0.06),
+      challenge: clamp(t.challenge * 1.06 + 0.03),
+    };
+  }
+  return t;
 }
 
 interface OppStat {
@@ -81,6 +107,8 @@ interface OppStat {
   lies: number;
   truths: number;
   challenges: number;
+  passes: number;
+  recentActions: ('ch' | 'pa')[];
 }
 
 function nextAlive(view: PlayerView, from: number, dir: 1 | -1): number {
@@ -121,7 +149,7 @@ export class AiPlayer {
   private stat(seat: number): OppStat {
     let s = this.opp.get(seat);
     if (!s) {
-      s = { claims: 0, lies: 0, truths: 0, challenges: 0 };
+      s = { claims: 0, lies: 0, truths: 0, challenges: 0, passes: 0, recentActions: [] };
       this.opp.set(seat, s);
     }
     return s;
@@ -250,6 +278,12 @@ export class AiPlayer {
       score -= val(c.num) * 0.15;
       if (danger > 0.4) score += remaining * danger * 0.5;
       if (danger < 0.3) score += val(c.num) * 0.1;
+      // 大师：考虑对手最近看过什么牌——宣称对手刚看过存在的牌更可信
+      if (this.difficulty === 'master') {
+        const resp = nextAlive(view, view.you, view.direction);
+        const cr = this.challengeRate(resp);
+        if (cr > 0.4) score += remaining * 0.8;
+      }
       if (score > bestScore) {
         bestScore = score;
         bestClaim = c;
@@ -262,12 +296,17 @@ export class AiPlayer {
     return this.traits.rationality > 0.7 ? this.strategicBluffClaim(claims, view) : this.smartBluffClaim(claims, view);
   }
 
-  observe(events: GameEvent[], _view: PlayerView): void {
+  private pendingChallengers: number[] = [];
+
+  observe(events: GameEvent[], view: PlayerView): void {
     this.tilt *= 0.85;
     for (const e of events) {
       switch (e.type) {
         case 'CardPlayed':
           if (e.seat !== this.seat) this.stat(e.seat).claims++;
+          this.pendingChallengers = view.players
+            .filter((p) => !p.out && p.seat !== e.seat)
+            .map((p) => p.seat);
           break;
         case 'CardRevealed':
           this.recordCard(e.card);
@@ -281,8 +320,30 @@ export class AiPlayer {
         case 'Fallback':
           for (const c of e.revealed) this.recordCard(c);
           break;
-        case 'Challenged':
-          if (e.challenger !== this.seat) this.stat(e.challenger).challenges++;
+        case 'Challenged': {
+          const st = this.stat(e.challenger);
+          if (e.challenger !== this.seat) st.challenges++;
+          st.recentActions.push('ch');
+          if (st.recentActions.length > 8) st.recentActions.shift();
+          for (const seat of this.pendingChallengers) {
+            if (seat === e.challenger || seat === this.seat) continue;
+            const ps = this.stat(seat);
+            ps.passes++;
+            ps.recentActions.push('pa');
+            if (ps.recentActions.length > 8) ps.recentActions.shift();
+          }
+          this.pendingChallengers = [];
+          break;
+        }
+        case 'TurnStarted':
+          for (const seat of this.pendingChallengers) {
+            if (seat === this.seat) continue;
+            const ps = this.stat(seat);
+            ps.passes++;
+            ps.recentActions.push('pa');
+            if (ps.recentActions.length > 8) ps.recentActions.shift();
+          }
+          this.pendingChallengers = [];
           break;
         case 'Returned':
           if (e.seat === this.seat) this.tilt = clamp(this.tilt + 0.4 * this.traits.tilt + 0.15);
@@ -305,6 +366,27 @@ export class AiPlayer {
     const s = this.opp.get(seat);
     if (!s) return 0.35;
     return clamp(s.challenges / (s.challenges + 3));
+  }
+
+  // 大师独占：精细质疑率 = 质疑次数 / (质疑 + 放行)，带先验平滑
+  private challengeRate(seat: number): number {
+    const s = this.opp.get(seat);
+    if (!s) return 0.3;
+    const total = s.challenges + s.passes;
+    if (total < 3) return 0.3;
+    return (s.challenges + 0.9) / (total + 3);
+  }
+
+  // 大师独占：近期趋势——最近几次是质疑多还是放行多（检测连续放行 = 可趁虚而入）
+  private recentPassStreak(seat: number): number {
+    const s = this.opp.get(seat);
+    if (!s || s.recentActions.length < 2) return 0;
+    let streak = 0;
+    for (let i = s.recentActions.length - 1; i >= 0; i--) {
+      if (s.recentActions[i] === 'pa') streak++;
+      else break;
+    }
+    return streak;
   }
 
   decide(view: PlayerView): Command {
@@ -331,10 +413,10 @@ export class AiPlayer {
     const { remaining, unseenWilds } = this.countRemaining(claim.color, claim.num, view);
     const impossible = remaining <= 0 && unseenWilds <= 0;
 
-    // ── 地板：数学必诈 → 近乎必抓 ──
+    // ── 地板：数学必诈 → 近乎必抓（大师零失误）──
     if (impossible) {
       this.lastDelay = this.think(600, 800, 0.3);
-      const missRate = 0.02 + (1 - this.traits.rationality) * 0.03;
+      const missRate = this.traits.rationality > 0.95 ? 0 : 0.02 + (1 - this.traits.rationality) * 0.03;
       return this.rand() >= missRate ? { type: 'Challenge' } : { type: 'Accept' };
     }
 
@@ -347,14 +429,24 @@ export class AiPlayer {
     const valueBias = (val(claim.num) / 10) * 0.12;
 
     let pLie: number;
-    if (this.traits.rationality > 0.65) {
-      const mcRuns = this.traits.rationality > 0.8 ? 60 : 30;
+    if (this.traits.rationality > 0.55) {
+      const mcRuns = this.traits.rationality > 0.95 ? 200 : this.traits.rationality > 0.9 ? 100 : this.traits.rationality > 0.75 ? 60 : 30;
       const mcLie = this.mcLieProb(view, claim, player, mcRuns);
       pLie = mix(countLie, mcLie, 0.6) * 0.65 + histLie * 0.25 + valueBias;
     } else {
       pLie = countLie * 0.5 + histLie * 0.35 + (iHold / maxCopies) * 0.15 + valueBias;
     }
     if (remaining <= 0) pLie = Math.max(pLie, 0.7);
+
+    // 大师独占：终局读心——对手牌少时更可能在赌，上调 pLie 估计（经 EV 框架过滤）
+    if (this.difficulty === 'master') {
+      const op = view.players[player];
+      if (op && !op.out) {
+        if (op.handCount <= 2) pLie = Math.max(pLie, 0.65 + this.bluffRate(player) * 0.2);
+        else if (op.handCount <= 4) pLie = Math.max(pLie, 0.50 + this.bluffRate(player) * 0.15);
+        if (op.lives <= 1) pLie = clamp(pLie + 0.08);
+      }
+    }
     pLie = clamp(pLie, 0.05, 0.97);
 
     // ── 决策：高理性走 EV，低理性走 sigmoid ──
@@ -382,8 +474,18 @@ export class AiPlayer {
       const risk = this.riskScore(view);
       const threat = this.opponentThreat(view, player);
       pCh -= risk * 0.12;
-      pCh += threat * 0.18;
+      pCh += threat * (0.15 + this.traits.rationality * 0.12);
       pCh = clamp(pCh, 0.03, 0.98);
+    }
+
+    // 大师独占：精准狙杀 + 适应性剥削
+    if (this.difficulty === 'master') {
+      const op = view.players[player];
+      if (op && !op.out && op.lives <= 1 && op.handCount <= 3) {
+        pCh = clamp(pCh + 0.10);
+      }
+      const br = this.bluffRate(player);
+      if (br > 0.5) pCh = clamp(pCh + (br - 0.5) * 0.35);
     }
 
     const hardness = 1 - Math.min(1, Math.abs(pLie - 0.5) * 3);
@@ -410,6 +512,10 @@ export class AiPlayer {
           const risk = this.riskScore(view);
           const respThreat = this.opponentThreat(view, responder);
           pFunc += risk * 0.15 + respThreat * 0.20;
+        }
+        if (this.difficulty === 'master') {
+          const nearWin = view.players.some((p) => !p.out && p.seat !== view.you && p.handCount <= 4);
+          if (nearWin) pFunc += 0.28;
         }
         pFunc *= 0.6 + this.rand() * 0.8;
         if (this.rand() < clamp(pFunc, 0, 0.55)) {
@@ -445,7 +551,7 @@ export class AiPlayer {
       this.lastDelay = this.think(640, 700, 0.35);
       return { type: 'PlayCard', cardId: honest.id, claim: { color: honest.color, num: honest.num } };
     }
-    const dump = numbers.length ? [...numbers].sort((a, b) => val(b.num) - val(a.num))[0] : playable[0];
+    const dump = numbers.length ? this.smartDump(numbers, view) : playable[0];
     if (this.traits.rationality > 0.7) {
       const cc = new Map<Color, number>();
       for (const c of view.yourHand) if (c.kind === 'number') cc.set(c.color, (cc.get(c.color) ?? 0) + 1);
@@ -464,7 +570,8 @@ export class AiPlayer {
       .sort((a, b) => val(a.claim.num) - val(b.claim.num));
 
     if (honest.length) {
-      const bluffInstead = this.rand() < this.traits.bluff * 0.18 && numbers.length > honest.length;
+      const bluffRate = this.difficulty === 'master' ? 0.06 : this.traits.bluff * 0.18;
+      const bluffInstead = this.rand() < bluffRate && numbers.length > honest.length;
       if (!bluffInstead) {
         const pick = this.pickEscalation(honest);
         this.lastDelay = this.think(560, 800, 0.3);
@@ -478,6 +585,15 @@ export class AiPlayer {
     if (canDraw && honest.length === 0) {
       let pDraw = clamp(0.35 + (1 - this.traits.risk) * 0.35 + this.traits.patience * 0.15 - danger * 0.1);
       if (this.traits.rationality > 0.7) pDraw += this.riskScore(view) * 0.15;
+      if (this.difficulty === 'master') {
+        // 摸牌 EV：估算摸到合法如实牌的概率
+        const drawHitRate = this.estimateDrawHit(view);
+        if (drawHitRate > 0.35) pDraw += 0.25;
+        else if (drawHitRate < 0.12) pDraw -= 0.20;
+        // 下家质疑率高 → 诈牌代价大 → 更倾向摸牌
+        const resp = nextAlive(view, view.you, view.direction);
+        pDraw += this.challengeRate(resp) * 0.15;
+      }
       if (this.rand() < pDraw) {
         this.lastDelay = this.think(620, 700, 0.4);
         return { type: 'Draw' };
@@ -495,8 +611,18 @@ export class AiPlayer {
     if (numbers.length && claims.length) {
       let bluffAppetite = clamp(this.traits.bluff + this.tilt * 0.2 - danger * 0.5 * this.traits.read);
       if (this.traits.rationality > 0.7) bluffAppetite -= this.riskScore(view) * 0.2;
+      if (this.difficulty === 'master') {
+        // 针对性诈牌：分析下家质疑倾向，对被动对手加大诈牌
+        const resp = nextAlive(view, view.you, view.direction);
+        const cr = this.challengeRate(resp);
+        const passStreak = this.recentPassStreak(resp);
+        bluffAppetite += (0.5 - cr) * 0.4;
+        if (passStreak >= 3) bluffAppetite += 0.15;
+        // 低危险环境整体更敢诈
+        bluffAppetite += (0.5 - danger) * 0.15;
+      }
       if (this.rand() < clamp(0.35 + bluffAppetite * 0.6) || (!canDraw && !wild)) {
-        const dump = [...numbers].sort((a, b) => val(b.num) - val(a.num))[0];
+        const dump = this.smartDump(numbers, view);
         this.lastDelay = this.think(880, 1300, 0.65);
         return { type: 'PlayCard', cardId: dump.id, claim: this.pickClaim(claims, view) };
       }
@@ -504,7 +630,7 @@ export class AiPlayer {
         this.lastDelay = this.think(560, 600, 0.4);
         return { type: 'Draw' };
       }
-      const dump = [...numbers].sort((a, b) => val(b.num) - val(a.num))[0];
+      const dump = this.smartDump(numbers, view);
       this.lastDelay = this.think(880, 1200, 0.65);
       return { type: 'PlayCard', cardId: dump.id, claim: this.pickClaim(claims, view) };
     }
@@ -515,6 +641,44 @@ export class AiPlayer {
     }
     this.lastDelay = this.think(520, 600, 0.4);
     return { type: 'Fallback' };
+  }
+
+  // 大师独占：估算摸一张牌后能合法如实出的概率（基于牌张计数）
+  private estimateDrawHit(view: PlayerView): number {
+    const top = view.ladderTop;
+    let goodCards = 0;
+    let totalPool = 0;
+    for (const color of COLORS) {
+      for (let num = 0; num <= 9; num++) {
+        const total = num === 0 ? 1 : 2;
+        const inHand = view.yourHand.filter((c) => c.kind === 'number' && c.color === color && c.num === num).length;
+        const s = this.seen.get(`${color}:${num}`) ?? 0;
+        const rem = Math.max(0, total - inHand - s);
+        totalPool += rem;
+        if (!top) {
+          if (num >= 1 && num <= 3) goodCards += rem;
+        } else {
+          if (color === top.color && val(num) > val(top.num)) goodCards += rem;
+          if (color !== top.color && num === top.num) goodCards += rem;
+        }
+      }
+    }
+    const wildsInHand = view.yourHand.filter((c) => c.kind === 'wild').length;
+    const wildsSeen = this.seen.get('wild') ?? 0;
+    const wildPool = Math.max(0, view.players.length - wildsInHand - wildsSeen);
+    goodCards += wildPool;
+    totalPool += wildPool;
+    return totalPool > 0 ? goodCards / totalPool : 0;
+  }
+
+  // 大师弃牌：保留最强颜色连续牌，丢弱色 / 高值垃圾牌。
+  private smartDump(numbers: NumCard[], view: PlayerView): NumCard {
+    if (this.difficulty === 'master' && numbers.length > 1) {
+      const cc = new Map<Color, number>();
+      for (const c of view.yourHand) if (c.kind === 'number') cc.set(c.color, (cc.get(c.color) ?? 0) + 1);
+      return [...numbers].sort((a, b) => (cc.get(a.color) ?? 0) - (cc.get(b.color) ?? 0) || val(b.num) - val(a.num))[0];
+    }
+    return [...numbers].sort((a, b) => val(b.num) - val(a.num))[0];
   }
 
   private pickEscalation(honest: { c: NumCard; claim: Claim }[]): { c: NumCard; claim: Claim } {
