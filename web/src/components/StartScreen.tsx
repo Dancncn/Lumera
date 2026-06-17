@@ -40,22 +40,18 @@ export function StartScreen() {
       <div className="start">
         <Emblem className="start-emblem" />
         <h1 className="start-title">
-          <span className="title-cjk">源</span>
+          <span className="title-cjk">源河</span>
           <span className="title-sep">·</span>
           <span className="title-latin">Lumera</span>
         </h1>
         <div className="title-rule" />
-        <p className="start-desc">
-          你是源裂出的一缕意志。
-          <br />
-          引着掌中的水涌向交汇处，赶在被收回之前，第一个汇成。
-        </p>
+        <p className="start-desc">盖牌、说谎、拆穿 —— 一缕意志，抢着先汇成。</p>
 
         <div className="start-how">
-          <p>盖着出牌，嘴上说它是什么 —— 可以撒谎。</p>
-          <p>下家信不信由他：信了就换他出，不信就当场翻开对质。</p>
-          <p>骗被抓、或冤枉了好人，都得去摇那只越摇越凶的骰子。</p>
-          <p>想赢，要么逮住别人说谎，要么自己第一个把牌出光。</p>
+          <p>轮到你：盖一张牌扣下，报出它是「某色某数」—— 真话、假话都行。</p>
+          <p>下家二选一：放行（换他接着出），或截牌、当场翻开对质。</p>
+          <p>翻开见真假：报的是真，截牌方受罚；报的是假，出牌方受罚。受罚要掷骰赌命，连着受罚越来越凶。</p>
+          <p>怎么赢：率先把手牌出光，或靠截穿对手攒下整摞牌，终局分高者胜。</p>
           <p className="start-how-more">细则点右上角「?」。</p>
         </div>
 
@@ -94,7 +90,7 @@ export function StartScreen() {
               <span className="start-hint">{DIFFS.find((d) => d.key === difficulty)?.hint}</span>
             </div>
             <button className="start-go" onClick={() => newGame(players, difficulty)} type="button">
-              转动命运之轮，入局
+              涌出 · 入局
             </button>
           </div>
         ) : (

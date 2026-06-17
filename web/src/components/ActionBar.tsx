@@ -169,14 +169,14 @@ function Prompt({ view }: { view: PlayerView }) {
     return (
       <div className="prompt prompt-respond">
         <span>
-          <strong>{nameOf(p.player)}</strong> 宣称 <ClaimChip claim={p.claim} />，盖着出了一张。可夺牌堆 {view.pileCount} 张。
+          <strong>{nameOf(p.player)}</strong> 盖牌出了一张，宣称 <ClaimChip claim={p.claim} />。信就放行，疑就截牌翻开（夺牌堆 {view.pileCount} 张）。
         </span>
         <div className="ctrl-btns">
           <button className="btn btn-accept" type="button" onClick={() => human({ type: 'Accept' })}>
-            接受 <kbd>空格</kbd>
+            放行 <kbd>空格</kbd>
           </button>
           <button className="btn btn-challenge" type="button" onClick={() => human({ type: 'Challenge' })}>
-            质疑！ <kbd>D</kbd>
+            截牌！ <kbd>D</kbd>
           </button>
         </div>
       </div>

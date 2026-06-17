@@ -24,7 +24,7 @@ export function Table({ view }: { view: PlayerView }) {
         <div className="brand">
           <Emblem className="brand-emblem" />
           <span className="brand-text">
-            源 · <i>Lumera</i>
+            源河 · <i>Lumera</i>
           </span>
         </div>
         <div className="topbar-right">

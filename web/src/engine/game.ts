@@ -116,7 +116,7 @@ function logLine(s: GameState, ev: GameEvent): string | null {
     case 'Fallback':
       return `${nm(ev.seat)} 无数字牌可出，亮手兜底、弃功能、摸一张`;
     case 'Challenged':
-      return `${nm(ev.challenger)} 质疑 ${nm(ev.against)}：「我认为你在骗！」`;
+      return `${nm(ev.challenger)} 截下 ${nm(ev.against)} 的牌，要他摊开对质！`;
     case 'CardRevealed':
       return `摊牌！真实是 ${ev.card.kind === 'wild' ? '万能牌（恒判真）' : ev.card.kind === 'number' ? claimTok(ev.card.color, ev.card.num) : '功能牌'} —— ${ev.truthful ? '宣称为真' : '撒谎被抓'}`;
     case 'PileTaken':
