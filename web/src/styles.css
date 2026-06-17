@@ -149,14 +149,14 @@ button {
 }
 .start {
   max-width: 600px;
-  padding: 5vh 24px;
+  padding: 3vh 24px;
   text-align: center;
 }
 .start-emblem {
   display: block;
-  width: 122px;
-  height: 122px;
-  margin: 0 auto 8px;
+  width: 94px;
+  height: 94px;
+  margin: 0 auto 4px;
   filter: drop-shadow(0 5px 16px rgba(124, 102, 53, 0.16));
 }
 .start-desc {
@@ -166,7 +166,7 @@ button {
   font-style: italic;
 }
 .start-how {
-  margin: 26px auto 4px;
+  margin: 12px auto 2px;
   max-width: 460px;
   color: var(--ink-soft);
   line-height: 1.5;
@@ -185,8 +185,8 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  margin: 26px 0 22px;
+  gap: 8px;
+  margin: 14px 0 12px;
 }
 .start-label {
   letter-spacing: 4px;
@@ -227,8 +227,8 @@ button {
 .start-go {
   position: relative;
   isolation: isolate;
-  margin-top: 12px;
-  padding: 16px 56px;
+  margin-top: 10px;
+  padding: 12px 48px;
   font-size: 16px;
   font-weight: 600;
   letter-spacing: 6px;
@@ -1087,23 +1087,25 @@ button.claim-chip:hover {
 }
 .log-tab {
   position: fixed;
-  right: 0;
-  top: 96px;
-  writing-mode: vertical-rl;
-  letter-spacing: 4px;
-  font-size: 13px;
+  right: 16px;
+  top: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
   color: var(--gold-muted);
-  padding: 16px 8px;
   border: 1px solid var(--line);
-  border-right: none;
-  border-radius: 10px 0 0 10px;
+  border-radius: 10px;
   background: rgba(250, 248, 243, 0.95);
-  box-shadow: -4px 4px 14px rgba(80, 66, 40, 0.12);
+  box-shadow: 0 6px 16px rgba(80, 66, 40, 0.14);
+  cursor: pointer;
   z-index: 15;
-  transition: color 0.18s ease, background 0.18s ease;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
 }
 .log-tab:hover {
   color: var(--gold-deep);
+  border-color: var(--gold);
   background: #fffdf8;
 }
 
@@ -1775,7 +1777,7 @@ kbd {
 .title-rule {
   width: 134px;
   height: 1px;
-  margin: 14px auto 0;
+  margin: 9px auto 0;
   background: linear-gradient(90deg, transparent, var(--gold) 28%, var(--gold) 72%, transparent);
   opacity: 0.5;
 }
@@ -3223,5 +3225,98 @@ kbd {
   .btn-accept,
   .btn-challenge {
     flex: 1 1 40%;
+  }
+}
+
+/* ============================================================
+   关于弹窗
+   ============================================================ */
+.about-modal {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 92vw);
+  background: linear-gradient(180deg, #fffdf8, #f6efe0);
+  border: 1px solid var(--gold);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(60, 48, 28, 0.34);
+  overflow: hidden;
+}
+.about-body {
+  padding: 18px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.about-line {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  font-size: 15px;
+}
+.about-k {
+  flex: 0 0 4.2em;
+  color: var(--gold-muted);
+  letter-spacing: 2px;
+  font-size: 13px;
+}
+.about-v {
+  color: var(--ink);
+  font-family: var(--serif);
+}
+.about-link {
+  color: var(--gold-deep);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-soft);
+}
+.about-link:hover {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+.about-thanks {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--line-soft);
+  padding-top: 14px;
+}
+
+/* 顶栏图标按钮：图标 + 文字（窄屏只留图标） */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-icon svg {
+  display: block;
+}
+
+/* ============================================================
+   窄屏：顶栏按钮图标化、事件流图标上移、退出确认收紧
+   ============================================================ */
+@media (max-width: 760px) {
+  .btn-icon .btn-label {
+    display: none;
+  }
+  .btn-icon {
+    padding: 7px 9px;
+  }
+  .log-tab {
+    top: 58px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+  }
+  .quit-confirm .quit-ask {
+    display: none;
+  }
+  .quit-confirm .btn-danger,
+  .quit-confirm .btn-ghost {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .about-modal {
+    width: 93vw;
   }
 }

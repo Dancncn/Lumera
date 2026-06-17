@@ -21,7 +21,7 @@ export function PlayToast({ view }: { view: PlayerView }) {
               <strong>{view.players[e.seat]?.name}</strong> 宣称
               <span className="toast-claim" style={{ color: m.hex }}>
                 <span className="toast-dot" style={{ background: m.hex }} />
-                {m.say} {numTxt}
+                {m.name} {numTxt}
               </span>
               {e.endsLadder && <span className="toast-mark">打 0 · 终结本梯</span>}
             </>

@@ -180,7 +180,7 @@ function HandSummary({ hand }: { hand: Card[] }) {
         return (
           <span key={col} className="hs-group" style={{ color: m.hex }}>
             <span className="hs-dot" style={{ background: m.hex }} />
-            {m.say} {a.sort((x, y) => val(x) - val(y)).map((n) => (n === 0 ? '0' : n)).join(' ')}
+            {m.name} {a.sort((x, y) => val(x) - val(y)).map((n) => (n === 0 ? '0' : n)).join(' ')}
           </span>
         );
       })}

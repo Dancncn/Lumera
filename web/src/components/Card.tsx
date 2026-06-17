@@ -80,7 +80,7 @@ export function CardFace({
           <span className="card-num">{numLabel(card.num)}</span>
           {card.num === 0 && <span className="card-zero-note">顶 · 10</span>}
         </div>
-        <div className="card-name card-say">{m.say}</div>
+        <div className="card-name">{m.name}</div>
       </div>
     );
   }
@@ -138,10 +138,10 @@ export function CardBack({ small }: { small?: boolean }) {
         <circle cx="30" cy="42" r="15" fill="none" stroke="#C2A158" strokeWidth="0.8" />
         <circle cx="30" cy="42" r="10" fill="none" stroke="#C2A158" strokeWidth="0.4" strokeOpacity="0.5" />
         <circle cx="30" cy="42" r="2" fill="#C2A158" />
-        <circle cx="30" cy="27" r="2" fill="#C79A3A" />
-        <circle cx="45" cy="42" r="2" fill="#4C77A8" />
-        <circle cx="30" cy="57" r="2" fill="#7C8595" />
-        <circle cx="15" cy="42" r="2" fill="#5F8C5A" />
+        <circle cx="30" cy="27" r="2" fill="#E0A92E" />
+        <circle cx="45" cy="42" r="2" fill="#2E8AD0" />
+        <circle cx="30" cy="57" r="2" fill="#8FA0B8" />
+        <circle cx="15" cy="42" r="2" fill="#54AC4F" />
       </svg>
     </div>
   );
@@ -171,7 +171,7 @@ export function ClaimChip({
     >
       {hotkey !== undefined && <span className="hot">{hotkey}</span>}
       <span className="claim-dot" />
-      <span className="claim-name">{m.say}</span>
+      <span className="claim-name">{m.name}</span>
       <span className="claim-num">
         {numLabel(claim.num)}
         {claim.num === 0 && <span className="claim-top">顶</span>}

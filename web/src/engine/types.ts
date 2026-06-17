@@ -17,10 +17,10 @@ export const COLOR_META: Record<
   Color,
   { name: string; glyph: string; say: string; hex: string; bg: string; ink: string }
 > = {
-  aurel: { name: 'Aurel', glyph: '阳', say: '金', hex: '#C79A3A', bg: '#FBF6E8', ink: '#9A6A14' },
-  selvar: { name: 'Selvar', glyph: '月', say: '银', hex: '#7C8595', bg: '#262A31', ink: '#CCD2DC' },
-  verda: { name: 'Verda', glyph: '地', say: '绿', hex: '#5F8C5A', bg: '#2C4736', ink: '#DCE8D0' },
-  thalos: { name: 'Thalos', glyph: '海', say: '蓝', hex: '#4C77A8', bg: '#1F3A58', ink: '#C2D7EC' },
+  aurel: { name: 'Aurel', glyph: '阳', say: '金', hex: '#E0A92E', bg: '#FBE9AE', ink: '#7C5310' },
+  selvar: { name: 'Selvar', glyph: '月', say: '银', hex: '#8FA0B8', bg: '#EAEEF4', ink: '#43526A' },
+  verda: { name: 'Verda', glyph: '地', say: '绿', hex: '#54AC4F', bg: '#1C4A29', ink: '#D8F2C4' },
+  thalos: { name: 'Thalos', glyph: '海', say: '蓝', hex: '#2E8AD0', bg: '#0E3A65', ink: '#BBE2F8' },
 };
 
 export type FunctionalKind = 'reverse' | 'skip';

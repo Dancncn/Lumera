@@ -42,7 +42,7 @@ export function ClaimPicker({
               <span className="ctb-tag">如实出牌</span>
               <span className="ctb-claim">
                 <span className="ctb-dot" style={{ background: m.hex }} />
-                {m.say} {numTxt(honestClaim.num)}
+                {m.name} {numTxt(honestClaim.num)}
               </span>
               <span className="ctb-hint">出真牌点这里</span>
             </button>
@@ -67,7 +67,7 @@ export function ClaimPicker({
                 >
                   <span className="ccb-say">
                     <span className="ccb-dot" style={{ background: m.hex }} />
-                    {m.say}
+                    {m.name}
                   </span>
                   <span className="ccb-nums">{nums.map(numTxt).join(' ')}</span>
                 </button>
@@ -86,7 +86,7 @@ export function ClaimPicker({
                   </button>
                   <span className="c2n-color" style={{ color: m.hex }}>
                     <span className="ccb-dot" style={{ background: m.hex }} />
-                    {m.say}
+                    {m.name}
                   </span>
                 </div>
                 <div className="c2n-grid">

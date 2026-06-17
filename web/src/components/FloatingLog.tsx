@@ -70,8 +70,10 @@ export function FloatingLog({ view }: { view: PlayerView }) {
 
   if (!open) {
     return (
-      <button className="log-tab" type="button" onClick={() => setOpen(true)} title="展开事件流">
-        <span>事 件 流</span>
+      <button className="log-tab" type="button" onClick={() => setOpen(true)} title="事件流" aria-label="展开事件流">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 5.5h14M5 10h14M5 14.5h14M5 19h9" />
+        </svg>
       </button>
     );
   }

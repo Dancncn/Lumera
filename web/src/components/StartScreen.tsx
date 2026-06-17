@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useGame } from '../store/gameStore';
 import { Difficulty } from '../engine/ai';
+import { AboutButton } from './AboutModal';
 import { DataMonitor } from './DataMonitor';
 import { Emblem } from './Emblem';
 import { SideRivers } from './MeteorShower';
@@ -38,6 +39,7 @@ export function StartScreen() {
       <div className="start-corner">
         <DataMonitor />
         <RulesButton />
+        <AboutButton />
       </div>
 
       <div className="start">
@@ -51,11 +53,8 @@ export function StartScreen() {
         <p className="start-desc">盖牌、说谎、拆穿 —— 一缕意志，抢着先汇成。</p>
 
         <div className="start-how">
-          <p>轮到你：盖一张牌扣下，报出它是「某色某数」—— 真话、假话都行。</p>
-          <p>下家二选一：放行（换他接着出），或截牌、当场翻开对质。</p>
-          <p>翻开见真假：报的是真，截牌方受罚；报的是假，出牌方受罚。受罚要掷骰赌命，连着受罚越来越凶。</p>
-          <p>怎么赢：率先把手牌出光，或靠截穿对手攒下整摞牌，终局分高者胜。</p>
-          <p className="start-how-more">细则点右上角「?」。</p>
+          <p>盖牌出、报出它是什么（可真可假）；下家放行或截牌摊牌，输的一方掷骰赌命。</p>
+          <p className="start-how-more">先出光手牌、或截穿对手攒牌者赢 · 不熟规则先点下方「新手引导」，细则见右上角「?」</p>
         </div>
 
         <div className="start-tabs">
