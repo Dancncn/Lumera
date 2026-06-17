@@ -8,7 +8,7 @@ export interface Stats {
   peakOnline: number;
 }
 
-const SEED: Stats = { visits: 56, games: 24, peakOnline: 8 };
+const SEED: Stats = { visits: 56, games: 38, peakOnline: 8 };
 
 const here = dirname(fileURLToPath(import.meta.url));
 const FILE = process.env.STATS_FILE ?? join(here, 'state', 'stats.json');
@@ -59,6 +59,25 @@ export function countOnline(current: number): void {
     data.peakOnline = current;
     mark();
   }
+}
+
+// 「当前在线」：每个打开的页面会话定期心跳，按 TTL 统计活跃数（含单机本地玩家）。
+const ONLINE_TTL = 35000;
+const sessions = new Map<string, number>();
+
+export function touchSession(id: string): void {
+  sessions.set(id, Date.now() + ONLINE_TTL);
+}
+
+export function liveOnline(): number {
+  const now = Date.now();
+  for (const [k, exp] of sessions) if (exp <= now) sessions.delete(k);
+  const n = sessions.size;
+  if (n > data.peakOnline) {
+    data.peakOnline = n;
+    mark();
+  }
+  return n;
 }
 
 export function snapshot(): Stats {

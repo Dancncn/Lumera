@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Hub } from './hub';
 import { Conn } from './room';
 import { makeStaticHandler } from './static';
-import { countOnline, countVisit, snapshot } from './stats';
+import { countGame, countOnline, countVisit, liveOnline, snapshot, touchSession } from './stats';
 import { ClientMsg, MAX_ROOM_ID } from '../../web/src/net/protocol';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -26,7 +26,28 @@ const http = createServer((req, res) => {
   if (req.url === '/stats') {
     res
       .writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
-      .end(JSON.stringify({ ...snapshot(), online: wss.clients.size }));
+      .end(JSON.stringify({ ...snapshot(), online: liveOnline() }));
+    return;
+  }
+  // 心跳：本机/任何打开的页面定期上报，计入「当前在线」
+  if (req.url && req.url.startsWith('/beat')) {
+    try {
+      const s = new URL(req.url, 'http://x').searchParams.get('s');
+      if (s) touchSession(s.slice(0, 64));
+    } catch {
+      /* ignore */
+    }
+    res
+      .writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+      .end(JSON.stringify({ online: liveOnline() }));
+    return;
+  }
+  // 单机本地对局上报（联机对局由 room 内部计数）
+  if (req.method === 'POST' && req.url && req.url.startsWith('/game')) {
+    countGame();
+    res
+      .writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+      .end(JSON.stringify({ ok: true }));
     return;
   }
   if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) countVisit();

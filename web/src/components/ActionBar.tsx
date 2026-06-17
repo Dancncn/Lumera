@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Claim, PlayerView } from '../engine/types';
+import { Card, Claim, Color, COLORS, COLOR_META, PlayerView } from '../engine/types';
 import { legalClaims, val } from '../engine/game';
 import { useGame } from '../store/gameStore';
 import { CardFace, ClaimChip } from './Card';
@@ -30,12 +30,12 @@ export function ActionBar({ view }: { view: PlayerView }) {
   const selCard = view.yourHand.find((c) => c.id === selId) ?? null;
   const claims = myTurnPlay ? legalClaims(view.ladderTop, p.isFirst) : [];
 
-  const truthfulFor = (claim: Claim): boolean => {
-    if (!selCard) return false;
-    if (selCard.kind === 'wild') return true;
-    if (selCard.kind === 'number') return selCard.color === claim.color && selCard.num === claim.num;
-    return false;
-  };
+  const wild = selCard?.kind === 'wild';
+  // 如实出牌：所选数字牌恰好有一个合法的「同色同数」宣称（万能牌无所谓真假，不给如实键）
+  const honestClaim =
+    selCard && selCard.kind === 'number'
+      ? claims.find((c) => c.color === selCard.color && c.num === selCard.num) ?? null
+      : null;
 
   function onCardClick(card: Card) {
     if (!myTurnPlay) return;
@@ -106,36 +106,35 @@ export function ActionBar({ view }: { view: PlayerView }) {
           <span className="ctrl-tip">
             {p.isFirst ? '首家：盖一张牌，宣称某色 1–3（可撒谎）' : '接牌：同色更大 / 同数字换色（可撒谎）'}
           </span>
-          <div className="ctrl-btns">
-            {p.canDraw && (
-              <button className="btn" type="button" onClick={() => human({ type: 'Draw' })}>
-                先摸一张 <kbd>W</kbd>
-              </button>
-            )}
-            {p.canFallback && (
-              <button className="btn" type="button" onClick={() => human({ type: 'Fallback' })}>
-                兜底 <kbd>F</kbd>
-              </button>
-            )}
-          </div>
+          {(p.canDraw || p.canFallback) && (
+            <span className="ctrl-mini">
+              {p.canDraw && (
+                <button className="btn btn-mini" type="button" onClick={() => human({ type: 'Draw' })}>
+                  摸一张
+                </button>
+              )}
+              {p.canFallback && (
+                <button className="btn btn-mini" type="button" onClick={() => human({ type: 'Fallback' })}>
+                  兜底
+                </button>
+              )}
+            </span>
+          )}
         </div>
       )}
 
       {myTurnPlay && selCard && (
         <div className="claim-picker">
-          <span className="claim-picker-tip">
-            盖牌出这张，宣称为（按数字键 / 回车出最稳）：
-            {selCard.kind === 'wild' && <em> 万能牌 —— 喊什么都判真</em>}
-          </span>
-          <ClaimPicker claims={claims} truthfulFor={truthfulFor} onPick={onClaimClick} tutorial={tutorial} />
+          <ClaimPicker claims={claims} honestClaim={honestClaim} wild={!!wild} onPick={onClaimClick} tutorial={tutorial} />
         </div>
       )}
 
       <div className="hand">
         <div className="hand-label">
           你的手牌 · {view.yourHand.length}
-          {myTurnPlay && <span className="kbd-hint">　数字键选牌 · 回车出最稳 · Esc 取消</span>}
+          {myTurnPlay && <span className="kbd-hint">　点牌选中 · 回车出最稳 · Esc 取消</span>}
         </div>
+        <HandSummary hand={view.yourHand} />
         <div className={`hand-cards${tutorial && myTurnPlay && !selCard ? ' tut-glow' : ''}`}>
           {view.yourHand.length === 0 && <span className="hand-empty">（空）</span>}
           {view.yourHand.map((card, i) => (
@@ -151,6 +150,43 @@ export function ActionBar({ view }: { view: PlayerView }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// 手牌速览：按颜色归并，移动端只露 4 张时也能一眼知道手里有什么。
+function HandSummary({ hand }: { hand: Card[] }) {
+  if (hand.length === 0) return null;
+  const byColor = new Map<Color, number[]>();
+  let nWild = 0;
+  let nRev = 0;
+  let nSkip = 0;
+  for (const c of hand) {
+    if (c.kind === 'number') {
+      const a = byColor.get(c.color) ?? [];
+      a.push(c.num);
+      byColor.set(c.color, a);
+    } else if (c.kind === 'wild') nWild++;
+    else if (c.func === 'reverse') nRev++;
+    else nSkip++;
+  }
+  return (
+    <div className="hand-summary">
+      <span className="hs-label">速览</span>
+      {COLORS.map((col) => {
+        const a = byColor.get(col);
+        if (!a) return null;
+        const m = COLOR_META[col];
+        return (
+          <span key={col} className="hs-group" style={{ color: m.hex }}>
+            <span className="hs-dot" style={{ background: m.hex }} />
+            {m.say} {a.sort((x, y) => val(x) - val(y)).map((n) => (n === 0 ? '0' : n)).join(' ')}
+          </span>
+        );
+      })}
+      {nWild > 0 && <span className="hs-group hs-special">万能×{nWild}</span>}
+      {nRev > 0 && <span className="hs-group hs-special">转向×{nRev}</span>}
+      {nSkip > 0 && <span className="hs-group hs-special">禁止×{nSkip}</span>}
     </div>
   );
 }

@@ -758,14 +758,14 @@ button {
   border: 1.5px solid var(--gold);
 }
 .force-mark {
-  width: 26px;
-  height: 26px;
+  width: 31px;
+  height: 31px;
   color: var(--ink);
-  opacity: 0.72;
+  opacity: 0.78;
 }
 .card-sm .force-mark {
-  width: 20px;
-  height: 20px;
+  width: 23px;
+  height: 23px;
 }
 .force-mark-ink,
 .wild-ring {
@@ -819,6 +819,18 @@ button {
   font-style: italic;
   letter-spacing: 1.5px;
   opacity: 0.58;
+}
+/* 牌面色名（金/银/绿/蓝）——用户按颜色记牌，做清楚些、不斜体 */
+.card-say {
+  font-style: normal;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  opacity: 0.9;
+}
+.card-sm .card-say {
+  font-size: 10px;
+  letter-spacing: 1.5px;
 }
 .card-func-label {
   font-size: 15px;
@@ -927,20 +939,30 @@ button.claim-chip:hover {
   gap: 12px;
 }
 .play-controls {
-  margin-top: 10px;
+  margin-top: 8px;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   flex-wrap: wrap;
 }
 .ctrl-tip {
   color: var(--ink-soft);
-  font-size: 14px;
+  font-size: 13.5px;
+}
+.ctrl-mini {
+  display: inline-flex;
+  gap: 8px;
+}
+.btn-mini {
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+  white-space: nowrap;
 }
 .claim-picker {
-  margin-top: 12px;
-  padding: 12px 16px;
+  margin-top: 10px;
+  padding: 10px 14px;
   border: 1px dashed var(--line);
   border-radius: 12px;
   background: rgba(252, 251, 247, 0.55);
@@ -2982,5 +3004,224 @@ kbd {
   }
   .lesson-title {
     font-size: 19px;
+  }
+}
+
+/* ============================================================
+   宣称选择器 v2：如实大键 + 两级诈称（金/银/绿/蓝），PC/移动统一
+   ============================================================ */
+.claimpick {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  align-items: stretch;
+}
+.claim-true-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 11px 16px;
+  border: 1.5px solid var(--c, var(--gold));
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fffdf8, #f6f0e4);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(80, 66, 40, 0.1);
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.claim-true-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 7px 18px rgba(80, 66, 40, 0.18);
+}
+.ctb-tag {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--gold-dark);
+  font-weight: 600;
+}
+.ctb-claim {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--c);
+}
+.ctb-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+}
+.ctb-hint {
+  font-size: 11px;
+  color: var(--ink-soft);
+  letter-spacing: 1px;
+}
+.claim-wild-note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--gold-deep);
+  letter-spacing: 1px;
+}
+.claim-bluff {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.claim-bluff-cap {
+  font-size: 12px;
+  color: var(--ink-soft);
+  letter-spacing: 1px;
+}
+.claim-colors {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.claim-color-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 66px;
+  padding: 7px 14px;
+  border: 1px solid var(--c, var(--line));
+  border-left-width: 4px;
+  border-radius: 10px;
+  background: var(--card-face);
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.claim-color-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 13px rgba(80, 66, 40, 0.14);
+}
+.ccb-say {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ccb-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+.ccb-nums {
+  font-size: 11px;
+  color: var(--ink-soft);
+  letter-spacing: 1px;
+}
+.claim-nums {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.c2n-grid {
+  grid-template-columns: repeat(5, 1fr);
+  justify-content: center;
+}
+
+/* 手牌速览：只露 4 张时也一眼知道手里有什么 */
+.hand-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 12px;
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+.hs-label {
+  color: var(--gold-muted);
+  letter-spacing: 1px;
+  font-size: 11px;
+}
+.hs-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.hs-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.hs-special {
+  color: var(--gold-deep);
+}
+
+/* 按钮统一不换行，防窄屏文字撑变形 */
+.btn {
+  white-space: nowrap;
+}
+
+/* ============================================================
+   移动端补强：手牌单排横滑（露约 4 张）+ 隐藏键位 + 紧凑
+   ============================================================ */
+@media (max-width: 760px) {
+  .hand-cards {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    gap: 8px;
+    padding-bottom: 6px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .hand-card {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+  .hand-label .kbd-hint {
+    display: none;
+  }
+  kbd {
+    display: none;
+  }
+  .claim-picker {
+    padding: 8px 10px;
+  }
+  .claim-true-btn {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .ctb-hint {
+    display: none;
+  }
+  .claim-color-btn {
+    min-width: 0;
+    flex: 1 1 calc(25% - 6px);
+    padding: 7px 3px;
+    border-left-width: 3px;
+  }
+  .ccb-say {
+    font-size: 14px;
+    gap: 4px;
+  }
+  .ccb-nums {
+    font-size: 9.5px;
+    letter-spacing: 0;
+  }
+  .hand-summary {
+    font-size: 11px;
+    gap: 3px 9px;
+    margin-bottom: 6px;
+  }
+  .claim-true-btn {
+    padding: 9px 10px;
+  }
+  .ctb-claim {
+    font-size: 17px;
+  }
+  .btn-accept,
+  .btn-challenge {
+    flex: 1 1 40%;
   }
 }

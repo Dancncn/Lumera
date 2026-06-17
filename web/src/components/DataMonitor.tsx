@@ -8,7 +8,7 @@ interface StatsData {
 }
 
 // 服务器无 /stats（如纯前端 dev）时的兜底种子，与后端 SEED 一致。
-const SEED: StatsData = { visits: 56, games: 24, peakOnline: 8, online: 0 };
+const SEED: StatsData = { visits: 56, games: 38, peakOnline: 8, online: 1 };
 
 const CARDS: { key: keyof StatsData; label: string; suffix: string }[] = [
   { key: 'visits', label: '网站访问', suffix: '次' },
@@ -24,18 +24,23 @@ export function DataMonitor() {
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    fetch('/stats', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (alive && d && typeof d.visits === 'number') {
-          setData({ visits: d.visits, games: d.games, peakOnline: d.peakOnline, online: d.online ?? 0 });
-        }
-      })
-      .catch(() => undefined);
+    const pull = () => {
+      fetch('/stats', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (alive && d && typeof d.visits === 'number') {
+            setData({ visits: d.visits, games: d.games, peakOnline: d.peakOnline, online: d.online ?? 0 });
+          }
+        })
+        .catch(() => undefined);
+    };
+    pull();
+    const iv = setInterval(pull, 5000); // 打开期间实时刷新「当前在线」
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     window.addEventListener('keydown', onKey);
     return () => {
       alive = false;
+      clearInterval(iv);
       window.removeEventListener('keydown', onKey);
     };
   }, [open]);

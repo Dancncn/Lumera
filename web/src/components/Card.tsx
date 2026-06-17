@@ -80,7 +80,7 @@ export function CardFace({
           <span className="card-num">{numLabel(card.num)}</span>
           {card.num === 0 && <span className="card-zero-note">顶 · 10</span>}
         </div>
-        <div className="card-name">{m.name}</div>
+        <div className="card-name card-say">{m.say}</div>
       </div>
     );
   }
@@ -171,7 +171,7 @@ export function ClaimChip({
     >
       {hotkey !== undefined && <span className="hot">{hotkey}</span>}
       <span className="claim-dot" />
-      <span className="claim-name">{m.name}</span>
+      <span className="claim-name">{m.say}</span>
       <span className="claim-num">
         {numLabel(claim.num)}
         {claim.num === 0 && <span className="claim-top">顶</span>}

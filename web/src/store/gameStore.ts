@@ -3,6 +3,7 @@ import { actorOf, apply, buildTutorialDeck, createGame, DEFAULT_CONFIG, viewFor 
 import { AiPlayer, Difficulty, PERSONA_LABEL, pickProfile } from '../engine/ai';
 import { Card, Command, GameEvent, GameState, PlayerView } from '../engine/types';
 import { NetClient, ConnStatus, loadToken } from '../net/client';
+import { reportLocalGame } from '../net/telemetry';
 import { JoinedMsg, RoomMsg, SeatInfo, SyncMsg } from '../net/protocol';
 
 const AI_NAMES = ['Aurel', 'Selvar', 'Verda', 'Thalos'];
@@ -170,6 +171,7 @@ export const useGame = create<Store>((set, get) => {
       const { state, events } = createGame({ ...DEFAULT_CONFIG, players, seed }, seats, firstSeat, deck);
       observeAll(events, state);
       set({ state, lastEvents: events, lastDie: null, thinking: null, tutorial: false });
+      reportLocalGame(); // 单机局也计入「对局」统计
       loop();
     },
 
