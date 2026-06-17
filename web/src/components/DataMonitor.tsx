@@ -3,18 +3,18 @@ import { useEffect, useState } from 'react';
 interface StatsData {
   visits: number;
   games: number;
-  players: number;
   peakOnline: number;
+  online: number;
 }
 
 // 服务器无 /stats（如纯前端 dev）时的兜底种子，与后端 SEED 一致。
-const SEED: StatsData = { visits: 56, games: 24, players: 73, peakOnline: 11 };
+const SEED: StatsData = { visits: 56, games: 24, peakOnline: 8, online: 0 };
 
 const CARDS: { key: keyof StatsData; label: string; suffix: string }[] = [
   { key: 'visits', label: '网站访问', suffix: '次' },
   { key: 'games', label: '进行对局', suffix: '局' },
-  { key: 'players', label: '累计玩家', suffix: '人' },
   { key: 'peakOnline', label: '峰值同时在线', suffix: '人' },
+  { key: 'online', label: '当前在线', suffix: '人' },
 ];
 
 export function DataMonitor() {
@@ -28,7 +28,7 @@ export function DataMonitor() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (alive && d && typeof d.visits === 'number') {
-          setData({ visits: d.visits, games: d.games, players: d.players, peakOnline: d.peakOnline });
+          setData({ visits: d.visits, games: d.games, peakOnline: d.peakOnline, online: d.online ?? 0 });
         }
       })
       .catch(() => undefined);

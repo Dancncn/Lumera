@@ -5,11 +5,10 @@ import { fileURLToPath } from 'node:url';
 export interface Stats {
   visits: number;
   games: number;
-  players: number;
   peakOnline: number;
 }
 
-const SEED: Stats = { visits: 56, games: 24, players: 73, peakOnline: 11 };
+const SEED: Stats = { visits: 56, games: 24, peakOnline: 8 };
 
 const here = dirname(fileURLToPath(import.meta.url));
 const FILE = process.env.STATS_FILE ?? join(here, 'state', 'stats.json');
@@ -20,7 +19,6 @@ try {
   data = {
     visits: Number(loaded.visits) || SEED.visits,
     games: Number(loaded.games) || SEED.games,
-    players: Number(loaded.players) || SEED.players,
     peakOnline: Number(loaded.peakOnline) || SEED.peakOnline,
   };
 } catch {
@@ -53,11 +51,6 @@ export function countVisit(): void {
 
 export function countGame(): void {
   data.games++;
-  mark();
-}
-
-export function countPlayer(): void {
-  data.players++;
   mark();
 }
 

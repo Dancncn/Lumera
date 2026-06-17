@@ -26,7 +26,7 @@ const http = createServer((req, res) => {
   if (req.url === '/stats') {
     res
       .writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
-      .end(JSON.stringify(snapshot()));
+      .end(JSON.stringify({ ...snapshot(), online: wss.clients.size }));
     return;
   }
   if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) countVisit();
