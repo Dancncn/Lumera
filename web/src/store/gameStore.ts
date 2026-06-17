@@ -38,6 +38,7 @@ interface Store {
   tutorial: boolean;
   newGame: (players: number, difficulty?: Difficulty, firstSeat?: number, deck?: Card[]) => void;
   startTutorial: () => void;
+  quitToMenu: () => void;
   human: (cmd: Command) => void;
   joinRoom: (roomId: string, name: string, players: number) => void;
   startRoom: () => void;
@@ -176,6 +177,24 @@ export const useGame = create<Store>((set, get) => {
       // 2 人易局、你先手、固定牌序（保证演示 0/万能/跑成），跟着提示走一遍
       get().newGame(2, 'easy', 0, buildTutorialDeck());
       set({ tutorial: true });
+    },
+
+    quitToMenu: () => {
+      teardownLocal();
+      teardownNet();
+      ais = new Map();
+      set({
+        mode: 'local',
+        state: null,
+        onlineView: null,
+        lobby: null,
+        conn: 'idle',
+        netError: null,
+        lastEvents: [],
+        lastDie: null,
+        thinking: null,
+        tutorial: false,
+      });
     },
 
     human: (cmd: Command) => {

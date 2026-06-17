@@ -3,6 +3,7 @@ import { Card, Claim, PlayerView } from '../engine/types';
 import { legalClaims, val } from '../engine/game';
 import { useGame } from '../store/gameStore';
 import { CardFace, ClaimChip } from './Card';
+import { ClaimPicker } from './ClaimPicker';
 
 function recommendedClaim(card: Card, claims: Claim[]): Claim | null {
   if (!claims.length) return null;
@@ -126,11 +127,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
             盖牌出这张，宣称为（按数字键 / 回车出最稳）：
             {selCard.kind === 'wild' && <em> 万能牌 —— 喊什么都判真</em>}
           </span>
-          <div className={`claim-row${tutorial ? ' tut-glow' : ''}`}>
-            {claims.map((c, i) => (
-              <ClaimChip key={i} claim={c} truthful={truthfulFor(c)} hotkey={i < 9 ? i + 1 : undefined} onClick={() => onClaimClick(c)} />
-            ))}
-          </div>
+          <ClaimPicker claims={claims} truthfulFor={truthfulFor} onPick={onClaimClick} tutorial={tutorial} />
         </div>
       )}
 

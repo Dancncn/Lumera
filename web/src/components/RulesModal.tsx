@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { CardGallery } from './CardGallery';
+import { PersonaGuide } from './PersonaGuide';
 import { ChallengeDemo, LadderDemo } from './RuleDemos';
 
-const SECTIONS: { h: string; lines: string[]; demo?: 'ladder' | 'challenge' | 'cards' }[] = [
+const SECTIONS: { h: string; lines: string[]; demo?: 'ladder' | 'challenge' | 'cards' | 'persona' }[] = [
   {
     h: '一句话',
     lines: [
@@ -15,7 +16,7 @@ const SECTIONS: { h: string; lines: string[]; demo?: 'ladder' | 'challenge' | 'c
     lines: [
       '数字牌：四色各 0–9。0 当该色「最大」（顶格＝10）。',
       '四力之色：阳 Aurel（金）· 月 Selvar（银）· 地 Verda（绿）· 海 Thalos（蓝）。',
-      '万能牌：盖着出、指定成任一能接上的牌，被翻开永远算真 —— 脱困王牌。',
+      '万能牌：盖着出、指定成任一能接上的牌（指定即宣称），被翻开永远算真 —— 脱困王牌。',
       '转向 / 禁止：明牌甩出的功能牌（转向＝改方向，禁止＝跳过下家），甩完本回合仍要再出一张数字牌。',
       '计分卡：打出 0 时领取的小额计分凭证，按面值计入总分。',
     ],
@@ -27,6 +28,7 @@ const SECTIONS: { h: string; lines: string[]; demo?: 'ladder' | 'challenge' | 'c
       '盖着打出一张牌，同时报出它是「某色某数」—— 可以如实说，也可以撒谎。',
       '接牌只有两条路：同色但更大（Aurel 3 → Aurel 7），或同数字换个颜色（Aurel 3 → Thalos 3）。数字只升不降。',
       '本梯第一个出牌的人（首家）随便盖一张，报某色 1–3 起头。',
+      '接不上时可先摸 1 张再出，但摸牌不让你跳过、摸完照样要接；手里全是功能牌则可亮牌兜底（弃 1 功能牌、摸 1 张）。',
     ],
     demo: 'ladder',
   },
@@ -52,12 +54,30 @@ const SECTIONS: { h: string; lines: string[]; demo?: 'ladder' | 'challenge' | 'c
     h: '受罚 · 源涌轮盘',
     lines: [
       '选一个点数掷骰，掷中就「被源淹没」，掉 1 点凝聚度。',
-      '连着受罚会越掷越多次（任一掷中即止），被淹没后清零重来 —— 越赖着诈牌越危险。',
+      '投骰次数 = 自上次中枪以来累计的受罚次数（第 1 次投 1 次、第 2 次投 2 次…），任一掷中即止 —— 连环受罚命中率飙升。',
+      '中枪掉 1 命后轮盘清零；中枪者把首家位让给下家（保护期），不至于刚掉命又被推到最暴露处。',
     ],
   },
   {
+    h: '三条得分路线',
+    lines: [
+      '质疑流：蹲对手破绽、赌一次截牌，赢则吞下整摞牌堆。',
+      '清手牌流：技术性打空手牌、扛住最后一张被截的风险，跑成则吞牌堆，再摸 6 张继续。',
+      '抢 0 流：打 0 止损、稳领 1 张计分卡。',
+    ],
+  },
+  {
+    h: '读对面 · 对面打法',
+    lines: ['每个对手都有性格，还会记你的诈牌史、会因牌堆变肥更想截你。看人下菜：'],
+    demo: 'persona',
+  },
+  {
     h: '怎么得分',
-    lines: ['总分 = 计分区张数 + 计分卡面值 − 失去的凝聚度（每点 −5）。'],
+    lines: [
+      '总分 = 计分区张数 + 计分卡面值 − 失去的凝聚度（每点 −5）。',
+      '掉光 3 条命即死亡：背 −15 分负债，且不能再行动得分。',
+      '牌库摸空（主）或全员死亡（次）时结算，总分最高者获胜。',
+    ],
   },
 ];
 
@@ -102,6 +122,7 @@ export function RulesButton() {
                   {s.demo === 'cards' && <CardGallery />}
                   {s.demo === 'ladder' && <LadderDemo />}
                   {s.demo === 'challenge' && <ChallengeDemo />}
+                  {s.demo === 'persona' && <PersonaGuide />}
                 </section>
               ))}
             </div>

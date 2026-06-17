@@ -732,6 +732,16 @@ button {
   flex: 0 0 auto;
   overflow: hidden;
 }
+/* 三类牌面统一三段栅格：符号 / 主体 / 名，互不重叠 */
+.card-number,
+.card-func,
+.card-wild {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-items: center;
+  justify-items: center;
+  padding: 11px 4px 9px;
+}
 .card-number {
   background: var(--bg);
   color: var(--ink);
@@ -748,15 +758,14 @@ button {
   border: 1.5px solid var(--gold);
 }
 .force-mark {
-  position: absolute;
-  top: 11px;
   width: 26px;
   height: 26px;
   color: var(--ink);
   opacity: 0.72;
 }
 .card-sm .force-mark {
-  display: none;
+  width: 20px;
+  height: 20px;
 }
 .force-mark-ink,
 .wild-ring {
@@ -784,38 +793,58 @@ button {
   opacity: 0.62;
 }
 .card-num {
-  font-size: 50px;
+  font-family: var(--display);
+  font-size: clamp(26px, calc(var(--card-h) * 0.36), 48px);
   font-weight: 600;
-  line-height: 1;
+  line-height: 0.95;
+  letter-spacing: 0.5px;
   color: var(--ink);
 }
 .card-zero-note {
   display: block;
   font-size: 8.5px;
   letter-spacing: 1px;
-  margin-top: 3px;
+  margin-top: 2px;
   opacity: 0.7;
 }
 .card-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
 }
 .card-name {
-  position: absolute;
-  bottom: 9px;
   font-size: 9px;
   font-style: italic;
   letter-spacing: 1.5px;
-  opacity: 0.62;
+  opacity: 0.58;
 }
 .card-func-label {
-  font-size: 14px;
-  letter-spacing: 3px;
-  margin-top: 30px;
+  font-size: 15px;
+  letter-spacing: 4px;
+  padding-left: 4px;
 }
 .card-wild-glyph {
-  font-size: 34px;
+  font-family: var(--display);
+  font-size: 17px;
   font-weight: 600;
-  margin-top: 26px;
+  letter-spacing: 1px;
+  color: var(--gold-deep);
+}
+.card-sm .card-num {
+  font-size: 30px;
+}
+.card-sm .card-zero-note {
+  display: none;
+}
+.card-sm.card-number,
+.card-sm.card-func,
+.card-sm.card-wild {
+  padding: 6px 3px;
+}
+.card-sm .card-wild-glyph {
+  font-size: 13px;
 }
 
 /* 宣称小标签 */
@@ -1206,7 +1235,7 @@ button.claim-chip:hover {
 /* ---------------- 注意提示横幅 ---------------- */
 .play-toast {
   position: fixed;
-  top: 82px;
+  top: 30vh;
   left: 50%;
   transform: translateX(-50%);
   z-index: 18;
@@ -1610,8 +1639,7 @@ kbd {
 .flog-body {
   line-height: 1.95;
 }
-/* 数字/牌面值始终走干净的 Georgia，杜绝书法体糊数字 */
-.card-num,
+/* 数字/牌面值走干净的衬线，杜绝书法体糊数字（牌面大数字改用 Cinzel 古典刻字，见 .card-num） */
 .card-pip,
 .go-score,
 .dice-face,
@@ -1913,13 +1941,13 @@ kbd {
 .coach-enter {
   margin-top: 10px;
 }
+/* 实战气泡：贴左下角、窄、文字版——不挡顶部对手、不挡桌心 */
 .coach {
   position: fixed;
-  top: 66px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(440px, 92vw);
-  z-index: 26;
+  left: 16px;
+  bottom: 126px;
+  width: min(300px, calc(100vw - 32px));
+  z-index: 24;
   pointer-events: none;
 }
 .coach-bubble {
@@ -1971,12 +1999,15 @@ kbd {
 .coach-ok:hover {
   background: rgba(180, 126, 36, 0.18);
 }
-.coach-tab {
+.coach-tabs {
   position: fixed;
-  top: 66px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 26;
+  left: 16px;
+  bottom: 126px;
+  z-index: 24;
+  display: flex;
+  gap: 8px;
+}
+.coach-tab {
   border: 1px solid var(--line);
   background: rgba(250, 248, 243, 0.95);
   color: var(--gold-muted);
@@ -1985,6 +2016,7 @@ kbd {
   padding: 5px 14px;
   border-radius: 999px;
   box-shadow: 0 6px 16px rgba(80, 66, 40, 0.14);
+  cursor: pointer;
 }
 .coach-tab:hover {
   color: var(--gold-dark);
@@ -1998,6 +2030,30 @@ kbd {
   :root {
     --card-w: 52px;
     --card-h: 74px;
+  }
+  /* 矮牌：缩符号、缩数字、收紧内边距，三段仍互不重叠 */
+  .card-number,
+  .card-func,
+  .card-wild {
+    padding: 5px 3px;
+  }
+  .force-mark {
+    width: 18px;
+    height: 18px;
+  }
+  .card-num {
+    font-size: 22px;
+  }
+  .card-name {
+    font-size: 7.5px;
+    letter-spacing: 1px;
+  }
+  .card-func-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+  .card-wild-glyph {
+    font-size: 12px;
   }
   .topbar {
     padding: 4px 16px;
@@ -2105,10 +2161,10 @@ kbd {
     right: 8px;
   }
   .coach {
-    top: 50px;
+    bottom: 84px;
   }
-  .coach-tab {
-    top: 50px;
+  .coach-tabs {
+    bottom: 84px;
   }
   /* 主页横屏：标题与留白收紧 */
   .start {
@@ -2418,4 +2474,513 @@ kbd {
   text-align: center;
   font-size: 12px;
   color: var(--gold-muted);
+}
+
+/* ============================================================
+   新手教学 · 整本分页（开打前，独立弹窗，不挡牌桌）
+   ============================================================ */
+.lesson-overlay {
+  z-index: 40;
+}
+.lesson {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 94vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #fffdf8, #f6efe0);
+  border: 1px solid var(--gold);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(60, 48, 28, 0.34);
+  overflow: hidden;
+}
+.lesson-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.lesson-kicker {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--gold-muted);
+}
+.lesson-body {
+  padding: 16px 22px 6px;
+  overflow-y: auto;
+  animation: bubble-in 0.22s var(--ease);
+}
+.lesson-tag {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--gold-dark);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 2px 12px;
+}
+.lesson-title {
+  margin: 10px 0 8px;
+  font-family: var(--display);
+  font-size: 21px;
+  letter-spacing: 1px;
+  color: var(--ink);
+}
+.lesson-lines {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lesson-lines li {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--ink);
+}
+.lesson-demo {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0 4px;
+}
+.lesson-demo .rule-demo,
+.lesson-demo .card-gallery,
+.lesson-demo .persona-guide {
+  margin: 0;
+}
+.lesson-dots {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 0 4px;
+}
+.lesson-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  border: none;
+  background: var(--line);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.16s var(--ease), background 0.16s var(--ease);
+}
+.lesson-dot.on {
+  background: var(--gold);
+  transform: scale(1.3);
+}
+.lesson-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.lesson-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lesson-skip {
+  border: none;
+  background: transparent;
+  color: var(--gold-muted);
+  font-size: 13px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+.lesson-skip:hover {
+  color: var(--gold-dark);
+}
+.lesson-prev {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--gold-muted);
+  border-radius: 999px;
+  padding: 7px 18px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+.lesson-prev:hover {
+  border-color: var(--gold);
+  color: var(--gold-dark);
+}
+.lesson-next,
+.lesson-go {
+  border: 1px solid var(--gold);
+  background: rgba(180, 126, 36, 0.12);
+  color: var(--gold-dark);
+  border-radius: 999px;
+  padding: 7px 22px;
+  font-size: 14px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.16s var(--ease);
+}
+.lesson-next:hover,
+.lesson-go:hover {
+  background: rgba(180, 126, 36, 0.2);
+}
+.lesson-go {
+  font-weight: 600;
+}
+
+/* ============================================================
+   读对面 · 对面打法（教学末页 / 规则弹窗共用）
+   ============================================================ */
+.persona-guide {
+  margin: 10px 0 2px;
+  width: 100%;
+}
+.persona-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.persona-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(252, 250, 244, 0.6);
+}
+.persona-label {
+  flex: 0 0 auto;
+  min-width: 2.4em;
+  text-align: center;
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--gold-dark);
+  letter-spacing: 1px;
+  padding-top: 1px;
+}
+.persona-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.persona-trait {
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.persona-counter {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.persona-counter b {
+  color: var(--gold-dark);
+  font-weight: 600;
+  margin-right: 3px;
+}
+.persona-tips {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.persona-tip {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--gold-muted);
+  padding-left: 12px;
+  position: relative;
+}
+.persona-tip::before {
+  content: '·';
+  position: absolute;
+  left: 2px;
+}
+
+/* ============================================================
+   退出本局（两步确认）
+   ============================================================ */
+.quit-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.quit-ask {
+  letter-spacing: 1px;
+}
+.btn-danger {
+  border-color: #b4453a;
+  color: #b4453a;
+}
+.btn-danger:hover {
+  background: rgba(180, 69, 58, 0.1);
+  border-color: #b4453a;
+}
+
+/* ============================================================
+   移动端宣称二级菜单：先选色（带可选数字），再选数字
+   ============================================================ */
+.claim-2lv {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.claim-color-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 9px 12px;
+  border: 1px solid var(--c, var(--line));
+  border-left-width: 4px;
+  border-radius: 10px;
+  background: var(--card-face);
+  cursor: pointer;
+  text-align: left;
+}
+.ccb-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.ccb-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.ccb-nums {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  letter-spacing: 1px;
+}
+.claim-2lv-nums {
+  margin-top: 10px;
+}
+.c2n-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.c2n-back {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--gold-muted);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.c2n-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+}
+.c2n-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.c2n-num {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+  border: 1px solid var(--c, var(--line));
+  border-radius: 10px;
+  background: var(--card-face);
+  cursor: pointer;
+}
+.c2n-val {
+  font-family: var(--serif);
+  font-size: 19px;
+  color: var(--ink);
+}
+.c2n-num.c2n-true {
+  box-shadow: inset 0 0 0 2px var(--c);
+}
+.c2n-truth {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 9px;
+  color: #3f6b3a;
+}
+
+/* ============================================================
+   大事件特效层：掉命 / 出局 / 跑成 / 新梯
+   ============================================================ */
+.eventfx {
+  position: fixed;
+  inset: 0;
+  z-index: 28;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.eventfx-veil {
+  position: absolute;
+  inset: 0;
+}
+.eventfx-card {
+  position: relative;
+  text-align: center;
+  animation: fx-pop 0.42s var(--ease) both;
+}
+.eventfx-title {
+  font-family: var(--display);
+  font-size: 40px;
+  letter-spacing: 4px;
+}
+.eventfx-sub {
+  margin-top: 6px;
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: var(--ink-soft);
+}
+@keyframes fx-pop {
+  0% { opacity: 0; transform: scale(0.8); }
+  18% { opacity: 1; transform: scale(1.04); }
+  82% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.02); }
+}
+@keyframes fx-flash {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.eventfx-lifeloss .eventfx-veil,
+.eventfx-out .eventfx-veil {
+  background: radial-gradient(circle at center, transparent 38%, rgba(150, 40, 30, 0.28) 100%);
+  animation: fx-flash 1.2s ease-out both;
+}
+.eventfx-you.eventfx-lifeloss .eventfx-veil,
+.eventfx-you.eventfx-out .eventfx-veil {
+  background: radial-gradient(circle at center, transparent 28%, rgba(150, 40, 30, 0.42) 100%);
+}
+.eventfx-lifeloss .eventfx-title,
+.eventfx-out .eventfx-title {
+  color: #c34a38;
+  text-shadow: 0 2px 16px rgba(180, 60, 40, 0.5);
+}
+.eventfx-runout .eventfx-veil {
+  background: radial-gradient(circle at center, rgba(201, 162, 63, 0.22) 0%, transparent 60%);
+  animation: fx-flash 1.4s ease-out both;
+}
+.eventfx-runout .eventfx-title {
+  background: var(--gold-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 2px 22px rgba(201, 162, 63, 0.42);
+}
+.eventfx-ladder .eventfx-veil {
+  background: linear-gradient(100deg, transparent 30%, rgba(201, 162, 63, 0.16) 50%, transparent 70%);
+  background-size: 300% 100%;
+  animation: fx-sweep 1s ease-out both;
+}
+.eventfx-ladder .eventfx-title {
+  font-size: 26px;
+  color: var(--gold-dark);
+}
+.eventfx-ladder .eventfx-sub {
+  font-size: 12px;
+}
+@keyframes fx-sweep {
+  0% { background-position: 130% 0; opacity: 0; }
+  30% { opacity: 1; }
+  100% { background-position: -130% 0; opacity: 0; }
+}
+.eventfx-spark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.eventfx-spark span {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--gold);
+  opacity: 0;
+  animation: fx-spark 1.2s ease-out both;
+  animation-delay: calc(var(--i) * 18ms);
+}
+@keyframes fx-spark {
+  0% { opacity: 0; transform: rotate(calc(var(--i) * 22.5deg)) translateY(0) scale(0.4); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(calc(var(--i) * 22.5deg)) translateY(-170px) scale(1); }
+}
+.fx-shake {
+  animation: fx-shake 0.5s var(--ease);
+}
+@keyframes fx-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-6px); }
+  30% { transform: translateX(5px); }
+  45% { transform: translateX(-4px); }
+  60% { transform: translateX(3px); }
+  75% { transform: translateX(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-shake { animation: none; }
+  .eventfx-spark { display: none; }
+  .eventfx-card { animation: none; }
+}
+
+/* ============================================================
+   事件流关键词上色
+   ============================================================ */
+.log-kw {
+  font-weight: 600;
+}
+.log-kw-persona {
+  color: var(--gold-dark);
+}
+.log-kw-danger {
+  color: #c34a38;
+}
+.log-kw-good {
+  color: #3f6b3a;
+}
+
+/* 窄屏：实战气泡塞进「计分牌与手牌之间」的空带，既不挡顶部对手、桌心，也不压住手牌 */
+@media (max-width: 760px) {
+  .coach {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    bottom: 198px;
+  }
+  .coach-bubble {
+    padding: 9px 13px;
+    max-height: 104px;
+    overflow-y: auto;
+  }
+  .coach-text {
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin: 5px 0 9px;
+  }
+  .coach-tabs {
+    left: 8px;
+    bottom: 198px;
+  }
+  .lesson-title {
+    font-size: 19px;
+  }
 }

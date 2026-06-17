@@ -1,58 +1,48 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PlayerView } from '../engine/types';
 import { useGame } from '../store/gameStore';
-import { CardGallery } from './CardGallery';
-import { ChallengeDemo, LadderDemo } from './RuleDemos';
+import { TutorialLesson } from './TutorialLesson';
 
 interface Step {
   key: string;
   text: string;
-  demo?: ReactNode;
 }
 
-// 新手引导：在真实牌桌上，按你当前的处境弹一条对应说明 + 实景小动画（每种只弹一次）。
+// 新手引导 = 开打前的「整本教学」（TutorialLesson）+ 实战时贴边的简短指令气泡（不挡对面、不挡桌心）。
 export function Coach({ view }: { view: PlayerView }) {
+  const [lesson, setLesson] = useState(true);
   const [shown, setShown] = useState<Set<string>>(() => new Set());
-  const [current, setCurrent] = useState<Step | null>({
-    key: 'intro',
-    text: '欢迎！先认认牌：四种颜色 + 数字 0–9（0 当该色最大）。跟着提示走一遍就懂了。',
-    demo: <CardGallery compact />,
-  });
+  const [current, setCurrent] = useState<Step | null>(null);
 
   useEffect(() => {
-    if (current) return; // 正在显示就不打断
+    if (lesson || current) return; // 教学中 / 已有气泡：不打断
     const p = view.prompt;
     const hand = view.yourHand;
     let step: Step | null = null;
     if (view.lastReveal && !shown.has('reveal')) {
-      step = { key: 'reveal', text: '翻牌见真假！报的是真，截牌方受罚；报的是假，出牌方受罚 —— 台面整摞牌归赢家。' };
+      step = { key: 'reveal', text: '翻牌见真假：报真→截牌方受罚，报假→出牌方受罚，整摞牌堆归赢家。' };
     } else if (p.kind === 'play') {
       if (!shown.has('play')) {
         step = {
           key: 'play',
           text: p.isFirst
-            ? '轮到你起头：点一张手牌选中，再点下方亮起的「宣称」（说它是某色 1–3，可以撒谎）。'
-            : '轮到你出牌：先点一张手牌，再选宣称 —— 接牌只有两条路（看下图）。',
-          demo: <LadderDemo />,
+            ? '轮到你起头：点高亮的手牌选中，再点下方「宣称」（报某色 1–3，可诈）。'
+            : '轮到你出牌：点一张手牌，再选宣称（同色更大 / 同数字换色）。',
         };
       } else if (hand.some((c) => c.kind === 'number' && c.num === 0) && !shown.has('zero')) {
-        step = { key: 'zero', text: '你手里有一张「0」：它是该色的顶格（最大）。打出它能终结当前这一梯，还顺手领一张计分卡入账。' };
+        step = { key: 'zero', text: '你有一张 0：打出能终结本梯、领 1 张计分卡。被高压逼急时用它止损。' };
       } else if (hand.some((c) => c.kind === 'wild') && !shown.has('wild')) {
-        step = { key: 'wild', text: '你手里有「万能牌」：盖着出可冒充任何一张能接上的牌，被截牌翻开也永远算真 —— 绝境脱困的王牌。' };
+        step = { key: 'wild', text: '你有万能牌：盖着出可冒充任一合法牌，被截也判真——脱困王牌。' };
       } else if (hand.length === 1 && !shown.has('runout')) {
-        step = { key: 'runout', text: '只剩最后一张了！把它出掉、又没被截牌，就「跑成」—— 独吞台面整摞赌注牌，是赢局的关键一步。' };
+        step = { key: 'runout', text: '只剩最后一张！出掉且不被截就「跑成」、独吞牌堆，再摸 6 张继续。' };
       }
     } else if (p.kind === 'respond' && !shown.has('respond')) {
-      step = {
-        key: 'respond',
-        text: '对方盖牌出了一张并宣称。信他就「放行」（轮到你出）；疑他就「截牌」当场翻开对质。',
-        demo: <ChallengeDemo />,
-      };
+      step = { key: 'respond', text: '轮到你裁断：信下家点「放行」，疑他点「截牌」当场摊牌对质。' };
     } else if (p.kind === 'penalty' && !shown.has('penalty')) {
-      step = { key: 'penalty', text: '你被罚了：选一个点数掷骰，掷中就掉 1 点凝聚度。连着受罚越来越险。' };
+      step = { key: 'penalty', text: '受罚：选一个点数掷骰，掷中掉 1 点凝聚度。连环受罚越来越险。' };
     }
     if (step) setCurrent(step);
-  }, [view, current, shown]);
+  }, [view, current, shown, lesson]);
 
   function dismiss() {
     if (current) setShown((s) => new Set(s).add(current.key));
@@ -63,20 +53,28 @@ export function Coach({ view }: { view: PlayerView }) {
     useGame.setState({ tutorial: false });
   }
 
+  if (lesson) {
+    return <TutorialLesson onStart={() => setLesson(false)} onSkip={() => setLesson(false)} />;
+  }
+
   if (!current) {
     return (
-      <button className="coach-tab" type="button" onClick={endTutorial} title="结束新手引导">
-        结束引导
-      </button>
+      <div className="coach-tabs">
+        <button className="coach-tab" type="button" onClick={() => setLesson(true)} title="重看教学">
+          重看教学
+        </button>
+        <button className="coach-tab" type="button" onClick={endTutorial} title="结束新手引导">
+          结束引导
+        </button>
+      </div>
     );
   }
 
   return (
-    <div className={`coach${current.demo ? ' coach-wide' : ''}`}>
+    <div className="coach">
       <div className="coach-bubble">
         <span className="coach-tag">新手引导</span>
         <p className="coach-text">{current.text}</p>
-        {current.demo && <div className="coach-demo">{current.demo}</div>}
         <div className="coach-btns">
           <button className="coach-skip" type="button" onClick={endTutorial}>
             结束引导

@@ -1,7 +1,39 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Color, COLOR_META, PlayerView } from '../engine/types';
 
-// 解析 ⟦色|文字⟧ token，渲染成对应四力颜色的小标签（带色点）。
+// 关键词上色：性格名（金）、受罚/危险（红）、跑成/利好（绿）。
+const KW_CLASS: Record<string, string> = {};
+const addKw = (cls: string, words: string[]) => words.forEach((w) => (KW_CLASS[w] = cls));
+addKw('log-kw-persona', ['激进', '稳健', '谨慎', '善变', '狡黠']);
+addKw('log-kw-danger', ['受罚', '被淹没', '撒谎被抓', '凝聚耗尽', '复归于源', '出局', '截下', '摊牌', '对质']);
+addKw('log-kw-good', ['跑成', '宣称为真', '险过', '计分卡', '收走牌堆']);
+const KW_RE = new RegExp(
+  Object.keys(KW_CLASS)
+    .sort((a, b) => b.length - a.length)
+    .join('|'),
+  'g',
+);
+
+let kwSeq = 0;
+function highlightKeywords(text: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  KW_RE.lastIndex = 0;
+  while ((m = KW_RE.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(
+      <span key={`k${kwSeq++}`} className={`log-kw ${KW_CLASS[m[0]]}`}>
+        {m[0]}
+      </span>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+// 解析 ⟦色|文字⟧ token（四力颜色的牌名），其余文字再做关键词上色。
 const TOKEN = /⟦([a-z]+)\|([^⟧]+)⟧/g;
 function renderLine(line: string): ReactNode {
   const parts: ReactNode[] = [];
@@ -10,7 +42,7 @@ function renderLine(line: string): ReactNode {
   TOKEN.lastIndex = 0;
   let i = 0;
   while ((m = TOKEN.exec(line))) {
-    if (m.index > last) parts.push(line.slice(last, m.index));
+    if (m.index > last) parts.push(...highlightKeywords(line.slice(last, m.index)));
     const meta = COLOR_META[m[1] as Color];
     parts.push(
       <span key={`t${i++}`} className="log-claim" style={{ color: meta?.hex }}>
@@ -20,7 +52,7 @@ function renderLine(line: string): ReactNode {
     );
     last = m.index + m[0].length;
   }
-  if (last < line.length) parts.push(line.slice(last));
+  if (last < line.length) parts.push(...highlightKeywords(line.slice(last)));
   return parts;
 }
 

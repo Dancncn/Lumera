@@ -5,39 +5,50 @@ export function numLabel(num: number): string {
   return num === 0 ? '0' : String(num);
 }
 
-// 四力的极简线条标记（只用细线勾勒，无实心填充、无假打光）。
+// 四力的线条标记：尽量用曲线勾勒，柔一点、贵一点。
+const MARK = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+
 function ForceMark({ color }: { color: Color }) {
-  const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   switch (color) {
-    case 'aurel': // 阳 —— 日轮 + 光线
+    case 'aurel': // 阳 —— 日轮 + 旋转的火焰光线（带曲线）
       return (
         <svg viewBox="0 0 32 32" className="force-mark">
-          <circle cx="16" cy="16" r="6" {...common} />
+          <circle cx="16" cy="16" r="5.6" {...MARK} />
+          <circle cx="16" cy="16" r="1.8" fill="currentColor" stroke="none" opacity="0.55" />
           {Array.from({ length: 8 }).map((_, i) => {
             const a = (i * Math.PI) / 4;
-            return <line key={i} x1={16 + Math.cos(a) * 9.5} y1={16 + Math.sin(a) * 9.5} x2={16 + Math.cos(a) * 13} y2={16 + Math.sin(a) * 13} {...common} />;
+            const r1 = 7.4, r2 = 12.8, rm = (r1 + r2) / 2;
+            const p = a + Math.PI / 2; // 沿切向偏移控制点 → 火焰般的弯曲
+            const x1 = 16 + Math.cos(a) * r1, y1 = 16 + Math.sin(a) * r1;
+            const x2 = 16 + Math.cos(a) * r2, y2 = 16 + Math.sin(a) * r2;
+            const cx = 16 + Math.cos(a) * rm + Math.cos(p) * 1.7;
+            const cy = 16 + Math.sin(a) * rm + Math.sin(p) * 1.7;
+            return <path key={i} d={`M${x1.toFixed(1)} ${y1.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`} {...MARK} />;
           })}
         </svg>
       );
-    case 'selvar': // 月 —— 残月
+    case 'selvar': // 月 —— 残月 + 两颗小星
       return (
         <svg viewBox="0 0 32 32" className="force-mark">
-          <path d="M21 6 a11 11 0 1 0 0 20 A8.5 8.5 0 1 1 21 6 Z" {...common} />
+          <path d="M21.6 6.2 A10.6 10.6 0 1 0 21.6 25.8 A8.4 8.4 0 1 1 21.6 6.2 Z" {...MARK} />
+          <circle cx="12.2" cy="9.4" r="0.95" fill="currentColor" stroke="none" />
+          <circle cx="9.6" cy="13.6" r="0.6" fill="currentColor" stroke="none" />
         </svg>
       );
-    case 'verda': // 地 —— 山峦
+    case 'verda': // 地 —— 起伏的丘峦（曲线）+ 地平线
       return (
         <svg viewBox="0 0 32 32" className="force-mark">
-          <path d="M4 24 L12 11 L17 18 L22 8 L28 24" {...common} />
-          <line x1="3" y1="26.5" x2="29" y2="26.5" {...common} />
+          <path d="M3.5 22 Q9 12 14.5 22 T25.5 22" {...MARK} />
+          <path d="M16 22 Q19 13 25 11 Q23 18 16 22" {...MARK} />
+          <path d="M3 25.6 H29" {...MARK} opacity="0.7" />
         </svg>
       );
-    case 'thalos': // 海 —— 水波
+    case 'thalos': // 海 —— 三叠水波
       return (
         <svg viewBox="0 0 32 32" className="force-mark">
-          <path d="M4 12 q4 -4 8 0 t8 0 t8 0" {...common} />
-          <path d="M4 18 q4 -4 8 0 t8 0 t8 0" {...common} />
-          <path d="M4 24 q4 -4 8 0 t8 0 t8 0" {...common} />
+          <path d="M4 11.5 q4 -4.6 8 0 t8 0 t8 0" {...MARK} />
+          <path d="M4 17.5 q4 -4.6 8 0 t8 0 t8 0" {...MARK} />
+          <path d="M4 23.5 q4 -4.6 8 0 t8 0 t8 0" {...MARK} />
         </svg>
       );
   }
@@ -67,7 +78,7 @@ export function CardFace({
         <ForceMark color={card.color} />
         <div className="card-center">
           <span className="card-num">{numLabel(card.num)}</span>
-          {card.num === 0 && <span className="card-zero-note">源顶 · 10</span>}
+          {card.num === 0 && <span className="card-zero-note">顶 · 10</span>}
         </div>
         <div className="card-name">{m.name}</div>
       </div>
@@ -76,15 +87,24 @@ export function CardFace({
 
   if (card.kind === 'functional') {
     const isRev = card.func === 'reverse';
+    const fstroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
     return (
       <div className={`${cls} card-func`} onClick={onClick}>
         <svg viewBox="0 0 32 32" className="force-mark force-mark-ink">
           {isRev ? (
-            <path d="M9 13 a7 7 0 1 1 -1 6 M9 13 H5 M9 13 V9" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            // 转向 —— 两道相对的弧形箭头（回转）
+            <g {...fstroke}>
+              <path d="M10 11.5 A7.6 7.6 0 0 1 23 13.6" />
+              <path d="M23 13.6 l-3.6 -0.5 M23 13.6 l-0.5 -3.6" />
+              <path d="M22 20.5 A7.6 7.6 0 0 1 9 18.4" />
+              <path d="M9 18.4 l3.6 0.5 M9 18.4 l0.5 3.6" />
+            </g>
           ) : (
-            <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-              <circle cx="16" cy="16" r="9" />
-              <line x1="9.6" y1="9.6" x2="22.4" y2="22.4" />
+            // 禁止 —— 弧形双折跳过 + 竖栏（跳过下家）
+            <g {...fstroke}>
+              <path d="M9.5 10.5 Q16.5 16 9.5 21.5" />
+              <path d="M15.5 10.5 Q22.5 16 15.5 21.5" />
+              <line x1="23.6" y1="10" x2="23.6" y2="22" />
             </g>
           )}
         </svg>
@@ -94,18 +114,18 @@ export function CardFace({
     );
   }
 
-  // wild —— 含着四色的源（细线圆环 + 四节点，呼应标志）
+  // wild —— 四色环 + Lumera 字标（不再写「源」）
   return (
     <div className={`${cls} card-wild`} onClick={onClick}>
       <svg viewBox="0 0 32 32" className="force-mark wild-ring">
-        <circle cx="16" cy="16" r="9" fill="none" stroke="currentColor" strokeWidth="1.2" />
-        <circle cx="16" cy="7" r="2" fill={COLOR_META.aurel.hex} stroke="none" />
-        <circle cx="25" cy="16" r="2" fill={COLOR_META.thalos.hex} stroke="none" />
-        <circle cx="16" cy="25" r="2" fill={COLOR_META.selvar.hex} stroke="none" />
-        <circle cx="7" cy="16" r="2" fill={COLOR_META.verda.hex} stroke="none" />
+        <circle cx="16" cy="16" r="8.6" fill="none" stroke="currentColor" strokeWidth="1.1" />
+        <circle cx="16" cy="7.4" r="2" fill={COLOR_META.aurel.hex} stroke="none" />
+        <circle cx="24.6" cy="16" r="2" fill={COLOR_META.thalos.hex} stroke="none" />
+        <circle cx="16" cy="24.6" r="2" fill={COLOR_META.selvar.hex} stroke="none" />
+        <circle cx="7.4" cy="16" r="2" fill={COLOR_META.verda.hex} stroke="none" />
       </svg>
-      <span className="card-wild-glyph">源</span>
-      <div className="card-name">Lumera</div>
+      <span className="card-wild-glyph">Lumera</span>
+      <div className="card-name">万能</div>
     </div>
   );
 }
