@@ -69,6 +69,12 @@ export type GameEvent =
   | { type: 'LadderReset'; leader: number } // 新梯，由 leader 起手
   | { type: 'GameOver'; ranking: RankEntry[] };
 
+/** 结构化日志条目：tpl 是中文模板（同时作为 i18n key），p 是命名参数。 */
+export interface LogEntry {
+  tpl: string;
+  p?: Record<string, string>;
+}
+
 export interface RankEntry {
   seat: number;
   name: string;
@@ -137,7 +143,7 @@ export interface GameState {
   pendingSkip: number; // 已甩出的「禁止」累积，下次推进时消费
   phase: Phase;
   rng: number; // 种子化 RNG 当前状态
-  log: string[];
+  log: LogEntry[];
   lastReveal?: { seat: number; card: Card; truthful: boolean };
   ranking?: RankEntry[];
   seq: number; // 单调递增，便于前端 diff
@@ -177,5 +183,5 @@ export interface PlayerView {
   prompt: ViewPrompt;
   lastReveal?: { seat: number; card: Card; truthful: boolean }; // 摊牌结果（公开）
   ranking?: RankEntry[];
-  log: string[];
+  log: LogEntry[];
 }

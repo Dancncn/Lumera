@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { actorOf, apply, buildTutorialDeck, createGame, DEFAULT_CONFIG, viewFor } from '../engine/game';
+import { actorOf, apply, buildTutorialDeck, createGame, DEFAULT_CONFIG, respondState, viewFor } from '../engine/game';
 import { AiPlayer, Difficulty, PERSONA_LABEL, pickProfile } from '../engine/ai';
 import { Card, Command, GameEvent, GameState, PlayerView } from '../engine/types';
 import { NetClient, ConnStatus, loadToken } from '../net/client';
@@ -36,6 +36,7 @@ interface Store {
   thinking: number | null;
   lastEvents: GameEvent[];
   lastDie: DieFlash | null;
+  penaltySeat: number | null;
   tutorial: boolean;
   turnDeadline: number | null;
   notice: string | null;
@@ -45,15 +46,33 @@ interface Store {
   startTutorial: () => void;
   quitToMenu: () => void;
   human: (cmd: Command) => void;
+  pass: () => void;
   joinRoom: (roomId: string, name: string, players: number) => void;
   startRoom: () => void;
   leaveRoom: () => void;
 }
 
 let aiTimer: ReturnType<typeof setTimeout> | null = null;
+let respondTimers: ReturnType<typeof setTimeout>[] = [];
+let respondPending = new Set<number>(); // 本轮还未表态（既没质疑也没放行）的可质疑座位
 let net: NetClient | null = null;
 let ais = new Map<number, AiPlayer>();
 let difficulty: Difficulty = 'normal';
+
+// 质疑窗口：出牌后留给全场 8 秒反应（先喊先得）。纯 AI 收得更快。
+const RESPOND_WINDOW_HUMAN = 8000;
+const RESPOND_WINDOW_AI = 2400;
+function challengeDelay(humanEligible: boolean): number {
+  return humanEligible ? 1400 + Math.random() * 1800 : 700 + Math.random() * 1200;
+}
+
+function trackPenalty(events: GameEvent[], prev: number | null): number | null {
+  const started = events.find((e) => e.type === 'PenaltyStarted') as { seat: number } | undefined;
+  if (started) return started.seat;
+  if (events.some((e) => e.type === 'TurnStarted')) return null;
+  if (events.some((e) => e.type === 'DiceRolled') && prev !== null) return prev;
+  return prev;
+}
 
 function extractDie(events: GameEvent[]): DieFlash | null {
   for (let i = events.length - 1; i >= 0; i--) {
@@ -71,11 +90,15 @@ function nextDie(events: GameEvent[], prev: DieFlash | null): DieFlash | null {
 }
 
 function delayFor(events: GameEvent[]): number {
-  if (events.some((e) => e.type === 'CardRevealed')) return 1900;
-  if (events.some((e) => e.type === 'DiceRolled')) return 1300;
-  if (events.some((e) => e.type === 'PileTaken' || e.type === 'GameOver')) return 1100;
-  if (events.some((e) => e.type === 'CardPlayed' || e.type === 'FunctionalPlayed')) return 1500;
-  return 520;
+  if (events.some((e) => e.type === 'PlayerOut')) return 2800;
+  if (events.some((e) => e.type === 'Returned')) return 2200;
+  if (events.some((e) => e.type === 'CardRevealed')) return 2500;
+  if (events.some((e) => e.type === 'DiceRolled' && e.hit)) return 2000;
+  if (events.some((e) => e.type === 'DiceRolled')) return 1500;
+  if (events.some((e) => e.type === 'PenaltyStarted')) return 1400;
+  if (events.some((e) => e.type === 'PileTaken' || e.type === 'GameOver')) return 1400;
+  if (events.some((e) => e.type === 'CardPlayed' || e.type === 'FunctionalPlayed')) return 1600;
+  return 700;
 }
 
 export const useGame = create<Store>((set, get) => {
@@ -83,16 +106,95 @@ export const useGame = create<Store>((set, get) => {
     for (const ai of ais.values()) ai.observe(events, viewFor(state, ai.seat));
   }
 
-  function loop(): void {
+  function clearTimers(): void {
     if (aiTimer) {
       clearTimeout(aiTimer);
       aiTimer = null;
     }
-    const s = get().state;
-    if (!s || s.phase.kind === 'over') {
-      set({ thinking: null });
+    for (const t of respondTimers) clearTimeout(t);
+    respondTimers = [];
+    respondPending = new Set();
+  }
+
+  // 所有可质疑者都表态（放行/AI判完不质疑）→ 下家自动放行、继续。任一质疑则即时摊牌。
+  function checkRespondProceed(): void {
+    if (respondPending.size > 0) return;
+    const cur = get().state;
+    if (!cur || cur.phase.kind !== 'respond') return;
+    applyLocal(cur.phase.responder, { type: 'Accept' });
+  }
+
+  function applyLocal(seat: number, cmd: Command): void {
+    const cur = get().state;
+    if (!cur || cur.phase.kind === 'over') return;
+    try {
+      const res = apply(cur, seat, cmd);
+      observeAll(res.events, res.state);
+      set({ state: res.state, lastEvents: res.events, lastDie: nextDie(res.events, get().lastDie), penaltySeat: trackPenalty(res.events, get().penaltySeat) });
+    } catch (err) {
+      console.error('非法命令', cmd, err);
       return;
     }
+    loop();
+  }
+
+  // 应对阶段：开一个反应窗口。每个在场 AI 各自评估是否质疑（按拟人延迟开火，给真人留反应时间）；
+  // 真人随时可按「质疑」；窗口内无人质疑则自动由下家放行、继续出牌。第一个质疑生效。
+  function driveRespond(s: GameState): void {
+    const info = respondState(s);
+    if (!info) return;
+    respondPending = new Set(info.challengers);
+    const humanEligible = info.challengers.some((seat) => !s.players[seat].isAI);
+    set({ thinking: null, turnDeadline: humanEligible ? Date.now() + RESPOND_WINDOW_HUMAN : null });
+    // 每个在场 AI 到点表态：质疑即摊牌，否则从待表态集合移除；真人由「放行/质疑」表态。
+    for (const seat of info.challengers) {
+      if (!s.players[seat].isAI) continue;
+      const ai = ais.get(seat);
+      if (!ai) {
+        respondPending.delete(seat);
+        continue;
+      }
+      respondTimers.push(
+        setTimeout(() => {
+          const cur = get().state;
+          if (!cur || cur.phase.kind !== 'respond') return;
+          if (cur.phase.player === seat || cur.players[seat].out) {
+            respondPending.delete(seat);
+            checkRespondProceed();
+            return;
+          }
+          if (ai.decide(viewFor(cur, seat)).type === 'Challenge') {
+            applyLocal(seat, { type: 'Challenge' });
+            return;
+          }
+          respondPending.delete(seat);
+          checkRespondProceed();
+        }, challengeDelay(humanEligible)),
+      );
+    }
+    // 兜底硬上限：真人一直不表态也不会卡死。
+    respondTimers.push(
+      setTimeout(() => {
+        const cur = get().state;
+        if (!cur || cur.phase.kind !== 'respond') return;
+        applyLocal(cur.phase.responder, { type: 'Accept' });
+      }, humanEligible ? RESPOND_WINDOW_HUMAN : RESPOND_WINDOW_AI),
+    );
+    checkRespondProceed();
+  }
+
+  function loop(): void {
+    clearTimers();
+    const s = get().state;
+    if (!s || s.phase.kind === 'over') {
+      set({ thinking: null, turnDeadline: null });
+      return;
+    }
+    if (s.phase.kind === 'respond') {
+      driveRespond(s);
+      return;
+    }
+    if (get().turnDeadline) set({ turnDeadline: null });
     const actor = actorOf(s);
     if (!s.players[actor].isAI) {
       set({ thinking: null });
@@ -114,28 +216,16 @@ export const useGame = create<Store>((set, get) => {
         return;
       }
       const a = actorOf(cur);
-      if (a !== actor || !cur.players[a].isAI) {
+      if (cur.phase.kind === 'respond' || a !== actor || !cur.players[a].isAI) {
         loop();
         return;
       }
-      try {
-        const res = apply(cur, a, cmd);
-        observeAll(res.events, res.state);
-        set({ state: res.state, lastEvents: res.events, lastDie: nextDie(res.events, get().lastDie) });
-      } catch (err) {
-        console.error('AI 给出非法命令', cmd, err);
-        set({ thinking: null });
-        return;
-      }
-      loop();
+      applyLocal(a, cmd);
     }, delay);
   }
 
   function teardownLocal(): void {
-    if (aiTimer) {
-      clearTimeout(aiTimer);
-      aiTimer = null;
-    }
+    clearTimers();
   }
 
   function teardownNet(): void {
@@ -155,6 +245,7 @@ export const useGame = create<Store>((set, get) => {
     thinking: null,
     lastEvents: [],
     lastDie: null,
+    penaltySeat: null,
     tutorial: false,
     turnDeadline: null,
     notice: null,
@@ -178,7 +269,7 @@ export const useGame = create<Store>((set, get) => {
       });
       const { state, events } = createGame({ ...DEFAULT_CONFIG, players, seed }, seats, firstSeat, deck);
       observeAll(events, state);
-      set({ state, lastEvents: events, lastDie: null, thinking: null, tutorial: false, difficulty, players });
+      set({ state, lastEvents: events, lastDie: null, penaltySeat: null, thinking: null, tutorial: false, difficulty, players });
       reportLocalGame(); // 单机局也计入「对局」统计
       loop();
     },
@@ -202,6 +293,7 @@ export const useGame = create<Store>((set, get) => {
         netError: null,
         lastEvents: [],
         lastDie: null,
+        penaltySeat: null,
         thinking: null,
         turnDeadline: null,
         notice: null,
@@ -216,17 +308,29 @@ export const useGame = create<Store>((set, get) => {
       }
       const s = get().state;
       if (!s || s.phase.kind === 'over') return;
-      const actor = actorOf(s);
-      if (s.players[actor].isAI) return;
-      try {
-        const res = apply(s, actor, cmd);
-        observeAll(res.events, res.state);
-        set({ state: res.state, lastEvents: res.events, lastDie: nextDie(res.events, get().lastDie) });
-      } catch (err) {
-        console.error('非法命令', cmd, err);
+      // 应对阶段：真人（座位 0）随时可质疑，不必是下家。其余命令仍须轮到自己。
+      if (s.phase.kind === 'respond' && cmd.type === 'Challenge') {
+        if (s.phase.player === 0 || s.players[0].out) return;
+        applyLocal(0, cmd);
         return;
       }
-      loop();
+      const actor = actorOf(s);
+      if (s.players[actor].isAI) return;
+      applyLocal(actor, cmd);
+    },
+
+    // 真人「放行」：表态不质疑。若全场都已表态，窗口立即结束、继续出牌（不必等满倒计时）。
+    pass: () => {
+      if (get().mode === 'online') {
+        net?.pass();
+        return;
+      }
+      const s = get().state;
+      if (!s || s.phase.kind !== 'respond') return;
+      if (respondPending.has(0)) {
+        respondPending.delete(0);
+        checkRespondProceed();
+      }
     },
 
     joinRoom: (roomId: string, name: string, players: number) => {
@@ -241,6 +345,7 @@ export const useGame = create<Store>((set, get) => {
         netError: null,
         lastEvents: [],
         lastDie: null,
+        penaltySeat: null,
         thinking: null,
       });
       let noticeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -293,6 +398,7 @@ export const useGame = create<Store>((set, get) => {
             onlineView: msg.view,
             lastEvents: msg.events,
             lastDie: nextDie(msg.events, st.lastDie),
+            penaltySeat: trackPenalty(msg.events, st.penaltySeat),
             thinking: msg.view.players[msg.view.current]?.isAI ? msg.view.current : null,
             turnDeadline: msg.turnDeadline ?? null,
           }));
@@ -317,6 +423,7 @@ export const useGame = create<Store>((set, get) => {
         netError: null,
         lastEvents: [],
         lastDie: null,
+        penaltySeat: null,
         thinking: null,
         turnDeadline: null,
         notice: null,

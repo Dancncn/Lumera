@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { clearRecords, GameRecord, loadRecords } from '../net/history';
 
-const DIFF_LABEL: Record<string, string> = { easy: '新手', normal: '常规', hard: '老练' };
+const DIFF_LABEL: Record<string, string> = { easy: '新手', normal: '常规', hard: '老练', master: '大师' };
 
 // 对局记录：只读本机 localStorage。
 export function HistoryButton() {

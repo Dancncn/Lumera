@@ -16,6 +16,7 @@ import {
   GameConfig,
   GameEvent,
   GameState,
+  LogEntry,
   PlayerState,
   PlayerView,
   PublicPlayer,
@@ -94,49 +95,58 @@ function advance(s: GameState, from: number, dir: 1 | -1, skipExtra: number): nu
   return seat;
 }
 
-// 带颜色标记的宣称/牌 token（前端 FloatingLog 解析为对应颜色的文字）：⟦色|造名 数⟧
+// 宣称 token（纯数据，前端根据语言渲染显示名）：⟦色:数⟧
 function claimTok(c: Color, num: number): string {
-  return `⟦${c}|${COLOR_META[c].name} ${num === 0 ? '0·顶' : num}⟧`;
+  return `⟦${c}:${num}⟧`;
 }
 
-// ---------------- 事件 + 中文日志 ----------------
-function logLine(s: GameState, ev: GameEvent): string | null {
+// ---------------- 事件 → 结构化日志（tpl 中文模板 = i18n key） ----------------
+function logLine(s: GameState, ev: GameEvent): LogEntry | null {
   const nm = (seat: number) => s.players[seat]?.name ?? `#${seat}`;
   switch (ev.type) {
     case 'TurnStarted':
-      return `—— 轮到 ${nm(ev.seat)}${ev.isFirst ? '（首家·重启梯子）' : '（接牌）'}`;
+      return ev.isFirst
+        ? { tpl: '—— 轮到 {name}（首家·重启梯子）', p: { name: nm(ev.seat) } }
+        : { tpl: '—— 轮到 {name}（接牌）', p: { name: nm(ev.seat) } };
     case 'FunctionalPlayed':
-      return `${nm(ev.seat)} 明牌甩出「${ev.func === 'reverse' ? '转向' : '禁止'}」`;
+      return ev.func === 'reverse'
+        ? { tpl: '{name} 明牌甩出「转向」', p: { name: nm(ev.seat) } }
+        : { tpl: '{name} 明牌甩出「禁止」', p: { name: nm(ev.seat) } };
     case 'DirectionReversed':
-      return `方向反转，改${ev.direction === 1 ? '顺' : '逆'}时针`;
+      return { tpl: ev.direction === 1 ? '方向反转，改顺时针' : '方向反转，改逆时针' };
     case 'CardDrawn':
-      return `${nm(ev.seat)} 摸了 ${ev.count} 张`;
+      return { tpl: '{name} 摸了 {n} 张', p: { name: nm(ev.seat), n: String(ev.count) } };
     case 'CardPlayed':
-      return `${nm(ev.seat)} 盖牌出 1 张，宣称 ${claimTok(ev.claim.color, ev.claim.num)}${ev.endsLadder ? '（打 0·终结本梯）' : ''}`;
+      return {
+        tpl: ev.endsLadder ? '{name} 盖牌出 1 张，宣称 {claim}（打 0·终结本梯）' : '{name} 盖牌出 1 张，宣称 {claim}',
+        p: { name: nm(ev.seat), claim: claimTok(ev.claim.color, ev.claim.num) },
+      };
     case 'Fallback':
-      return `${nm(ev.seat)} 无数字牌可出，亮手兜底、弃功能、摸一张`;
+      return { tpl: '{name} 无数字牌可出，亮手兜底、弃功能、摸一张', p: { name: nm(ev.seat) } };
     case 'Challenged':
-      return `${nm(ev.challenger)} 截下 ${nm(ev.against)} 的牌，要他摊开对质！`;
-    case 'CardRevealed':
-      return `摊牌！真实是 ${ev.card.kind === 'wild' ? '万能牌（恒判真）' : ev.card.kind === 'number' ? claimTok(ev.card.color, ev.card.num) : '功能牌'} —— ${ev.truthful ? '宣称为真' : '撒谎被抓'}`;
+      return { tpl: '{challenger} 截下 {against} 的牌，要他摊开对质！', p: { challenger: nm(ev.challenger), against: nm(ev.against) } };
+    case 'CardRevealed': {
+      const cardStr = ev.card.kind === 'wild' ? '万能牌（恒判真）' : ev.card.kind === 'number' ? claimTok(ev.card.color, ev.card.num) : '功能牌';
+      return { tpl: '摊牌！真实是 {card} —— {verdict}', p: { card: cardStr, verdict: ev.truthful ? '宣称为真' : '撒谎被抓' } };
+    }
     case 'PileTaken':
-      return `${nm(ev.seat)} 收走牌堆 ${ev.count} 张，计入计分区`;
+      return { tpl: '{name} 收走牌堆 {n} 张，计入计分区', p: { name: nm(ev.seat), n: String(ev.count) } };
     case 'TokenAwarded':
-      return `${nm(ev.seat)} 领取计分卡 +${ev.value}（打 0 的勇气奖励）`;
+      return { tpl: '{name} 领取计分卡 +{v}（打 0 的勇气奖励）', p: { name: nm(ev.seat), v: String(ev.value) } };
     case 'RanOut':
-      return `${nm(ev.seat)} 清空手牌「跑成了」，补满手牌继续`;
+      return { tpl: '{name} 清空手牌「跑成了」，补满手牌继续', p: { name: nm(ev.seat) } };
     case 'PenaltyStarted':
-      return `${nm(ev.seat)} 受罚：源涌起，本轮投 ${ev.rolls} 次`;
+      return { tpl: '{name} 受罚：源涌起，本轮投 {n} 次', p: { name: nm(ev.seat), n: String(ev.rolls) } };
     case 'DiceRolled':
-      return `${nm(ev.seat)} 赌 ${ev.chosen} 点，掷出 ${ev.rolled} —— ${ev.hit ? '被淹没（中）' : '险过'}`;
+      return { tpl: '{name} 赌 {c} 点，掷出 {r} —— {result}', p: { name: nm(ev.seat), c: String(ev.chosen), r: String(ev.rolled), result: ev.hit ? '被淹没（中）' : '险过' } };
     case 'Returned':
-      return `${nm(ev.seat)} 一缕念被收回源头，凝聚度 ${ev.livesLeft}`;
+      return { tpl: '{name} 一缕念被收回源头，凝聚度 {n}', p: { name: nm(ev.seat), n: String(ev.livesLeft) } };
     case 'Survived':
-      return `${nm(ev.seat)} 本轮全数险过，未损凝聚（下次受罚累进 +1）`;
+      return { tpl: '{name} 本轮全数险过，未损凝聚（下次受罚累进 +1）', p: { name: nm(ev.seat) } };
     case 'PlayerOut':
-      return `${nm(ev.seat)} 凝聚耗尽，复归于源（出局）`;
+      return { tpl: '{name} 凝聚耗尽，复归于源（出局）', p: { name: nm(ev.seat) } };
     case 'GameOver':
-      return '—— 本局终了，诸念归源结算 ——';
+      return { tpl: '—— 本局终了，诸念归源结算 ——' };
     default:
       return null;
   }
@@ -144,8 +154,8 @@ function logLine(s: GameState, ev: GameEvent): string | null {
 
 function emit(s: GameState, events: GameEvent[], ev: GameEvent): void {
   events.push(ev);
-  const line = logLine(s, ev);
-  if (line) s.log.push(line);
+  const entry = logLine(s, ev);
+  if (entry) s.log.push(entry);
 }
 
 // ---------------- 摸牌 / 终局 ----------------
@@ -256,7 +266,7 @@ export function createGame(
     pendingSkip: 0,
     phase: { kind: 'over' }, // 占位，下面 startPlayTurn 覆盖
     rng: built.rng,
-    log: ['一条流转的光裂成四道，轮子已经在转了。'],
+    log: [{ tpl: '一条流转的光裂成四道，轮子已经在转了。' }],
     seq: 0,
   };
 
@@ -431,13 +441,13 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
     illegal('当前阶段不接受这个命令');
   }
 
-  // ---- 应对阶段（接受 / 质疑） ----
+  // ---- 应对阶段（接受 / 质疑）：任何在场的非出牌方都可质疑，不只下家 ----
   if (ph.kind === 'respond') {
-    if (seat !== ph.responder) illegal('只有下一家能决定接受或质疑');
     const top = s.pile[s.pile.length - 1];
     const player = ph.player;
 
     if (cmd.type === 'Accept') {
+      if (seat !== ph.responder) illegal('只有下家能放行');
       emit(s, events, { type: 'PlayAccepted', seat: player });
       const ranOut = s.players[player].hand.length === 0;
 
@@ -472,6 +482,8 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
     }
 
     if (cmd.type === 'Challenge') {
+      if (seat === player) illegal('不能质疑自己刚出的牌');
+      if (s.players[seat].out) illegal('已出局，不能质疑');
       emit(s, events, { type: 'Challenged', challenger: seat, against: player });
       const truthful = matchesClaim(top.card, top.claim);
       s.lastReveal = { seat: player, card: top.card, truthful };
@@ -553,10 +565,11 @@ function currentActor(s: GameState): number {
 
 function computePrompt(s: GameState, seat: number): ViewPrompt {
   if (s.phase.kind === 'over') return { kind: 'over' };
-  if (currentActor(s) !== seat) return { kind: 'idle' };
   const me = s.players[seat];
+  if (me.out) return { kind: 'idle' };
   switch (s.phase.kind) {
     case 'play': {
+      if (s.phase.current !== seat) return { kind: 'idle' };
       const onlyFunctional = me.hand.length > 0 && me.hand.every((c) => c.kind === 'functional');
       return {
         kind: 'play',
@@ -566,8 +579,11 @@ function computePrompt(s: GameState, seat: number): ViewPrompt {
       };
     }
     case 'respond':
+      // 出牌方等待裁决；其余在场玩家都可质疑。
+      if (seat === s.phase.player) return { kind: 'idle' };
       return { kind: 'respond', player: s.phase.player, claim: s.pile[s.pile.length - 1].claim };
     case 'penalty':
+      if (s.phase.roller !== seat) return { kind: 'idle' };
       return { kind: 'penalty', roller: s.phase.roller, rollsRemaining: s.phase.rollsRemaining };
   }
 }
@@ -604,6 +620,17 @@ export function viewFor(s: GameState, seat: number): PlayerView {
 /** 当前必须行动的座位（play→current，respond→responder，penalty→roller）。 */
 export function actorOf(s: GameState): number {
   return currentActor(s);
+}
+
+/**
+ * 应对阶段的信息：出牌方、若无人质疑则继续出牌的下家、以及所有可质疑座位（在场、非出牌方）。
+ * 非应对阶段返回 null。供驱动循环开「质疑窗口」用。
+ */
+export function respondState(s: GameState): { player: number; responder: number; challengers: number[] } | null {
+  if (s.phase.kind !== 'respond') return null;
+  const { player, responder } = s.phase;
+  const challengers = s.players.filter((p) => !p.out && p.seat !== player).map((p) => p.seat);
+  return { player, responder, challengers };
 }
 
 export { DEFAULT_CONFIG };

@@ -1,18 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Card, PlayerView } from '../engine/types';
+import { Card, Claim, Color, COLOR_META, FunctionalKind, PlayerView } from '../engine/types';
 import { useT } from '../i18n';
+import { playerColor } from '../playerColors';
 import { useGame } from '../store/gameStore';
 import { CardBack, CardFace } from './Card';
 
 const DICE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
+type LastAction =
+  | { kind: 'card'; id: number; seat: number; claim: Claim }
+  | { kind: 'func'; id: number; seat: number; func: FunctionalKind };
+
 export function Center({ view }: { view: PlayerView }) {
   const { t, tn } = useT();
   const lastDie = useGame((s) => s.lastDie);
+  const events = useGame((s) => s.lastEvents);
   const inPenalty = view.prompt.kind === 'penalty' || (view.current >= 0 && view.lastReveal !== undefined);
   const pileShown = Math.min(view.pileCount, 6);
 
-  // 掷骰滚动：每次新结果先快速翻滚几下再落定
+  // 掷骰滚动
   const [rollFace, setRollFace] = useState<number | null>(null);
   useEffect(() => {
     if (!lastDie) return;
@@ -30,12 +36,32 @@ export function Center({ view }: { view: PlayerView }) {
     return () => clearInterval(iv);
   }, [lastDie]);
 
-  // 桌心永远摆着「台面上最新那张牌」的牌样——轮到你裁断时就是对方刚出的那张，一眼读懂。
+  // 最近操作：谁出了牌 / 甩了功能牌 —— 持续显示直到下一个动作替换
+  const [lastAction, setLastAction] = useState<LastAction | null>(null);
+  useEffect(() => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i];
+      if (e.type === 'CardPlayed') {
+        setLastAction({ kind: 'card', id: Date.now(), seat: e.seat, claim: e.claim });
+        return;
+      }
+      if (e.type === 'FunctionalPlayed') {
+        setLastAction({ kind: 'func', id: Date.now(), seat: e.seat, func: e.func });
+        return;
+      }
+      if (e.type === 'TurnStarted' && e.isFirst) {
+        setLastAction(null);
+        return;
+      }
+    }
+  }, [events]);
+
   const topClaim = view.prompt.kind === 'respond' ? view.prompt.claim : view.ladderTop;
-  const claimActor = view.prompt.kind === 'respond' ? view.players[view.prompt.player]?.name ?? null : null;
+  const claimActorSeat = view.prompt.kind === 'respond' ? view.prompt.player : -1;
+  const claimActor = claimActorSeat >= 0 ? view.players[claimActorSeat]?.name ?? null : null;
   const claimCard: Card | null = topClaim ? { id: -1, kind: 'number', color: topClaim.color, num: topClaim.num } : null;
-  const ladderVal = topClaim ? (topClaim.num === 0 ? 10 : topClaim.num) : 0; // 0=顶格(10)
-  const pileFat = view.pileCount >= 6; // 牌堆叠肥：赌注变大的视觉信号
+  const ladderVal = topClaim ? (topClaim.num === 0 ? 10 : topClaim.num) : 0;
+  const pileFat = view.pileCount >= 6;
 
   return (
     <div className="center">
@@ -55,7 +81,11 @@ export function Center({ view }: { view: PlayerView }) {
             className={`claim-card-wrap ${claimActor ? 'claim-judging' : ''}`}
           >
             <CardFace card={claimCard} />
-            <span className="claim-tag">{claimActor ? t('{name} 宣称', { name: tn(claimActor) }) : t('宣称')}</span>
+            {claimActor ? (
+              <span className="claim-tag claim-tag-who" style={{ color: playerColor(claimActorSeat) }}>{tn(claimActor)}</span>
+            ) : (
+              <span className="claim-tag">{t('宣称')}</span>
+            )}
           </div>
         ) : (
           <div className="ladder-fresh">
@@ -78,7 +108,6 @@ export function Center({ view }: { view: PlayerView }) {
 
       <div className={`pile-area${pileFat ? ' pile-fat' : ''}`}>
         <div className="pile-stack" data-pile>
-
           {pileShown === 0 ? (
             <div className="pile-empty">{t('— 牌堆空 —')}</div>
           ) : (
@@ -93,6 +122,14 @@ export function Center({ view }: { view: PlayerView }) {
           {t('赌注牌堆 {n} 张', { n: view.pileCount })}
           {pileFat ? ` · ${t('肥')}` : ''}
         </div>
+        {lastAction && (
+          <div key={lastAction.id} className={`pile-who${lastAction.kind === 'func' ? ' pile-who-func' : ''}`}>
+            <span style={{ color: playerColor(lastAction.seat) }}>{tn(view.players[lastAction.seat]?.name ?? '')}</span>
+            {lastAction.kind === 'card'
+              ? ` → ${COLOR_META[lastAction.claim.color].name} ${lastAction.claim.num === 0 ? `0·${t('顶')}` : lastAction.claim.num}`
+              : ` · ${t(lastAction.func === 'reverse' ? '转向' : '禁止')}`}
+          </div>
+        )}
       </div>
 
       {view.lastReveal && (

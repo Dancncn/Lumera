@@ -7,8 +7,9 @@ import { CardFace, ClaimChip } from './Card';
 import { ClaimPicker } from './ClaimPicker';
 
 const TURN_SECS = 20;
+const CHALLENGE_SECS = 8;
 
-export function TurnCountdown({ deadline, compact }: { deadline: number; compact?: boolean }) {
+export function TurnCountdown({ deadline, compact, totalSecs = TURN_SECS }: { deadline: number; compact?: boolean; totalSecs?: number }) {
   const [remaining, setRemaining] = useState(() => Math.max(0, deadline - Date.now()));
   const rafRef = useRef(0);
 
@@ -23,7 +24,7 @@ export function TurnCountdown({ deadline, compact }: { deadline: number; compact
   }, [deadline]);
 
   const secs = Math.ceil(remaining / 1000);
-  const pct = Math.min(100, (remaining / (TURN_SECS * 1000)) * 100);
+  const pct = Math.min(100, (remaining / (totalSecs * 1000)) * 100);
   const urgent = secs <= 5;
 
   return (
@@ -47,6 +48,7 @@ function recommendedClaim(card: Card, claims: Claim[]): Claim | null {
 
 export function ActionBar({ view }: { view: PlayerView }) {
   const human = useGame((s) => s.human);
+  const pass = useGame((s) => s.pass);
   const tutorial = useGame((s) => s.tutorial);
   const { t } = useT();
   const [selId, setSelId] = useState<number | null>(null);
@@ -91,8 +93,8 @@ export function ActionBar({ view }: { view: PlayerView }) {
       const digit = e.key >= '0' && e.key <= '9' ? Number(e.key) : -1;
 
       if (p.kind === 'respond') {
-        if (k === ' ' || k === 'enter' || k === 'a' || e.key === '1') human({ type: 'Accept' });
-        else if (k === 'd' || k === 'q' || e.key === '2') human({ type: 'Challenge' });
+        if (k === 'd' || k === 'q') human({ type: 'Challenge' });
+        else if (k === ' ' || k === 'enter') pass();
         else return;
         e.preventDefault();
         return;
@@ -224,32 +226,34 @@ function HandSummary({ hand }: { hand: Card[] }) {
 
 function Prompt({ view }: { view: PlayerView }) {
   const human = useGame((s) => s.human);
+  const pass = useGame((s) => s.pass);
   const tutorial = useGame((s) => s.tutorial);
   const mode = useGame((s) => s.mode);
   const deadline = useGame((s) => s.turnDeadline);
   const { t, tn } = useT();
   const p = view.prompt;
   const nameOf = (seat: number) => tn(view.players[seat]?.name ?? `#${seat}`);
-  const showTimer = mode === 'online' && deadline && deadline > Date.now();
+  const hasDeadline = deadline && deadline > Date.now();
+  const showOnlineTimer = mode === 'online' && hasDeadline;
 
   if (p.kind === 'idle') {
     return (
       <div className="prompt prompt-idle">
         {t('等待 {name} 行动…', { name: nameOf(view.current) })}
-        {showTimer && <TurnCountdown deadline={deadline} compact />}
+        {showOnlineTimer && <TurnCountdown deadline={deadline} compact />}
       </div>
     );
   }
   if (p.kind === 'respond') {
     return (
       <div className="prompt prompt-respond">
-        {showTimer && <TurnCountdown deadline={deadline} />}
+        {hasDeadline && <TurnCountdown deadline={deadline} totalSecs={CHALLENGE_SECS} />}
         <span>
           <strong>{nameOf(p.player)}</strong> {t('盖牌出了一张，宣称')} <ClaimChip claim={p.claim} />。
-          {t('信就放行，疑就截牌翻开（夺牌堆 {n} 张）。', { n: view.pileCount })}
+          {t('看穿了就截牌翻开（夺牌堆 {n} 张），不疑就放行。', { n: view.pileCount })}
         </span>
         <div className={`ctrl-btns${tutorial ? ' tut-glow' : ''}`}>
-          <button className="btn btn-accept" type="button" onClick={() => human({ type: 'Accept' })}>
+          <button className="btn btn-accept" type="button" onClick={() => pass()}>
             {t('放行')} <kbd>空格</kbd>
           </button>
           <button className="btn btn-challenge" type="button" onClick={() => human({ type: 'Challenge' })}>
@@ -281,7 +285,7 @@ function Prompt({ view }: { view: PlayerView }) {
     return (
       <div className="prompt prompt-play">
         {t('轮到你出牌')}{p.isFirst ? ` · ${t('你是首家')}` : ''}
-        {showTimer && <TurnCountdown deadline={deadline} />}
+        {showOnlineTimer && <TurnCountdown deadline={deadline} />}
       </div>
     );
   }

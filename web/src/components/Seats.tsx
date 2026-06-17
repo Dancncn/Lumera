@@ -1,5 +1,8 @@
-import { PlayerView, PublicPlayer } from '../engine/types';
+import { useEffect, useState } from 'react';
+import { GameEvent, PlayerView, PublicPlayer } from '../engine/types';
 import { translate, useLang, useT } from '../i18n';
+import { playerColor } from '../playerColors';
+import { useGame } from '../store/gameStore';
 
 function Lives({ n, max }: { n: number; max: number }) {
   const lang = useLang((s) => s.lang);
@@ -26,14 +29,60 @@ function HandCount({ n }: { n: number }) {
   );
 }
 
-function Seat({ p, view }: { p: PublicPlayer; view: PlayerView }) {
+function nextAlive(players: PublicPlayer[], from: number, dir: 1 | -1): number {
+  const n = players.length;
+  let i = from;
+  for (let k = 0; k < n; k++) {
+    i = (i + dir + n) % n;
+    if (!players[i].out) return i;
+  }
+  return from;
+}
+
+function useSkippedSeat(events: GameEvent[], view: PlayerView): number | null {
+  const [seat, setSeat] = useState<number | null>(null);
+  useEffect(() => {
+    const skip = events.find(
+      (e) => e.type === 'FunctionalPlayed' && e.func === 'skip',
+    ) as { seat: number } | undefined;
+    if (skip) {
+      const target = nextAlive(view.players, skip.seat, view.direction);
+      setSeat(target);
+      const timer = setTimeout(() => setSeat(null), 1800);
+      return () => clearTimeout(timer);
+    }
+    if (events.some((e) => e.type === 'TurnStarted')) setSeat(null);
+  }, [events]);
+  return seat;
+}
+
+function Seat({
+  p,
+  view,
+  isPenalty,
+  isSkipped,
+}: {
+  p: PublicPlayer;
+  view: PlayerView;
+  isPenalty: boolean;
+  isSkipped: boolean;
+}) {
   const { t, tn } = useT();
   const isCurrent = view.current === p.seat && !p.out;
   const thinking = isCurrent && p.isAI;
+  const cls = [
+    'seat',
+    isCurrent ? 'seat-active' : '',
+    p.out ? 'seat-out' : '',
+    isPenalty ? 'seat-penalty' : '',
+    isSkipped ? 'seat-skipped' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
-    <div className={`seat ${isCurrent ? 'seat-active' : ''} ${p.out ? 'seat-out' : ''}`} data-seat={p.seat}>
+    <div className={cls} data-seat={p.seat}>
       <div className="seat-top">
-        <span className="seat-name">{tn(p.name)}</span>
+        <span className="seat-name" style={{ color: playerColor(p.seat) }}>{tn(p.name)}</span>
         <Lives n={p.lives} max={view.startingLives} />
       </div>
       <div className="seat-stats">
@@ -47,6 +96,8 @@ function Seat({ p, view }: { p: PublicPlayer; view: PlayerView }) {
         {p.escalation > 1 && <span className="stat stat-warn" title={t('下次受罚投骰次数')}>{t('受罚')}×{p.escalation}</span>}
       </div>
       {p.out && <span className="seat-out-tag">{t('复归')}</span>}
+      {isPenalty && <span className="seat-penalty-tag">{t('受罚中')}</span>}
+      {isSkipped && <span className="seat-skip-tag">{t('被跳过')}</span>}
       {thinking && (
         <span className="seat-thinking">
           {t('凝神')}
@@ -62,34 +113,38 @@ function Seat({ p, view }: { p: PublicPlayer; view: PlayerView }) {
 }
 
 export function Seats({ view }: { view: PlayerView }) {
+  const events = useGame((s) => s.lastEvents);
+  const penaltySeat = useGame((s) => s.penaltySeat);
+  const skippedSeat = useSkippedSeat(events, view);
   const opponents = view.players.filter((p) => p.seat !== view.you);
   const mid = Math.ceil(opponents.length / 2);
-  // 拆成左右两组：桌面/竖屏下 .opp-side 用 display:contents 拼回一排；横屏分到两侧。
   return (
     <div className="opp-row">
       <div className="opp-side opp-left">
         {opponents.slice(0, mid).map((p) => (
-          <Seat key={p.seat} p={p} view={view} />
+          <Seat key={p.seat} p={p} view={view} isPenalty={penaltySeat === p.seat} isSkipped={skippedSeat === p.seat} />
         ))}
       </div>
       <div className="opp-side opp-right">
         {opponents.slice(mid).map((p) => (
-          <Seat key={p.seat} p={p} view={view} />
+          <Seat key={p.seat} p={p} view={view} isPenalty={penaltySeat === p.seat} isSkipped={skippedSeat === p.seat} />
         ))}
       </div>
     </div>
   );
 }
 
-/** 桌前的「你」—— 一条横向状态条（名 + 凝聚度 + 计分），紧挨手牌。 */
 export function SelfPlate({ view }: { view: PlayerView }) {
   const { t, tn } = useT();
+  const penaltySeat = useGame((s) => s.penaltySeat);
   const me = view.players[view.you];
   const isCurrent = view.current === view.you && !me.out;
+  const isPenalty = penaltySeat === view.you;
   return (
-    <div className={`selfplate ${isCurrent ? 'self-active' : ''}`} data-seat={view.you}>
-      <span className="self-name">{tn(me.name)}</span>
+    <div className={`selfplate ${isCurrent ? 'self-active' : ''} ${isPenalty ? 'self-penalty' : ''}`} data-seat={view.you}>
+      <span className="self-name" style={{ color: playerColor(view.you) }}>{tn(me.name)}</span>
       <Lives n={me.lives} max={view.startingLives} />
+      {isPenalty && <span className="self-penalty-tag">{t('受罚中')}</span>}
       <span className="self-stats">
         <span className="stat" title={t('手牌张数')}>
           <HandCount n={me.handCount} />

@@ -159,6 +159,9 @@ wss.on('connection', (ws) => {
       case 'cmd':
         room.command(token, msg.command);
         break;
+      case 'pass':
+        room.pass(token);
+        break;
       case 'start':
         room.start(token);
         break;

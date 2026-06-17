@@ -40,11 +40,17 @@ export interface LeaveMsg {
   token: string;
 }
 
+export interface PassMsg {
+  t: 'pass';
+  roomId: string;
+  token: string;
+}
+
 export interface PingMsg {
   t: 'ping';
 }
 
-export type ClientMsg = JoinMsg | StartMsg | RestartMsg | CmdMsg | LeaveMsg | PingMsg;
+export type ClientMsg = JoinMsg | StartMsg | RestartMsg | CmdMsg | LeaveMsg | PassMsg | PingMsg;
 
 export interface JoinedMsg {
   t: 'joined';
@@ -70,6 +76,7 @@ export interface SyncMsg {
   view: PlayerView;
   events: GameEvent[];
   turnDeadline?: number;
+  turnDuration?: number;
 }
 
 export interface PlayerLeftMsg {

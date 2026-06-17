@@ -127,6 +127,11 @@ export class NetClient {
     this.raw({ t: 'cmd', roomId: this.params.roomId, token: this.params.token, command: cmd });
   }
 
+  pass(): void {
+    if (!this.params) return;
+    this.raw({ t: 'pass', roomId: this.params.roomId, token: this.params.token });
+  }
+
   start(): void {
     if (!this.params) return;
     this.raw({ t: 'start', roomId: this.params.roomId, token: this.params.token });

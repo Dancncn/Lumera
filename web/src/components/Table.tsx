@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { PlayerView } from '../engine/types';
 import { useT } from '../i18n';
+import { useSfx } from '../hooks/useSfx';
+import { sfx } from '../sfx';
 import { useGame } from '../store/gameStore';
+import { ActionArrows } from './ActionArrows';
 import { ActionBar } from './ActionBar';
 import { Center } from './Center';
 import { Coach } from './Coach';
@@ -16,7 +19,37 @@ import { PlayToast } from './PlayToast';
 import { RulesButton } from './RulesModal';
 import { Seats, SelfPlate } from './Seats';
 
+function SfxToggle() {
+  const [on, setOn] = useState(sfx.enabled);
+  const { t } = useT();
+  return (
+    <button
+      className={`btn btn-ghost btn-icon sfx-toggle ${on ? '' : 'sfx-off'}`}
+      type="button"
+      title={on ? t('关闭音效') : t('开启音效')}
+      onClick={() => setOn(sfx.toggle())}
+    >
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        {on ? (
+          <>
+            <path d="M11 5L6 9H2v6h4l5 4V5z" />
+            <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+            <path d="M19 5a9 9 0 0 1 0 14" />
+          </>
+        ) : (
+          <>
+            <path d="M11 5L6 9H2v6h4l5 4V5z" />
+            <line x1="23" y1="9" x2="17" y2="15" />
+            <line x1="17" y1="9" x2="23" y2="15" />
+          </>
+        )}
+      </svg>
+    </button>
+  );
+}
+
 export function Table({ view }: { view: PlayerView }) {
+  useSfx();
   const newGame = useGame((s) => s.newGame);
   const quitToMenu = useGame((s) => s.quitToMenu);
   const tutorial = useGame((s) => s.tutorial);
@@ -31,6 +64,7 @@ export function Table({ view }: { view: PlayerView }) {
       <PlayToast view={view} />
       {notice && <div className="leave-toast">{notice}</div>}
       <FlyCards />
+      <ActionArrows view={view} />
       <EventFx view={view} />
       {tutorial && <Coach view={view} />}
       <header className="topbar">
@@ -41,6 +75,7 @@ export function Table({ view }: { view: PlayerView }) {
           </span>
         </div>
         <div className="topbar-right">
+          <SfxToggle />
           <LangSwitch />
           <RulesButton />
           <button className="btn btn-ghost btn-icon" type="button" onClick={() => newGame(view.players.length)} title={t('重开')}>

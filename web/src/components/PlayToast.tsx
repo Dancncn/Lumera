@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { COLOR_META, PlayerView } from '../engine/types';
 import { useT } from '../i18n';
+import { playerColor } from '../playerColors';
 import { useGame } from '../store/gameStore';
 
 // 注意提示：对手出牌/甩功能牌时，中上方弹一条带色横幅，停留约 1.4s，
@@ -20,7 +21,7 @@ export function PlayToast({ view }: { view: PlayerView }) {
         hit = {
           node: (
             <>
-              <strong>{tn(view.players[e.seat]?.name ?? '')}</strong> {t('宣称')}
+              <strong style={{ color: playerColor(e.seat) }}>{tn(view.players[e.seat]?.name ?? '')}</strong> {t('宣称')}
               <span className="toast-claim" style={{ color: m.hex }}>
                 <span className="toast-dot" style={{ background: m.hex }} />
                 {m.name} {numTxt}
@@ -31,11 +32,22 @@ export function PlayToast({ view }: { view: PlayerView }) {
         };
         break;
       }
+      if (e.type === 'CardDrawn' && e.seat !== view.you) {
+        hit = {
+          node: (
+            <>
+              <strong style={{ color: playerColor(e.seat) }}>{tn(view.players[e.seat]?.name ?? '')}</strong>{' '}
+              {t('摸了 {n} 张', { n: e.count })}
+            </>
+          ),
+        };
+        break;
+      }
       if (e.type === 'FunctionalPlayed' && e.seat !== view.you) {
         hit = {
           node: (
             <>
-              <strong>{tn(view.players[e.seat]?.name ?? '')}</strong>{' '}
+              <strong style={{ color: playerColor(e.seat) }}>{tn(view.players[e.seat]?.name ?? '')}</strong>{' '}
               {t('明牌甩出「{func}」', { func: t(e.func === 'reverse' ? '转向' : '禁止') })}
             </>
           ),

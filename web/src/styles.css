@@ -567,6 +567,23 @@ button {
   color: var(--gold-muted);
   letter-spacing: 1px;
 }
+.pile-who {
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 0.5px;
+  text-align: center;
+  animation: pile-who-in 0.28s ease-out;
+}
+.pile-who-func {
+  color: #e8833a;
+  font-style: italic;
+}
+@keyframes pile-who-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .deck-empty {
   width: 58px;
   height: 80px;
@@ -618,6 +635,19 @@ button {
   border-radius: 999px;
   padding: 2px 11px;
   white-space: nowrap;
+}
+.claim-tag-who {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 3px 14px;
+  background: linear-gradient(135deg, #b07e24 0%, #d4a82e 100%);
+  box-shadow: 0 2px 8px rgba(180, 126, 36, 0.45);
+  animation: tag-pop 0.3s ease-out;
+}
+@keyframes tag-pop {
+  from { transform: translateX(-50%) scale(0.7); opacity: 0; }
+  to   { transform: translateX(-50%) scale(1);   opacity: 1; }
 }
 .ladder-fresh {
   width: var(--card-w);
@@ -1694,6 +1724,110 @@ kbd {
   16% { opacity: 1; }
   80% { opacity: 0.95; }
   100% { transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(0.4); opacity: 0; }
+}
+
+/* ============================================================
+   指向性箭头动画：质疑 / 禁止 / 摸牌 / 转向
+   ============================================================ */
+.action-arrows {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+.aa-svg {
+  position: absolute;
+  inset: 0;
+}
+.aa-group {
+  animation: aa-life 1.4s ease-out both;
+}
+@keyframes aa-life {
+  0% { opacity: 0; }
+  7% { opacity: 1; }
+  72% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.aa-glow {
+  fill: none;
+  stroke-width: 8;
+  opacity: 0.18;
+  stroke-linecap: round;
+}
+.aa-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 2000;
+  animation: aa-draw 0.5s ease-out forwards;
+}
+@keyframes aa-draw {
+  to { stroke-dashoffset: 0; }
+}
+.aa-label {
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--display), sans-serif;
+  letter-spacing: 1px;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 3px;
+  opacity: 0;
+  animation: aa-label-in 0.3s 0.25s ease-out forwards;
+}
+@keyframes aa-label-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.aa-challenge .aa-line { stroke-width: 3; }
+.aa-challenge .aa-glow { stroke-width: 10; opacity: 0.22; }
+.aa-draw .aa-line { stroke-width: 2; opacity: 0.7; }
+.aa-draw .aa-glow { stroke-width: 6; opacity: 0.1; }
+.aa-play .aa-line { stroke-width: 2; }
+.aa-play .aa-glow { stroke-width: 7; opacity: 0.14; }
+
+/* 转向特效 */
+.aa-reverse {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  animation: aa-rev-life 1.4s ease-out both;
+}
+@keyframes aa-rev-life {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  25% { transform: translate(-50%, -50%) scale(1); }
+  72% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+}
+.aa-rev-icon {
+  font-size: 52px;
+  line-height: 1;
+  color: #805ad5;
+  text-shadow: 0 0 18px rgba(128, 90, 213, 0.45);
+  animation: aa-spin 0.6s ease-out;
+}
+@keyframes aa-spin {
+  from { transform: rotate(-180deg); }
+  to { transform: rotate(0deg); }
+}
+.aa-rev-text {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #805ad5;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .aa-line { animation: none; stroke-dashoffset: 0; }
+  .aa-label { animation: none; opacity: 1; }
+  .aa-group { animation: none; }
+  .aa-reverse { animation: none; }
+  .aa-rev-icon { animation: none; }
 }
 
 /* 联机大厅入场 */
@@ -3036,6 +3170,9 @@ kbd {
 /* ============================================================
    事件流关键词上色
    ============================================================ */
+.log-name {
+  font-weight: 600;
+}
 .log-kw {
   font-weight: 600;
 }
@@ -3575,4 +3712,109 @@ kbd {
 .hist-clear:hover {
   border-color: #b4453a;
   color: #b4453a;
+}
+
+/* ============================================================
+   受罚高亮 · 被跳过标注 · 音效开关
+   ============================================================ */
+.seat-penalty {
+  border-color: #c34a38 !important;
+  box-shadow: 0 0 0 2px rgba(195, 74, 56, 0.3), 0 0 18px rgba(195, 74, 56, 0.18) !important;
+  animation: penalty-pulse 1.2s ease-in-out infinite !important;
+}
+@keyframes penalty-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(195, 74, 56, 0.25), 0 0 12px rgba(195, 74, 56, 0.12); }
+  50% { box-shadow: 0 0 0 3px rgba(195, 74, 56, 0.45), 0 0 22px rgba(195, 74, 56, 0.25); }
+}
+.seat-penalty-tag {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: #fff;
+  background: linear-gradient(135deg, #c34a38, #e06060);
+  border-radius: 999px;
+  padding: 2px 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(195, 74, 56, 0.4);
+  animation: tag-pop 0.3s ease-out;
+  z-index: 2;
+}
+.seat-skipped {
+  position: relative;
+}
+.seat-skipped::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 14px;
+  background: rgba(195, 74, 56, 0.08);
+  border: 1.5px dashed rgba(195, 74, 56, 0.4);
+  pointer-events: none;
+  animation: skip-flash 1.8s ease-out both;
+}
+@keyframes skip-flash {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.seat-skip-tag {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: #c34a38;
+  background: rgba(252, 246, 240, 0.97);
+  border: 1px solid rgba(195, 74, 56, 0.5);
+  border-radius: 999px;
+  padding: 2px 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(195, 74, 56, 0.2);
+  animation: skip-flash 1.8s ease-out both;
+  z-index: 2;
+}
+
+.self-penalty {
+  border-color: #c34a38 !important;
+  box-shadow: 0 0 0 2px rgba(195, 74, 56, 0.3) !important;
+  animation: penalty-pulse 1.2s ease-in-out infinite !important;
+}
+.self-penalty-tag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: #c34a38;
+  animation: pulse 1.1s infinite;
+}
+
+.sfx-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--gold-muted);
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+.sfx-toggle:hover {
+  color: var(--gold-deep);
+  border-color: var(--gold);
+}
+.sfx-off {
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .seat-penalty { animation: none !important; }
+  .seat-skipped::after { animation: none; opacity: 1; }
 }

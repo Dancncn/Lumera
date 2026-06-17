@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react';
 import { PlayerView } from '../engine/types';
 import { useT } from '../i18n';
 import { saveRecord } from '../net/history';
+import { playerColor } from '../playerColors';
 import { useGame } from '../store/gameStore';
 
-const DIFF_LABEL: Record<string, string> = { easy: '新手', normal: '常规', hard: '老练' };
+const DIFF_LABEL: Record<string, string> = { easy: '新手', normal: '常规', hard: '老练', master: '大师' };
 
 export function GameOver({ view }: { view: PlayerView }) {
   const newGame = useGame((s) => s.newGame);
@@ -50,7 +51,8 @@ export function GameOver({ view }: { view: PlayerView }) {
         {tutorial && <div className="go-grad">{t('认牌、出牌接梯、放行 / 截牌、摊牌受罚 —— 一整轮你都走过了。来一局真正的对局练练手吧。')}</div>}
         {winner && (
           <div className="go-winner">
-            {t('{name} 第一个汇成 —— 创造站住了。', { name: winner.seat === view.you ? t('你') : tn(winner.name) })}
+            <span style={{ color: playerColor(winner.seat) }}>{winner.seat === view.you ? t('你') : tn(winner.name)}</span>
+            {' '}{t('第一个汇成 —— 创造站住了。')}
           </div>
         )}
         <table className="go-table">
@@ -69,7 +71,7 @@ export function GameOver({ view }: { view: PlayerView }) {
               <tr key={r.seat} className={r.seat === view.you ? 'go-you' : ''}>
                 <td>{i + 1}</td>
                 <td>
-                  {tn(r.name)}
+                  <span style={{ color: playerColor(r.seat) }}>{tn(r.name)}</span>
                   {r.out && <span className="go-out"> {t('复归')}</span>}
                 </td>
                 <td className="go-score">{r.score}</td>

@@ -7,6 +7,8 @@ export const EN: Record<string, string> = {
   '性格各异，有诈有读': 'Varied personalities; they bluff and read you',
   '老练': 'Seasoned',
   '会读你、少破绽': 'Reads you well, shows few tells',
+  '大师': 'Master',
+  '全局计算、风险评估、精准博弈': 'Full-board calculation, risk assessment, precision play',
   '玩家': 'Player',
   '盖牌、说谎、拆穿 —— 一缕意志，抢着先汇成。': 'Play face-down, lie, call the bluff — race a wisp of will to converge first.',
   '盖牌出、报出它是什么（可真可假）；下家放行或截牌摊牌，输的一方掷骰赌命。': 'Play a card face-down and claim what it is (true or false); the next player passes or challenges to a showdown, and the loser rolls the dice for their life.',
@@ -207,18 +209,19 @@ export const EN: Record<string, string> = {
   '赌注牌堆 {n} 张': 'Stake pile {n} cards',
   '肥': 'fat',
   '摊牌 · 真实牌': 'Showdown · true card',
-  '宣称为真': 'Claim was true',
-  '撒谎被抓': 'Bluff caught',
+  '宣称为真': 'Claim was truthful',
+  '撒谎被抓': 'Caught lying',
   '源涌轮盘 · 掷骰中…': 'Surge Roulette · rolling…',
   '赌 {c} · 掷 {r} · {res}': 'Bet {c} · rolled {r} · {res}',
   '被淹没': 'drowned',
-  '险过': 'narrow escape',
+  '险过': 'Survived',
 
   // GameOver
   '新手引导 · 完成': 'Tutorial · Complete',
   '诸念归源 · 本局结算': 'All Wills Return to the Source · Final Tally',
   '认牌、出牌接梯、放行 / 截牌、摊牌受罚 —— 一整轮你都走过了。来一局真正的对局练练手吧。': 'Knowing the cards, following the ladder, passing / challenging, showdowns and penalties — you\'ve been through a full round. Play a real game now to put it into practice.',
   '{name} 第一个汇成 —— 创造站住了。': '{name} converged first — creation holds.',
+  '第一个汇成 —— 创造站住了。': 'converged first — creation holds.',
   '你': 'You',
   '名次': 'Rank',
   '意志': 'Will',
@@ -266,6 +269,7 @@ export const EN: Record<string, string> = {
   '离开房间': 'Leave Room',
 
   // PlayToast
+  '摸了 {n} 张': 'drew {n} card(s)',
   '打 0 · 终结本梯': 'Played 0 · ladder ended',
   '明牌甩出「{func}」': 'played "{func}" face-up',
 
@@ -288,7 +292,13 @@ export const EN: Record<string, string> = {
   '下次受罚投骰次数': 'Rolls on next penalty',
   '凝神': 'thinking',
 
+  // Seats – penalty / skip annotations
+  '受罚中': 'Penalized',
+  '被跳过': 'Skipped',
+
   // Table
+  '关闭音效': 'Mute sound',
+  '开启音效': 'Unmute sound',
   '重开': 'Restart',
   '退出本局？': 'Quit this game?',
   '确认退出': 'Confirm Quit',
@@ -314,7 +324,7 @@ export const EN: Record<string, string> = {
 
   // Card
   '顶 · 10': 'top · 10',
-  '顶': 'top',
+  '顶': 'Top',
   '真': 'true',
 
   // FloatingLog
@@ -341,4 +351,34 @@ export const EN: Record<string, string> = {
   '{n} 分': '{n} pts',
   '仅保存在本机浏览器': 'Stored only in this browser',
   '清空记录': 'Clear history',
+
+  // Event Log templates (engine → FloatingLog i18n)
+  '一条流转的光裂成四道，轮子已经在转了。': 'A flowing light splits into four — the wheel is turning.',
+  '—— 轮到 {name}（首家·重启梯子）': '—— {name}\'s turn (lead · new ladder)',
+  '—— 轮到 {name}（接牌）': '—— {name}\'s turn (following)',
+  '{name} 明牌甩出「转向」': '{name} played "Reverse" face-up',
+  '{name} 明牌甩出「禁止」': '{name} played "Skip" face-up',
+  '方向反转，改顺时针': 'Direction reversed — now clockwise',
+  '方向反转，改逆时针': 'Direction reversed — now counter-clockwise',
+  '{name} 摸了 {n} 张': '{name} drew {n} card(s)',
+  '{name} 盖牌出 1 张，宣称 {claim}': '{name} played 1 card face-down, claiming {claim}',
+  '{name} 盖牌出 1 张，宣称 {claim}（打 0·终结本梯）': '{name} played 1 face-down, claiming {claim} (played 0 · ends ladder)',
+  '{name} 无数字牌可出，亮手兜底、弃功能、摸一张': '{name} has no number cards — reveals hand, discards functional, draws 1',
+  '{challenger} 截下 {against} 的牌，要他摊开对质！': '{challenger} challenged {against}\'s card — reveal it!',
+  '摊牌！真实是 {card} —— {verdict}': 'Showdown! The real card is {card} — {verdict}',
+  '万能牌（恒判真）': 'Wild Card (always truthful)',
+  '功能牌': 'Functional Card',
+  '{name} 收走牌堆 {n} 张，计入计分区': '{name} takes pile of {n} cards to scoring area',
+  '{name} 领取计分卡 +{v}（打 0 的勇气奖励）': '{name} earns score token +{v} (bonus for playing 0)',
+  '{name} 清空手牌「跑成了」，补满手牌继续': '{name} emptied hand — "Run Out!" Refills and continues',
+  '{name} 受罚：源涌起，本轮投 {n} 次': '{name} penalized: Source surges, {n} roll(s) this round',
+  '{name} 赌 {c} 点，掷出 {r} —— {result}': '{name} bet {c}, rolled {r} — {result}',
+  '被淹没（中）': 'Engulfed (hit)',
+  '{name} 一缕念被收回源头，凝聚度 {n}': '{name} lost a thread to the Source, cohesion {n}',
+  '{name} 本轮全数险过，未损凝聚（下次受罚累进 +1）': '{name} survived all rolls, cohesion intact (next penalty +1)',
+  '{name} 凝聚耗尽，复归于源（出局）': '{name} cohesion depleted — returned to Source (eliminated)',
+  '—— 本局终了，诸念归源结算 ——': '—— Game over — all threads return to Source ——',
+  '{name} 出牌': '{name} played',
+  '{name} · 转向': '{name} · Reverse',
+  '{name} · 禁止': '{name} · Skip',
 };

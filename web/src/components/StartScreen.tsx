@@ -18,6 +18,7 @@ const DIFFS: { key: Difficulty; label: string; hint: string }[] = [
   { key: 'easy', label: '新手', hint: '对手更冲动、爱犯错' },
   { key: 'normal', label: '常规', hint: '性格各异，有诈有读' },
   { key: 'hard', label: '老练', hint: '会读你、少破绽' },
+  { key: 'master', label: '大师', hint: '全局计算、风险评估、精准博弈' },
 ];
 
 export function StartScreen() {

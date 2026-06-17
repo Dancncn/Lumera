@@ -1,4 +1,4 @@
-import { actorOf, apply, createGame, DEFAULT_CONFIG, GameError, viewFor } from '../../web/src/engine/game';
+import { actorOf, apply, createGame, DEFAULT_CONFIG, GameError, respondState, viewFor } from '../../web/src/engine/game';
 import { AiPlayer, Difficulty, PERSONA_LABEL, PROFILE_ORDER, pickProfile } from '../../web/src/engine/ai';
 import { Command, GameEvent, GameState } from '../../web/src/engine/types';
 import { ServerMsg, SeatInfo, MAX_NAME } from '../../web/src/net/protocol';
@@ -38,6 +38,13 @@ function cleanName(raw: string | undefined, fallback: string): string {
 const TURN_TIMEOUT_MS = Number(process.env.YUANHE_TURN_TIMEOUT_MS ?? 20000);
 const DELAY_SCALE = Number(process.env.YUANHE_DELAY_SCALE ?? 1);
 
+// 质疑窗口：出牌后留给全场 8 秒反应（先喊先得）。纯 AI 收得更快。
+const RESPOND_WINDOW_HUMAN = 8000;
+const RESPOND_WINDOW_AI = 2400;
+function challengeDelay(humanEligible: boolean): number {
+  return humanEligible ? 1400 + Math.random() * 1900 : 700 + Math.random() * 1200;
+}
+
 function delayFor(events: GameEvent[]): number {
   let base = 520;
   if (events.some((e) => e.type === 'CardRevealed')) base = 1900;
@@ -58,6 +65,8 @@ export class Room {
   private state: GameState | null = null;
   private lastEvents: GameEvent[] = [];
   private aiTimer: ReturnType<typeof setTimeout> | null = null;
+  private respondTimers: ReturnType<typeof setTimeout>[] = [];
+  private respondPending = new Set<number>();
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   private turnDeadline: number | null = null;
   private graceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -288,6 +297,15 @@ export class Room {
     if (!this.state) return;
     const seat = this.seats.find((s) => s.token === token);
     if (!seat) return;
+    // 应对阶段：任何在场的非出牌方都能质疑，不限下家。
+    if (this.state.phase.kind === 'respond' && command.type === 'Challenge') {
+      if (this.state.phase.player === seat.seat || this.state.players[seat.seat].out) {
+        if (seat.conn) this.err(seat.conn, '不能质疑');
+        return;
+      }
+      this.applyCommand(seat.seat, command, seat.conn);
+      return;
+    }
     const actor = actorOf(this.state);
     if (actor !== seat.seat) {
       if (seat.conn) this.err(seat.conn, '还没轮到你');
@@ -316,10 +334,80 @@ export class Room {
     this.turnDeadline = null;
   }
 
+  private clearRespondTimers(): void {
+    for (const t of this.respondTimers) clearTimeout(t);
+    this.respondTimers = [];
+    this.respondPending = new Set();
+  }
+
+  // 全场可质疑者都表态（放行 / AI 判完不质疑）→ 下家自动放行、继续。任一质疑则即时摊牌。
+  private checkRespondProceed(): void {
+    if (this.respondPending.size > 0) return;
+    if (!this.state || this.state.phase.kind !== 'respond') return;
+    this.applyCommand(this.state.phase.responder, { type: 'Accept' }, null);
+  }
+
+  // 应对阶段：开反应窗口。每个在场 AI 到点表态（质疑即摊牌，否则移出待表态集）；
+  // 真人经 WS 发 Challenge / pass 表态。一般真人最慢——真人放行且 AI 都判完即继续；兜底硬上限封顶。
+  private driveRespond(): void {
+    const s = this.state;
+    if (!s) return;
+    const info = respondState(s);
+    if (!info) return;
+    this.respondPending = new Set(info.challengers);
+    const humanEligible = info.challengers.some((seat) => !s.players[seat].isAI && this.seats[seat].conn !== null);
+    for (const seat of info.challengers) {
+      if (!s.players[seat].isAI) continue;
+      const ai = this.aiFor(seat);
+      this.respondTimers.push(
+        setTimeout(() => {
+          if (!this.state || this.state.phase.kind !== 'respond') return;
+          if (this.state.phase.player === seat || this.state.players[seat].out) {
+            this.respondPending.delete(seat);
+            this.checkRespondProceed();
+            return;
+          }
+          if (ai.decide(viewFor(this.state, seat)).type === 'Challenge') {
+            this.applyCommand(seat, { type: 'Challenge' }, null);
+            return;
+          }
+          this.respondPending.delete(seat);
+          this.checkRespondProceed();
+        }, challengeDelay(humanEligible) * DELAY_SCALE),
+      );
+    }
+    const windowMs = (humanEligible ? RESPOND_WINDOW_HUMAN : RESPOND_WINDOW_AI) * DELAY_SCALE;
+    this.respondTimers.push(
+      setTimeout(() => {
+        if (!this.state || this.state.phase.kind !== 'respond') return;
+        this.applyCommand(this.state.phase.responder, { type: 'Accept' }, null);
+      }, windowMs),
+    );
+    if (humanEligible) {
+      this.turnDeadline = Date.now() + windowMs;
+      this.broadcastSync();
+    }
+    this.checkRespondProceed();
+  }
+
+  pass(token: string): void {
+    if (!this.state || this.state.phase.kind !== 'respond') return;
+    const seat = this.seats.find((s) => s.token === token);
+    if (!seat || !this.respondPending.has(seat.seat)) return;
+    this.respondPending.delete(seat.seat);
+    this.checkRespondProceed();
+  }
+
   private drive(): void {
     if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+    this.clearRespondTimers();
     this.clearTurnTimer();
     if (!this.state || this.state.phase.kind === 'over') return;
+
+    if (this.state.phase.kind === 'respond') {
+      this.driveRespond();
+      return;
+    }
     const actor = actorOf(this.state);
 
     if (!this.state.players[actor].isAI) {
@@ -399,6 +487,7 @@ export class Room {
 
   dispose(): void {
     if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+    this.clearRespondTimers();
     this.clearTurnTimer();
     this.clearGrace();
   }

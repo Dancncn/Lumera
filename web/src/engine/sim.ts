@@ -1,11 +1,11 @@
 // 无头模拟器 —— 对抗性验证：跑大量随机对局，断言引擎不崩溃、牌张守恒、必然终局、无信息泄露。
 // 运行：npm run sim
-import { apply, createGame, viewFor } from './game';
+import { apply, createGame, respondState, viewFor } from './game';
 import { AiPlayer, Difficulty } from './ai';
 import { buildDeck } from './deck';
 import { GameConfig, GameState, DEFAULT_CONFIG } from './types';
 
-const DIFFS: Difficulty[] = ['easy', 'normal', 'hard'];
+const DIFFS: Difficulty[] = ['easy', 'normal', 'hard', 'master'];
 
 function totalCards(s: GameState): number {
   let n = s.deck.length + s.pile.length + s.discard.length;
@@ -57,21 +57,43 @@ function runGame(players: number, seed: number, checkLeak: boolean): { steps: nu
   const cap = 30000;
   while (state.phase.kind !== 'over') {
     if (++steps > cap) throw new Error(`未在 ${cap} 步内终局（疑似死循环），seed=${seed}`);
-    const actor = state.phase.kind === 'play' ? state.phase.current
-      : state.phase.kind === 'respond' ? state.phase.responder
-      : state.phase.roller;
-    const view = viewFor(state, actor);
-    const cmd = ais[actor].decide(view);
-    const res = apply(state, actor, cmd);
-    state = res.state;
-    observeAll(res.events, state);
+    let cmdType = '';
+    if (state.phase.kind === 'respond') {
+      // 任何在场玩家都可质疑：逐个让 AI 评估，第一个出 Challenge 的生效；都不质疑则下家放行。
+      const info = respondState(state)!;
+      let challenged = false;
+      for (const seat of info.challengers) {
+        const c = ais[seat].decide(viewFor(state, seat));
+        if (c.type === 'Challenge') {
+          const res = apply(state, seat, c);
+          state = res.state;
+          observeAll(res.events, state);
+          challenged = true;
+          cmdType = 'Challenge';
+          break;
+        }
+      }
+      if (!challenged) {
+        const res = apply(state, info.responder, { type: 'Accept' });
+        state = res.state;
+        observeAll(res.events, state);
+        cmdType = 'Accept';
+      }
+    } else {
+      const actor = state.phase.kind === 'play' ? state.phase.current : state.phase.roller;
+      const cmd = ais[actor].decide(viewFor(state, actor));
+      const res = apply(state, actor, cmd);
+      state = res.state;
+      observeAll(res.events, state);
+      cmdType = cmd.type;
+    }
 
     // 不变量
     if (state.phase.kind === 'respond' && state.phase.responder === state.phase.player) {
       throw new Error(`应对者绕回出牌方自己（skip 越界回归）：seat=${state.phase.player}（seed=${seed}, step=${steps}）`);
     }
     if (totalCards(state) !== initialTotal) {
-      throw new Error(`牌张不守恒：${totalCards(state)} != ${initialTotal}（seed=${seed}, step=${steps}, cmd=${cmd.type}）`);
+      throw new Error(`牌张不守恒：${totalCards(state)} != ${initialTotal}（seed=${seed}, step=${steps}, cmd=${cmdType}）`);
     }
     for (const p of state.players) {
       if (p.lives < 0 || p.lives > config.startingLives) throw new Error(`凝聚度越界 ${p.lives}`);
