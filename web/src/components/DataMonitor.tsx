@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useT } from '../i18n';
 
 interface StatsData {
   visits: number;
@@ -18,6 +19,7 @@ const CARDS: { key: keyof StatsData; label: string; suffix: string }[] = [
 ];
 
 export function DataMonitor() {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<StatsData>(SEED);
 
@@ -47,7 +49,7 @@ export function DataMonitor() {
 
   return (
     <>
-      <button className="rules-icon" type="button" onClick={() => setOpen(true)} title="数据监控" aria-label="数据监控">
+      <button className="rules-icon" type="button" onClick={() => setOpen(true)} title={t('数据监控')} aria-label={t('数据监控')}>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
           <path d="M3 21h18" />
           <rect x="5" y="11" width="3.4" height="7" rx="0.6" />
@@ -60,8 +62,8 @@ export function DataMonitor() {
         <div className="overlay" onClick={() => setOpen(false)}>
           <div className="stats-modal" onClick={(e) => e.stopPropagation()}>
             <div className="rules-head">
-              <span className="rules-title">源河 · 数据监控</span>
-              <button className="flog-close" type="button" onClick={() => setOpen(false)} aria-label="关闭">
+              <span className="rules-title">{t('源河 · 数据监控')}</span>
+              <button className="flog-close" type="button" onClick={() => setOpen(false)} aria-label={t('关闭')}>
                 ✕
               </button>
             </div>
@@ -70,13 +72,13 @@ export function DataMonitor() {
                 <div key={c.key} className="stat-card">
                   <span className="stat-num">
                     {data[c.key].toLocaleString()}
-                    <i>{c.suffix}</i>
+                    <i>{t(c.suffix)}</i>
                   </span>
-                  <span className="stat-cap">{c.label}</span>
+                  <span className="stat-cap">{t(c.label)}</span>
                 </div>
               ))}
             </div>
-            <p className="stats-foot">数据实时统计 · 每次访问 / 对局自动累计</p>
+            <p className="stats-foot">{t('数据实时统计 · 每次访问 / 对局自动累计')}</p>
           </div>
         </div>
       )}

@@ -1,5 +1,6 @@
 import { CSSProperties } from 'react';
 import { Card, Claim, Color, COLOR_META } from '../engine/types';
+import { useT } from '../i18n';
 
 export function numLabel(num: number): string {
   return num === 0 ? '0' : String(num);
@@ -68,6 +69,7 @@ export function CardFace({
   onClick?: () => void;
   small?: boolean;
 }) {
+  const { t } = useT();
   const cls = ['card', small ? 'card-sm' : '', selected ? 'card-sel' : '', dimmed ? 'card-dim' : '', onClick ? 'card-click' : ''].join(' ');
 
   if (card.kind === 'number') {
@@ -78,7 +80,7 @@ export function CardFace({
         <ForceMark color={card.color} />
         <div className="card-center">
           <span className="card-num">{numLabel(card.num)}</span>
-          {card.num === 0 && <span className="card-zero-note">顶 · 10</span>}
+          {card.num === 0 && <span className="card-zero-note">{t('顶 · 10')}</span>}
         </div>
         <div className="card-name">{m.name}</div>
       </div>
@@ -108,7 +110,7 @@ export function CardFace({
             </g>
           )}
         </svg>
-        <span className="card-func-label">{isRev ? '转向' : '禁止'}</span>
+        <span className="card-func-label">{t(isRev ? '转向' : '禁止')}</span>
         <div className="card-name">{isRev ? 'reverse' : 'skip'}</div>
       </div>
     );
@@ -125,7 +127,7 @@ export function CardFace({
         <circle cx="7.4" cy="16" r="2" fill={COLOR_META.verda.hex} stroke="none" />
       </svg>
       <span className="card-wild-glyph">Lumera</span>
-      <div className="card-name">万能</div>
+      <div className="card-name">{t('万能')}</div>
     </div>
   );
 }
@@ -161,6 +163,7 @@ export function ClaimChip({
   onClick?: () => void;
   hotkey?: number;
 }) {
+  const { t } = useT();
   const m = COLOR_META[claim.color];
   return (
     <button
@@ -174,9 +177,9 @@ export function ClaimChip({
       <span className="claim-name">{m.name}</span>
       <span className="claim-num">
         {numLabel(claim.num)}
-        {claim.num === 0 && <span className="claim-top">顶</span>}
+        {claim.num === 0 && <span className="claim-top">{t('顶')}</span>}
       </span>
-      {truthful && <span className="claim-true">真</span>}
+      {truthful && <span className="claim-true">{t('真')}</span>}
     </button>
   );
 }

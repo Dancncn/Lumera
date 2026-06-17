@@ -1,11 +1,13 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { COLOR_META, PlayerView } from '../engine/types';
+import { useT } from '../i18n';
 import { useGame } from '../store/gameStore';
 
 // 注意提示：对手出牌/甩功能牌时，中上方弹一条带色横幅，停留约 1.4s，
 // 给你「线下说话 + 放牌」那样的过渡时间去留意对手做了什么。
 export function PlayToast({ view }: { view: PlayerView }) {
   const events = useGame((s) => s.lastEvents);
+  const { t, tn } = useT();
   const [toast, setToast] = useState<{ id: number; node: ReactNode } | null>(null);
 
   useEffect(() => {
@@ -18,12 +20,12 @@ export function PlayToast({ view }: { view: PlayerView }) {
         hit = {
           node: (
             <>
-              <strong>{view.players[e.seat]?.name}</strong> 宣称
+              <strong>{tn(view.players[e.seat]?.name ?? '')}</strong> {t('宣称')}
               <span className="toast-claim" style={{ color: m.hex }}>
                 <span className="toast-dot" style={{ background: m.hex }} />
                 {m.name} {numTxt}
               </span>
-              {e.endsLadder && <span className="toast-mark">打 0 · 终结本梯</span>}
+              {e.endsLadder && <span className="toast-mark">{t('打 0 · 终结本梯')}</span>}
             </>
           ),
         };
@@ -33,7 +35,8 @@ export function PlayToast({ view }: { view: PlayerView }) {
         hit = {
           node: (
             <>
-              <strong>{view.players[e.seat]?.name}</strong> 明牌甩出「{e.func === 'reverse' ? '转向' : '禁止'}」
+              <strong>{tn(view.players[e.seat]?.name ?? '')}</strong>{' '}
+              {t('明牌甩出「{func}」', { func: t(e.func === 'reverse' ? '转向' : '禁止') })}
             </>
           ),
         };
@@ -43,8 +46,8 @@ export function PlayToast({ view }: { view: PlayerView }) {
     if (!hit) return;
     const id = view.log.length + events.length;
     setToast({ id, node: hit.node });
-    const t = setTimeout(() => setToast((cur) => (cur && cur.id === id ? null : cur)), 1500);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setToast((cur) => (cur && cur.id === id ? null : cur)), 1500);
+    return () => clearTimeout(timer);
   }, [events, view.you, view.players, view.log.length]);
 
   if (!toast) return null;

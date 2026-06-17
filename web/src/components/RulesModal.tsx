@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useT } from '../i18n';
 import { CardGallery } from './CardGallery';
 import { PersonaGuide } from './PersonaGuide';
 import { ChallengeDemo, LadderDemo } from './RuleDemos';
@@ -82,6 +83,7 @@ const SECTIONS: { h: string; lines: string[]; demo?: 'ladder' | 'challenge' | 'c
 ];
 
 export function RulesButton() {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -93,7 +95,7 @@ export function RulesButton() {
 
   return (
     <>
-      <button className="rules-icon" type="button" onClick={() => setOpen(true)} title="规则说明" aria-label="规则说明">
+      <button className="rules-icon" type="button" onClick={() => setOpen(true)} title={t('规则说明')} aria-label={t('规则说明')}>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="9" />
           <path d="M9.2 9.2a2.8 2.8 0 1 1 3.6 2.7c-.7.3-1.3.9-1.3 1.8" />
@@ -105,18 +107,18 @@ export function RulesButton() {
         <div className="overlay" onClick={() => setOpen(false)}>
           <div className="rules-modal" onClick={(e) => e.stopPropagation()}>
             <div className="rules-head">
-              <span className="rules-title">源河 · 规则说明</span>
-              <button className="flog-close" type="button" onClick={() => setOpen(false)} aria-label="关闭">
+              <span className="rules-title">{t('源河 · 规则说明')}</span>
+              <button className="flog-close" type="button" onClick={() => setOpen(false)} aria-label={t('关闭')}>
                 ✕
               </button>
             </div>
             <div className="rules-body">
               {SECTIONS.map((s) => (
                 <section key={s.h} className="rules-sec">
-                  <h3>{s.h}</h3>
+                  <h3>{t(s.h)}</h3>
                   <ul>
                     {s.lines.map((l, i) => (
-                      <li key={i}>{l}</li>
+                      <li key={i}>{t(l)}</li>
                     ))}
                   </ul>
                   {s.demo === 'cards' && <CardGallery />}

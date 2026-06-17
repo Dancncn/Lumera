@@ -1,5 +1,5 @@
 import { actorOf, apply, createGame, DEFAULT_CONFIG, GameError, viewFor } from '../../web/src/engine/game';
-import { AiPlayer, Difficulty, PERSONA_LABEL, pickProfile } from '../../web/src/engine/ai';
+import { AiPlayer, Difficulty, PERSONA_LABEL, PROFILE_ORDER, pickProfile } from '../../web/src/engine/ai';
 import { Command, GameEvent, GameState } from '../../web/src/engine/types';
 import { ServerMsg, SeatInfo, MAX_NAME } from '../../web/src/net/protocol';
 import { countGame } from './stats';
@@ -35,6 +35,7 @@ function cleanName(raw: string | undefined, fallback: string): string {
   return s.length ? s : fallback;
 }
 
+const TURN_TIMEOUT_MS = Number(process.env.YUANHE_TURN_TIMEOUT_MS ?? 20000);
 const DELAY_SCALE = Number(process.env.YUANHE_DELAY_SCALE ?? 1);
 
 function delayFor(events: GameEvent[]): number {
@@ -57,6 +58,8 @@ export class Room {
   private state: GameState | null = null;
   private lastEvents: GameEvent[] = [];
   private aiTimer: ReturnType<typeof setTimeout> | null = null;
+  private turnTimer: ReturnType<typeof setTimeout> | null = null;
+  private turnDeadline: number | null = null;
   private graceTimer: ReturnType<typeof setTimeout> | null = null;
   private seedCounter = 0;
   private ais = new Map<number, AiPlayer>();
@@ -150,7 +153,9 @@ export class Room {
 
   private syncSeat(s: Seat): void {
     if (!s.conn || !this.state) return;
-    s.conn.send({ t: 'sync', view: viewFor(this.state, s.seat), events: this.lastEvents });
+    const msg: ServerMsg = { t: 'sync', view: viewFor(this.state, s.seat), events: this.lastEvents };
+    if (this.turnDeadline) (msg as { turnDeadline?: number }).turnDeadline = this.turnDeadline;
+    s.conn.send(msg);
   }
 
   private broadcastSync(): void {
@@ -180,6 +185,30 @@ export class Room {
     }
 
     if (this.started) {
+      const joinName = cleanName(name, '');
+      const nameMatch = joinName
+        ? this.seats.find((s) => s.human && s.conn === null && s.name === joinName)
+        : null;
+      if (nameMatch) {
+        nameMatch.token = token;
+        nameMatch.conn = conn;
+        this.clearGrace();
+        if (this.state) this.state.players[nameMatch.seat].isAI = false;
+        if (!this.hostToken) this.hostToken = token;
+        conn.send({
+          t: 'joined',
+          roomId: this.id,
+          you: nameMatch.seat,
+          capacity: this.capacity,
+          host: this.hostToken === token,
+          started: true,
+          seats: this.seatInfos(),
+        });
+        if (this.state) this.syncSeat(nameMatch);
+        this.broadcastRoom();
+        this.drive();
+        return;
+      }
       this.err(conn, '该房间对局已开始，无法加入');
       return;
     }
@@ -282,14 +311,26 @@ export class Room {
     this.drive();
   }
 
+  private clearTurnTimer(): void {
+    if (this.turnTimer) { clearTimeout(this.turnTimer); this.turnTimer = null; }
+    this.turnDeadline = null;
+  }
+
   private drive(): void {
-    if (this.aiTimer) {
-      clearTimeout(this.aiTimer);
-      this.aiTimer = null;
-    }
+    if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+    this.clearTurnTimer();
     if (!this.state || this.state.phase.kind === 'over') return;
     const actor = actorOf(this.state);
-    if (!this.state.players[actor].isAI) return;
+
+    if (!this.state.players[actor].isAI) {
+      if (this.seats[actor].conn) {
+        this.turnDeadline = Date.now() + TURN_TIMEOUT_MS;
+        this.broadcastSync();
+        this.turnTimer = setTimeout(() => this.onTurnTimeout(actor), TURN_TIMEOUT_MS);
+      }
+      return;
+    }
+
     const ai = this.aiFor(actor);
     const cmd = ai.decide(viewFor(this.state, actor));
     const delay = Math.max(delayFor(this.lastEvents), ai.delayMs() * DELAY_SCALE);
@@ -303,6 +344,20 @@ export class Room {
       }
       this.applyCommand(a, cmd, null);
     }, delay);
+  }
+
+  private onTurnTimeout(seat: number): void {
+    this.turnTimer = null;
+    this.turnDeadline = null;
+    if (!this.state || this.state.phase.kind === 'over') return;
+    const actor = actorOf(this.state);
+    if (actor !== seat || this.state.players[actor].isAI) { this.drive(); return; }
+
+    const profile = PROFILE_ORDER[Math.floor(Math.random() * PROFILE_ORDER.length)];
+    const tempAi = new AiPlayer({ seat, seed: (Date.now() & 0x7fffffff) >>> 0, profile, difficulty: ROOM_DIFFICULTY });
+    tempAi.observe(this.lastEvents, viewFor(this.state, seat));
+    const cmd = tempAi.decide(viewFor(this.state, seat));
+    this.applyCommand(seat, cmd, null);
   }
 
   disconnect(conn: Conn): void {
@@ -332,6 +387,8 @@ export class Room {
       seat.name = AI_NAMES[seat.seat % AI_NAMES.length];
     } else if (inProgress) {
       this.state!.players[seat.seat].isAI = true;
+      const leftMsg: ServerMsg = { t: 'playerLeft', seat: seat.seat, name: seat.name };
+      for (const s of this.seats) if (s.conn && s !== seat) s.conn.send(leftMsg);
     }
     this.reassignHostIfLeaving(token);
     if (inProgress) this.drive();
@@ -341,10 +398,8 @@ export class Room {
   }
 
   dispose(): void {
-    if (this.aiTimer) {
-      clearTimeout(this.aiTimer);
-      this.aiTimer = null;
-    }
+    if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+    this.clearTurnTimer();
     this.clearGrace();
   }
 }

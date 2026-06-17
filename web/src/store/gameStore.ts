@@ -4,7 +4,7 @@ import { AiPlayer, Difficulty, PERSONA_LABEL, pickProfile } from '../engine/ai';
 import { Card, Command, GameEvent, GameState, PlayerView } from '../engine/types';
 import { NetClient, ConnStatus, loadToken } from '../net/client';
 import { reportLocalGame } from '../net/telemetry';
-import { JoinedMsg, RoomMsg, SeatInfo, SyncMsg } from '../net/protocol';
+import { JoinedMsg, PlayerLeftMsg, RoomMsg, SeatInfo, SyncMsg } from '../net/protocol';
 
 const AI_NAMES = ['Aurel', 'Selvar', 'Verda', 'Thalos'];
 
@@ -37,6 +37,10 @@ interface Store {
   lastEvents: GameEvent[];
   lastDie: DieFlash | null;
   tutorial: boolean;
+  turnDeadline: number | null;
+  notice: string | null;
+  difficulty: Difficulty;
+  players: number;
   newGame: (players: number, difficulty?: Difficulty, firstSeat?: number, deck?: Card[]) => void;
   startTutorial: () => void;
   quitToMenu: () => void;
@@ -152,6 +156,10 @@ export const useGame = create<Store>((set, get) => {
     lastEvents: [],
     lastDie: null,
     tutorial: false,
+    turnDeadline: null,
+    notice: null,
+    difficulty: 'normal',
+    players: 3,
 
     newGame: (players: number, diff?: Difficulty, firstSeat?: number, deck?: Card[]) => {
       if (get().mode === 'online') {
@@ -170,7 +178,7 @@ export const useGame = create<Store>((set, get) => {
       });
       const { state, events } = createGame({ ...DEFAULT_CONFIG, players, seed }, seats, firstSeat, deck);
       observeAll(events, state);
-      set({ state, lastEvents: events, lastDie: null, thinking: null, tutorial: false });
+      set({ state, lastEvents: events, lastDie: null, thinking: null, tutorial: false, difficulty, players });
       reportLocalGame(); // 单机局也计入「对局」统计
       loop();
     },
@@ -195,6 +203,8 @@ export const useGame = create<Store>((set, get) => {
         lastEvents: [],
         lastDie: null,
         thinking: null,
+        turnDeadline: null,
+        notice: null,
         tutorial: false,
       });
     },
@@ -233,7 +243,14 @@ export const useGame = create<Store>((set, get) => {
         lastDie: null,
         thinking: null,
       });
+      let noticeTimer: ReturnType<typeof setTimeout> | null = null;
       const client: NetClient = new NetClient({
+        onPlayerLeft: (msg: PlayerLeftMsg) => {
+          if (net !== client) return;
+          if (noticeTimer) clearTimeout(noticeTimer);
+          set({ notice: `${msg.name} 已离开，AI 代打中` });
+          noticeTimer = setTimeout(() => set({ notice: null }), 3500);
+        },
         onStatus: (status: ConnStatus) => {
           if (net !== client) return;
           set({ conn: status });
@@ -277,6 +294,7 @@ export const useGame = create<Store>((set, get) => {
             lastEvents: msg.events,
             lastDie: nextDie(msg.events, st.lastDie),
             thinking: msg.view.players[msg.view.current]?.isAI ? msg.view.current : null,
+            turnDeadline: msg.turnDeadline ?? null,
           }));
         },
       });
@@ -300,6 +318,8 @@ export const useGame = create<Store>((set, get) => {
         lastEvents: [],
         lastDie: null,
         thinking: null,
+        turnDeadline: null,
+        notice: null,
       });
     },
   };

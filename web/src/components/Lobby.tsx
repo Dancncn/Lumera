@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useT } from '../i18n';
 import { useGame } from '../store/gameStore';
 import { SideRivers } from './MeteorShower';
 
@@ -15,6 +16,7 @@ export function Lobby() {
   const netError = useGame((s) => s.netError);
   const startRoom = useGame((s) => s.startRoom);
   const leaveRoom = useGame((s) => s.leaveRoom);
+  const { t, tn } = useT();
   const [copied, setCopied] = useState(false);
 
   const humans = lobby?.seats.filter((s) => !s.isAI && s.connected).length ?? 0;
@@ -34,19 +36,19 @@ export function Lobby() {
     <div className="start-wrap">
       <SideRivers />
       <div className="lobby">
-        <h1 className="start-title">联机房间</h1>
+        <h1 className="start-title">{t('联机房间')}</h1>
 
         {!lobby ? (
-          <p className="lobby-status">{CONN_TEXT[conn] ?? conn}…正在进入房间</p>
+          <p className="lobby-status">{t(CONN_TEXT[conn] ?? conn)}{t('…正在进入房间')}</p>
         ) : (
           <>
             <div className="lobby-room">
-              <span className="lobby-room-label">房间号</span>
+              <span className="lobby-room-label">{t('房间号')}</span>
               <code className="lobby-room-id">{lobby.roomId}</code>
               <button className="btn btn-ghost" type="button" onClick={copyRoom}>
-                {copied ? '已复制' : '复制'}
+                {copied ? t('已复制') : t('复制')}
               </button>
-              <span className={`lobby-conn lobby-conn-${conn}`}>{CONN_TEXT[conn] ?? conn}</span>
+              <span className={`lobby-conn lobby-conn-${conn}`}>{t(CONN_TEXT[conn] ?? conn)}</span>
             </div>
 
             <div className="lobby-seats">
@@ -55,34 +57,30 @@ export function Lobby() {
                   key={s.seat}
                   className={`lobby-seat ${s.seat === lobby.you ? 'lobby-seat-you' : ''} ${s.isAI ? 'lobby-seat-ai' : ''}`}
                 >
-                  <span className="lobby-seat-no">座位 {s.seat + 1}</span>
+                  <span className="lobby-seat-no">{t('座位 {n}', { n: s.seat + 1 })}</span>
                   <span className="lobby-seat-name">
-                    {s.name}
-                    {s.seat === lobby.you && ' · 你'}
+                    {tn(s.name)}
+                    {s.seat === lobby.you && ` · ${t('你')}`}
                   </span>
-                  <span className="lobby-seat-tag">
-                    {s.isAI ? 'AI 补位' : s.connected ? '在线' : '掉线'}
-                  </span>
+                  <span className="lobby-seat-tag">{s.isAI ? t('AI 补位') : s.connected ? t('在线') : t('掉线')}</span>
                 </div>
               ))}
             </div>
 
-            <p className="lobby-hint">
-              已入座真人 {humans} 人，其余座位由 AI 补位。把房间号发给朋友，他们用同一房间号即可加入。
-            </p>
+            <p className="lobby-hint">{t('已入座真人 {n} 人，其余座位由 AI 补位。把房间号发给朋友，他们用同一房间号即可加入。', { n: humans })}</p>
 
             {netError && <p className="lobby-error">{netError}</p>}
 
             <div className="lobby-btns">
               {!lobby.started && lobby.host && (
                 <button className="start-go" type="button" onClick={startRoom}>
-                  开始对局（空位转 AI）
+                  {t('开始对局（空位转 AI）')}
                 </button>
               )}
-              {!lobby.started && !lobby.host && <span className="lobby-wait">等待房主开始…</span>}
-              {lobby.started && <span className="lobby-wait">对局进行中 · 正在同步…</span>}
+              {!lobby.started && !lobby.host && <span className="lobby-wait">{t('等待房主开始…')}</span>}
+              {lobby.started && <span className="lobby-wait">{t('对局进行中 · 正在同步…')}</span>}
               <button className="btn btn-ghost" type="button" onClick={leaveRoom}>
-                离开房间
+                {t('离开房间')}
               </button>
             </div>
           </>

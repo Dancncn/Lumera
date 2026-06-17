@@ -1,8 +1,10 @@
 import { Card } from '../engine/types';
+import { useT } from '../i18n';
 import { CardFace } from './Card';
 
 // 认牌图卡：把每种牌的真实牌面摆出来，让玩家一眼记住四色、0、功能牌、万能牌。
 export function CardGallery({ compact }: { compact?: boolean }) {
+  const { t } = useT();
   const items: [Card, string][] = compact
     ? [
         [{ id: -1, kind: 'number', color: 'aurel', num: 5 }, '阳 · 金'],
@@ -25,7 +27,7 @@ export function CardGallery({ compact }: { compact?: boolean }) {
       {items.map(([card, label], i) => (
         <div className="cg-item" key={i}>
           <CardFace small card={card} />
-          <span className="cg-label">{label}</span>
+          <span className="cg-label">{t(label)}</span>
         </div>
       ))}
     </div>

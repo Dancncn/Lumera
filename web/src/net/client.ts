@@ -1,5 +1,5 @@
 import { Command } from '../engine/types';
-import { ClientMsg, JoinedMsg, RoomMsg, ServerMsg, SyncMsg } from './protocol';
+import { ClientMsg, JoinedMsg, PlayerLeftMsg, RoomMsg, ServerMsg, SyncMsg } from './protocol';
 
 export type ConnStatus = 'connecting' | 'open' | 'closed';
 
@@ -7,6 +7,7 @@ export interface NetHandlers {
   onJoined(msg: JoinedMsg): void;
   onRoom(msg: RoomMsg): void;
   onSync(msg: SyncMsg): void;
+  onPlayerLeft?(msg: PlayerLeftMsg): void;
   onError(message: string): void;
   onStatus(status: ConnStatus): void;
 }
@@ -83,6 +84,9 @@ export class NetClient {
           break;
         case 'sync':
           this.handlers.onSync(msg);
+          break;
+        case 'playerLeft':
+          this.handlers.onPlayerLeft?.(msg);
           break;
         case 'error':
           this.handlers.onError(msg.message);

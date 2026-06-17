@@ -19,7 +19,7 @@ export const PERSONA_LABEL: Record<AiProfile, string> = {
   cunning: '狡黠',
 };
 
-const PROFILE_ORDER: AiProfile[] = ['aggressive', 'steady', 'cautious', 'capricious', 'cunning'];
+export const PROFILE_ORDER: AiProfile[] = ['aggressive', 'steady', 'cautious', 'capricious', 'cunning'];
 
 // 七个风格旋钮（0..1）：诈牌倾向 / 质疑倾向 / 冒险 / 看人（参考对手模型）/ 理性（多大概率走最优）/ 上头（受挫后波动）/ 耐心（思考更久）。
 interface Traits {

@@ -1,9 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, Claim, Color, COLORS, COLOR_META, PlayerView } from '../engine/types';
 import { legalClaims, val } from '../engine/game';
-import { useGame } from '../store/gameStore';
+import { useT } from '../i18n';
+import { useGame, Mode } from '../store/gameStore';
 import { CardFace, ClaimChip } from './Card';
 import { ClaimPicker } from './ClaimPicker';
+
+const TURN_SECS = 20;
+
+export function TurnCountdown({ deadline, compact }: { deadline: number; compact?: boolean }) {
+  const [remaining, setRemaining] = useState(() => Math.max(0, deadline - Date.now()));
+  const rafRef = useRef(0);
+
+  useEffect(() => {
+    function tick() {
+      const left = Math.max(0, deadline - Date.now());
+      setRemaining(left);
+      if (left > 0) rafRef.current = requestAnimationFrame(tick);
+    }
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [deadline]);
+
+  const secs = Math.ceil(remaining / 1000);
+  const pct = Math.min(100, (remaining / (TURN_SECS * 1000)) * 100);
+  const urgent = secs <= 5;
+
+  return (
+    <div className={`turn-countdown${compact ? ' tc-compact' : ''}${urgent ? ' tc-urgent' : ''}`}>
+      <div className="tc-bar" style={{ width: `${pct}%` }} />
+      <span className="tc-label">{secs}s</span>
+    </div>
+  );
+}
 
 function recommendedClaim(card: Card, claims: Claim[]): Claim | null {
   if (!claims.length) return null;
@@ -19,6 +48,7 @@ function recommendedClaim(card: Card, claims: Claim[]): Claim | null {
 export function ActionBar({ view }: { view: PlayerView }) {
   const human = useGame((s) => s.human);
   const tutorial = useGame((s) => s.tutorial);
+  const { t } = useT();
   const [selId, setSelId] = useState<number | null>(null);
   const p = view.prompt;
 
@@ -104,18 +134,18 @@ export function ActionBar({ view }: { view: PlayerView }) {
       {myTurnPlay && (
         <div className="play-controls">
           <span className="ctrl-tip">
-            {p.isFirst ? '首家：盖一张牌，宣称某色 1–3（可撒谎）' : '接牌：同色更大 / 同数字换色（可撒谎）'}
+            {p.isFirst ? t('首家：盖一张牌，宣称某色 1–3（可撒谎）') : t('接牌：同色更大 / 同数字换色（可撒谎）')}
           </span>
           {(p.canDraw || p.canFallback) && (
             <span className="ctrl-mini">
               {p.canDraw && (
                 <button className="btn btn-mini" type="button" onClick={() => human({ type: 'Draw' })}>
-                  摸一张
+                  {t('摸一张')}
                 </button>
               )}
               {p.canFallback && (
                 <button className="btn btn-mini" type="button" onClick={() => human({ type: 'Fallback' })}>
-                  兜底
+                  {t('兜底')}
                 </button>
               )}
             </span>
@@ -131,12 +161,12 @@ export function ActionBar({ view }: { view: PlayerView }) {
 
       <div className="hand">
         <div className="hand-label">
-          你的手牌 · {view.yourHand.length}
-          {myTurnPlay && <span className="kbd-hint">　点牌选中 · 回车出最稳 · Esc 取消</span>}
+          {t('你的手牌')} · {view.yourHand.length}
+          {myTurnPlay && <span className="kbd-hint">　{t('点牌选中 · 回车出最稳 · Esc 取消')}</span>}
         </div>
         <HandSummary hand={view.yourHand} />
         <div className={`hand-cards${tutorial && myTurnPlay && !selCard ? ' tut-glow' : ''}`}>
-          {view.yourHand.length === 0 && <span className="hand-empty">（空）</span>}
+          {view.yourHand.length === 0 && <span className="hand-empty">{t('（空）')}</span>}
           {view.yourHand.map((card, i) => (
             <div className="hand-card" key={card.id} style={{ animationDelay: `${Math.min(i, 9) * 35}ms` }}>
               {myTurnPlay && i < 9 && <span className="hot hot-card">{i + 1}</span>}
@@ -156,6 +186,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
 
 // 手牌速览：按颜色归并，移动端只露 4 张时也能一眼知道手里有什么。
 function HandSummary({ hand }: { hand: Card[] }) {
+  const { t } = useT();
   if (hand.length === 0) return null;
   const byColor = new Map<Color, number[]>();
   let nWild = 0;
@@ -172,7 +203,7 @@ function HandSummary({ hand }: { hand: Card[] }) {
   }
   return (
     <div className="hand-summary">
-      <span className="hs-label">速览</span>
+      <span className="hs-label">{t('速览')}</span>
       {COLORS.map((col) => {
         const a = byColor.get(col);
         if (!a) return null;
@@ -184,9 +215,9 @@ function HandSummary({ hand }: { hand: Card[] }) {
           </span>
         );
       })}
-      {nWild > 0 && <span className="hs-group hs-special">万能×{nWild}</span>}
-      {nRev > 0 && <span className="hs-group hs-special">转向×{nRev}</span>}
-      {nSkip > 0 && <span className="hs-group hs-special">禁止×{nSkip}</span>}
+      {nWild > 0 && <span className="hs-group hs-special">{t('万能')}×{nWild}</span>}
+      {nRev > 0 && <span className="hs-group hs-special">{t('转向')}×{nRev}</span>}
+      {nSkip > 0 && <span className="hs-group hs-special">{t('禁止')}×{nSkip}</span>}
     </div>
   );
 }
@@ -194,24 +225,35 @@ function HandSummary({ hand }: { hand: Card[] }) {
 function Prompt({ view }: { view: PlayerView }) {
   const human = useGame((s) => s.human);
   const tutorial = useGame((s) => s.tutorial);
+  const mode = useGame((s) => s.mode);
+  const deadline = useGame((s) => s.turnDeadline);
+  const { t, tn } = useT();
   const p = view.prompt;
-  const nameOf = (seat: number) => view.players[seat]?.name ?? `#${seat}`;
+  const nameOf = (seat: number) => tn(view.players[seat]?.name ?? `#${seat}`);
+  const showTimer = mode === 'online' && deadline && deadline > Date.now();
 
   if (p.kind === 'idle') {
-    return <div className="prompt prompt-idle">等待 {nameOf(view.current)} 行动…</div>;
+    return (
+      <div className="prompt prompt-idle">
+        {t('等待 {name} 行动…', { name: nameOf(view.current) })}
+        {showTimer && <TurnCountdown deadline={deadline} compact />}
+      </div>
+    );
   }
   if (p.kind === 'respond') {
     return (
       <div className="prompt prompt-respond">
+        {showTimer && <TurnCountdown deadline={deadline} />}
         <span>
-          <strong>{nameOf(p.player)}</strong> 盖牌出了一张，宣称 <ClaimChip claim={p.claim} />。信就放行，疑就截牌翻开（夺牌堆 {view.pileCount} 张）。
+          <strong>{nameOf(p.player)}</strong> {t('盖牌出了一张，宣称')} <ClaimChip claim={p.claim} />。
+          {t('信就放行，疑就截牌翻开（夺牌堆 {n} 张）。', { n: view.pileCount })}
         </span>
         <div className={`ctrl-btns${tutorial ? ' tut-glow' : ''}`}>
           <button className="btn btn-accept" type="button" onClick={() => human({ type: 'Accept' })}>
-            放行 <kbd>空格</kbd>
+            {t('放行')} <kbd>空格</kbd>
           </button>
           <button className="btn btn-challenge" type="button" onClick={() => human({ type: 'Challenge' })}>
-            截牌！ <kbd>D</kbd>
+            {t('截牌！')} <kbd>D</kbd>
           </button>
         </div>
       </div>
@@ -220,13 +262,15 @@ function Prompt({ view }: { view: PlayerView }) {
   if (p.kind === 'penalty') {
     return (
       <div className="prompt prompt-penalty">
-        <span>
-          源涌起 —— 你受罚。本轮还需投 <strong>{p.rollsRemaining}</strong> 次，任一掷中即被淹没。按数字键 <kbd>1</kbd>–<kbd>6</kbd> 选点掷骰：
+        <span className="penalty-tip">
+          {t('你受罚了！点下面任意一个骰子 = 赌它的点数并掷出；掷中就掉 1 命。还要投 {n} 次。', { n: p.rollsRemaining })}
         </span>
-        <div className={`dice-pick${tutorial ? ' tut-glow' : ''}`}>
+        <div className="dice-pick-hint">{t('↓ 点一个骰子掷出')}</div>
+        <div className="dice-pick dice-pick-live">
           {[1, 2, 3, 4, 5, 6].map((n) => (
-            <button key={n} className="die-btn" type="button" onClick={() => human({ type: 'ChooseNumber', n })}>
+            <button key={n} className="die-btn" type="button" onClick={() => human({ type: 'ChooseNumber', n })} title={t('赌 {n} 点', { n })}>
               {['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][n]}
+              <span className="die-n">{n}</span>
             </button>
           ))}
         </div>
@@ -234,7 +278,12 @@ function Prompt({ view }: { view: PlayerView }) {
     );
   }
   if (p.kind === 'play') {
-    return <div className="prompt prompt-play">轮到你出牌{p.isFirst ? ' · 你是首家' : ''}</div>;
+    return (
+      <div className="prompt prompt-play">
+        {t('轮到你出牌')}{p.isFirst ? ` · ${t('你是首家')}` : ''}
+        {showTimer && <TurnCountdown deadline={deadline} />}
+      </div>
+    );
   }
   return null;
 }

@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useGame } from '../store/gameStore';
 import { Difficulty } from '../engine/ai';
+import { useT } from '../i18n';
 import { AboutButton } from './AboutModal';
 import { DataMonitor } from './DataMonitor';
 import { Emblem } from './Emblem';
+import { HistoryButton } from './HistoryModal';
+import { LangSwitch } from './LangSwitch';
 import { SideRivers } from './MeteorShower';
 import { RulesButton } from './RulesModal';
 
@@ -21,6 +24,7 @@ export function StartScreen() {
   const newGame = useGame((s) => s.newGame);
   const startTutorial = useGame((s) => s.startTutorial);
   const joinRoom = useGame((s) => s.joinRoom);
+  const { t } = useT();
   const [players, setPlayers] = useState(3);
   const [tab, setTab] = useState<'solo' | 'online'>('solo');
   const [name, setName] = useState('');
@@ -30,13 +34,15 @@ export function StartScreen() {
   function enterOnline() {
     const room = roomId.trim() || randomRoom();
     setRoomId(room);
-    joinRoom(room, name.trim() || '玩家', players);
+    joinRoom(room, name.trim() || t('玩家'), players);
   }
 
   return (
     <div className="start-wrap">
       <SideRivers />
       <div className="start-corner">
+        <LangSwitch />
+        <HistoryButton />
         <DataMonitor />
         <RulesButton />
         <AboutButton />
@@ -50,52 +56,52 @@ export function StartScreen() {
           <span className="title-latin">Lumera</span>
         </h1>
         <div className="title-rule" />
-        <p className="start-desc">盖牌、说谎、拆穿 —— 一缕意志，抢着先汇成。</p>
+        <p className="start-desc">{t('盖牌、说谎、拆穿 —— 一缕意志，抢着先汇成。')}</p>
 
         <div className="start-how">
-          <p>盖牌出、报出它是什么（可真可假）；下家放行或截牌摊牌，输的一方掷骰赌命。</p>
-          <p className="start-how-more">先出光手牌、或截穿对手攒牌者赢 · 不熟规则先点下方「新手引导」，细则见右上角「?」</p>
+          <p>{t('盖牌出、报出它是什么（可真可假）；下家放行或截牌摊牌，输的一方掷骰赌命。')}</p>
+          <p className="start-how-more">{t('先出光手牌、或截穿对手攒牌者赢 · 不熟规则先点下方「新手引导」，细则见右上角「?」')}</p>
         </div>
 
         <div className="start-tabs">
           <button className={`tab-btn ${tab === 'solo' ? 'tab-on' : ''}`} type="button" onClick={() => setTab('solo')}>
-            单机人机
+            {t('单机人机')}
           </button>
           <button className={`tab-btn ${tab === 'online' ? 'tab-on' : ''}`} type="button" onClick={() => setTab('online')}>
-            联机对战
+            {t('联机对战')}
           </button>
         </div>
 
         <div className="start-players">
-          <span className="start-label">入局意志数</span>
+          <span className="start-label">{t('入局意志数')}</span>
           <div className="seg">
             {[2, 3, 4].map((n) => (
               <button key={n} className={`seg-btn ${players === n ? 'seg-on' : ''}`} onClick={() => setPlayers(n)} type="button">
-                {n} 人
+                {t('{n} 人', { n })}
               </button>
             ))}
           </div>
-          <span className="start-hint">{players === 2 ? '2 人局：只剩最纯粹的对峙' : '含转向 / 禁止 / 万能牌'}</span>
+          <span className="start-hint">{players === 2 ? t('2 人局：只剩最纯粹的对峙') : t('含转向 / 禁止 / 万能牌')}</span>
         </div>
 
         {tab === 'solo' ? (
           <div className="online-entry">
             <div className="start-players">
-              <span className="start-label">对手棋力</span>
+              <span className="start-label">{t('对手棋力')}</span>
               <div className="seg">
                 {DIFFS.map((d) => (
                   <button key={d.key} className={`seg-btn ${difficulty === d.key ? 'seg-on' : ''}`} onClick={() => setDifficulty(d.key)} type="button">
-                    {d.label}
+                    {t(d.label)}
                   </button>
                 ))}
               </div>
-              <span className="start-hint">{DIFFS.find((d) => d.key === difficulty)?.hint}</span>
+              <span className="start-hint">{t(DIFFS.find((d) => d.key === difficulty)?.hint ?? '')}</span>
             </div>
             <button className="start-go" onClick={() => newGame(players, difficulty)} type="button">
-              涌出 · 入局
+              {t('涌出 · 入局')}
             </button>
             <button className="btn coach-enter" onClick={() => startTutorial()} type="button">
-              新手引导 · 带你走一遍
+              {t('新手引导 · 带你走一遍')}
             </button>
           </div>
         ) : (
@@ -105,7 +111,7 @@ export function StartScreen() {
                 className="online-input"
                 value={name}
                 maxLength={16}
-                placeholder="你的名字"
+                placeholder={t('你的名字')}
                 onChange={(e) => setName(e.target.value)}
               />
               <div className="online-room">
@@ -113,17 +119,17 @@ export function StartScreen() {
                   className="online-input"
                   value={roomId}
                   maxLength={32}
-                  placeholder="房间号（留空自动生成）"
+                  placeholder={t('房间号（留空自动生成）')}
                   onChange={(e) => setRoomId(e.target.value)}
                 />
                 <button className="btn btn-ghost" type="button" onClick={() => setRoomId(randomRoom())}>
-                  随机
+                  {t('随机')}
                 </button>
               </div>
             </div>
-            <span className="start-hint">同一房间号即同一桌；空位由 AI 补位，房主点开始即可。</span>
+            <span className="start-hint">{t('同一房间号即同一桌；空位由 AI 补位，房主点开始即可。')}</span>
             <button className="start-go" onClick={enterOnline} type="button">
-              进入房间
+              {t('进入房间')}
             </button>
           </div>
         )}

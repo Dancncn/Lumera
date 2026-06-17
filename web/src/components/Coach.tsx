@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PlayerView } from '../engine/types';
+import { useT } from '../i18n';
 import { useGame } from '../store/gameStore';
 import { TutorialLesson } from './TutorialLesson';
 
@@ -10,6 +11,7 @@ interface Step {
 
 // 新手引导 = 开打前的「整本教学」（TutorialLesson）+ 实战时贴边的简短指令气泡（不挡对面、不挡桌心）。
 export function Coach({ view }: { view: PlayerView }) {
+  const { t } = useT();
   const [lesson, setLesson] = useState(true);
   const [shown, setShown] = useState<Set<string>>(() => new Set());
   const [current, setCurrent] = useState<Step | null>(null);
@@ -39,7 +41,7 @@ export function Coach({ view }: { view: PlayerView }) {
     } else if (p.kind === 'respond' && !shown.has('respond')) {
       step = { key: 'respond', text: '轮到你裁断：信下家点「放行」，疑他点「截牌」当场摊牌对质。' };
     } else if (p.kind === 'penalty' && !shown.has('penalty')) {
-      step = { key: 'penalty', text: '受罚：选一个点数掷骰，掷中掉 1 点凝聚度。连环受罚越来越险。' };
+      step = { key: 'penalty', text: '你受罚了——不是卡住了！点下方高亮的任意一个骰子＝赌那个点数并掷出，掷中就掉 1 命。连环受罚越来越险。' };
     }
     if (step) setCurrent(step);
   }, [view, current, shown, lesson]);
@@ -60,11 +62,11 @@ export function Coach({ view }: { view: PlayerView }) {
   if (!current) {
     return (
       <div className="coach-tabs">
-        <button className="coach-tab" type="button" onClick={() => setLesson(true)} title="重看教学">
-          重看教学
+        <button className="coach-tab" type="button" onClick={() => setLesson(true)} title={t('重看教学')}>
+          {t('重看教学')}
         </button>
-        <button className="coach-tab" type="button" onClick={endTutorial} title="结束新手引导">
-          结束引导
+        <button className="coach-tab" type="button" onClick={endTutorial} title={t('结束引导')}>
+          {t('结束引导')}
         </button>
       </div>
     );
@@ -73,14 +75,14 @@ export function Coach({ view }: { view: PlayerView }) {
   return (
     <div className="coach">
       <div className="coach-bubble">
-        <span className="coach-tag">新手引导</span>
-        <p className="coach-text">{current.text}</p>
+        <span className="coach-tag">{t('新手引导')}</span>
+        <p className="coach-text">{t(current.text)}</p>
         <div className="coach-btns">
           <button className="coach-skip" type="button" onClick={endTutorial}>
-            结束引导
+            {t('结束引导')}
           </button>
           <button className="coach-ok" type="button" onClick={dismiss}>
-            知道了
+            {t('知道了')}
           </button>
         </div>
       </div>

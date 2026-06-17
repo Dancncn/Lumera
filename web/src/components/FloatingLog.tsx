@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Color, COLOR_META, PlayerView } from '../engine/types';
+import { useT } from '../i18n';
 
 // 关键词上色：性格名（金）、受罚/危险（红）、跑成/利好（绿）。
 const KW_CLASS: Record<string, string> = {};
@@ -58,6 +59,7 @@ function renderLine(line: string): ReactNode {
 
 // 侧面浮窗式事件流：默认展开，可收起为一个小标签；鼠标滚动查看。
 export function FloatingLog({ view }: { view: PlayerView }) {
+  const { t } = useT();
   // 桌面默认展开；手机窄屏 / 横屏矮屏默认收起为标签，避免侧栏压住牌局。
   const [open, setOpen] = useState(
     () => typeof window === 'undefined' || (window.innerWidth > 820 && window.innerHeight > 560),
@@ -70,7 +72,7 @@ export function FloatingLog({ view }: { view: PlayerView }) {
 
   if (!open) {
     return (
-      <button className="log-tab" type="button" onClick={() => setOpen(true)} title="事件流" aria-label="展开事件流">
+      <button className="log-tab" type="button" onClick={() => setOpen(true)} title={t('事件流')} aria-label={t('展开事件流')}>
         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
           <path d="M5 5.5h14M5 10h14M5 14.5h14M5 19h9" />
         </svg>
@@ -81,8 +83,8 @@ export function FloatingLog({ view }: { view: PlayerView }) {
   return (
     <aside className="flog">
       <div className="flog-head">
-        <span className="flog-title">河 · 事件流</span>
-        <button className="flog-close" type="button" onClick={() => setOpen(false)} title="收起">
+        <span className="flog-title">{t('河 · 事件流')}</span>
+        <button className="flog-close" type="button" onClick={() => setOpen(false)} title={t('收起')}>
           ✕
         </button>
       </div>

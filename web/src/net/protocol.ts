@@ -69,6 +69,13 @@ export interface SyncMsg {
   t: 'sync';
   view: PlayerView;
   events: GameEvent[];
+  turnDeadline?: number;
+}
+
+export interface PlayerLeftMsg {
+  t: 'playerLeft';
+  seat: number;
+  name: string;
 }
 
 export interface ErrorMsg {
@@ -80,7 +87,7 @@ export interface PongMsg {
   t: 'pong';
 }
 
-export type ServerMsg = JoinedMsg | RoomMsg | SyncMsg | ErrorMsg | PongMsg;
+export type ServerMsg = JoinedMsg | RoomMsg | SyncMsg | PlayerLeftMsg | ErrorMsg | PongMsg;
 
 export const MAX_NAME = 16;
 export const MAX_ROOM_ID = 32;

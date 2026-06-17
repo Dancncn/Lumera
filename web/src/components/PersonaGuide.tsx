@@ -1,3 +1,5 @@
+import { useT } from '../i18n';
+
 // 读对面：五种 AI 性格 + 对策，外加两条「对手会怎么想」的通用心理。
 // 内容对应 engine/ai.ts 的性格旋钮与读牌行为（记诈牌史、牌堆越肥越爱截）。
 const PERSONAS: { label: string; trait: string; counter: string }[] = [
@@ -14,25 +16,26 @@ const TIPS: string[] = [
 ];
 
 export function PersonaGuide() {
+  const { t } = useT();
   return (
     <div className="persona-guide">
       <ul className="persona-list">
         {PERSONAS.map((p) => (
           <li key={p.label} className="persona-item">
-            <span className="persona-label">{p.label}</span>
+            <span className="persona-label">{t(p.label)}</span>
             <div className="persona-body">
-              <span className="persona-trait">{p.trait}</span>
+              <span className="persona-trait">{t(p.trait)}</span>
               <span className="persona-counter">
-                <b>对策</b> {p.counter}
+                <b>{t('对策')}</b> {t(p.counter)}
               </span>
             </div>
           </li>
         ))}
       </ul>
       <div className="persona-tips">
-        {TIPS.map((t, i) => (
+        {TIPS.map((tip, i) => (
           <p key={i} className="persona-tip">
-            {t}
+            {t(tip)}
           </p>
         ))}
       </div>

@@ -1,4 +1,5 @@
 import { ReactNode, useState } from 'react';
+import { useT } from '../i18n';
 import { CardGallery } from './CardGallery';
 import { ChallengeDemo, LadderDemo } from './RuleDemos';
 import { PersonaGuide } from './PersonaGuide';
@@ -107,6 +108,7 @@ const PAGES: Page[] = [
 ];
 
 export function TutorialLesson({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
+  const { t } = useT();
   const [i, setI] = useState(0);
   const page = PAGES[i];
   const last = i === PAGES.length - 1;
@@ -115,19 +117,19 @@ export function TutorialLesson({ onStart, onSkip }: { onStart: () => void; onSki
       <div className="lesson" onClick={(e) => e.stopPropagation()}>
         <div className="lesson-head">
           <span className="lesson-kicker">
-            新手教学 · {i + 1}/{PAGES.length}
+            {t('新手教学')} · {i + 1}/{PAGES.length}
           </span>
-          <button className="flog-close" type="button" onClick={onSkip} aria-label="跳过教学">
+          <button className="flog-close" type="button" onClick={onSkip} aria-label={t('跳过教学')}>
             ✕
           </button>
         </div>
 
         <div className="lesson-body" key={i}>
-          <span className="lesson-tag">{page.tag}</span>
-          <h3 className="lesson-title">{page.title}</h3>
+          <span className="lesson-tag">{t(page.tag)}</span>
+          <h3 className="lesson-title">{t(page.title)}</h3>
           <ul className="lesson-lines">
             {page.lines.map((l, k) => (
-              <li key={k}>{l}</li>
+              <li key={k}>{t(l)}</li>
             ))}
           </ul>
           {page.demo && <div className="lesson-demo">{page.demo}</div>}
@@ -147,21 +149,21 @@ export function TutorialLesson({ onStart, onSkip }: { onStart: () => void; onSki
 
         <div className="lesson-nav">
           <button className="lesson-skip" type="button" onClick={onSkip}>
-            跳过教学
+            {t('跳过教学')}
           </button>
           <div className="lesson-nav-right">
             {i > 0 && (
               <button className="lesson-prev" type="button" onClick={() => setI(i - 1)}>
-                上一步
+                {t('上一步')}
               </button>
             )}
             {last ? (
               <button className="lesson-go" type="button" onClick={onStart}>
-                开始练习 →
+                {t('开始练习 →')}
               </button>
             ) : (
               <button className="lesson-next" type="button" onClick={() => setI(i + 1)}>
-                下一步
+                {t('下一步')}
               </button>
             )}
           </div>

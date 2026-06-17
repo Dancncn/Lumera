@@ -1259,10 +1259,10 @@ button.claim-chip:hover {
 /* ---------------- 注意提示横幅 ---------------- */
 .play-toast {
   position: fixed;
-  top: 30vh;
+  top: 56px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 18;
+  z-index: 22;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1296,6 +1296,73 @@ button.claim-chip:hover {
   color: var(--gold-deep);
   font-size: 13px;
   font-style: italic;
+}
+
+/* ---------------- 回合倒计时条 ---------------- */
+.turn-countdown {
+  position: relative;
+  width: 160px;
+  height: 18px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+  background: rgba(180, 126, 36, 0.06);
+  flex-shrink: 0;
+}
+.tc-compact {
+  width: 100px;
+  height: 14px;
+  border-radius: 7px;
+}
+.tc-bar {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--gold-light), var(--gold));
+  transition: width 0.15s linear;
+}
+.tc-label {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.5px;
+}
+.tc-compact .tc-label { font-size: 10px; }
+.tc-urgent .tc-bar {
+  background: linear-gradient(90deg, #c75050, #e06060);
+}
+.tc-urgent .tc-label { color: #9a3b33; }
+.tc-urgent {
+  animation: tc-pulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes tc-pulse {
+  from { opacity: 1; }
+  to { opacity: 0.7; }
+}
+
+/* ---------------- 离开通知 Toast ---------------- */
+.leave-toast {
+  position: fixed;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  padding: 10px 24px;
+  font-size: 14.5px;
+  color: #8a322b;
+  border: 1px solid rgba(180, 82, 74, 0.5);
+  border-radius: 999px;
+  background: rgba(252, 246, 240, 0.97);
+  box-shadow: 0 8px 24px rgba(180, 82, 74, 0.15);
+  animation: toast-in 0.22s var(--ease) both;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 /* ---------------- 快捷键标记 ---------------- */
@@ -3319,4 +3386,193 @@ kbd {
   .about-modal {
     width: 93vw;
   }
+}
+
+/* ============================================================
+   语言切换 简 / 繁 / EN
+   ============================================================ */
+.start-corner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lang-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(250, 248, 243, 0.92);
+}
+.lang-btn {
+  border: none;
+  background: transparent;
+  color: var(--gold-muted);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.16s var(--ease), color 0.16s var(--ease);
+}
+.lang-btn:hover {
+  color: var(--gold-dark);
+}
+.lang-on {
+  background: var(--gold);
+  color: #fff;
+}
+.lang-on:hover {
+  color: #fff;
+}
+
+/* 结算页：人数 / 难度小标 */
+.go-meta {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: -2px 0 12px;
+}
+.go-meta-chip {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--gold-muted);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 3px 12px;
+}
+
+/* 受罚：高亮骰子 + 明确指引（玩家不再以为卡住） */
+.dice-pick-hint {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--gold-deep);
+  margin-top: 4px;
+  animation: dice-hint-bounce 1.2s ease-in-out infinite;
+}
+@keyframes dice-hint-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.8; }
+  50% { transform: translateY(3px); opacity: 1; }
+}
+.die-btn {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  line-height: 1;
+}
+.die-n {
+  font-size: 11px;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: var(--gold-muted);
+  margin-top: 1px;
+}
+.dice-pick-live .die-btn {
+  border-color: var(--gold);
+  animation: die-attn 1.5s ease-in-out infinite;
+}
+.dice-pick-live .die-btn:hover {
+  animation: none;
+}
+@keyframes die-attn {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 162, 63, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(201, 162, 63, 0.28); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dice-pick-hint,
+  .dice-pick-live .die-btn { animation: none; }
+}
+
+/* 对局记录（本机） */
+.hist-modal {
+  position: relative;
+  z-index: 1;
+  width: min(480px, 94vw);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #fffdf8, #f6efe0);
+  border: 1px solid var(--gold);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(60, 48, 28, 0.34);
+  overflow: hidden;
+}
+.hist-body {
+  padding: 6px 16px;
+  overflow-y: auto;
+}
+.hist-empty {
+  text-align: center;
+  color: var(--gold-muted);
+  padding: 30px 10px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.hist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.hist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 6px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+.hist-when {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.hist-mode {
+  color: var(--gold-muted);
+}
+.hist-players {
+  color: var(--ink-soft);
+}
+.hist-rank {
+  color: var(--ink);
+}
+.hist-rank-win {
+  color: var(--gold-deep);
+  font-weight: 600;
+}
+.hist-won {
+  background: rgba(201, 162, 63, 0.07);
+}
+.hist-score {
+  margin-left: auto;
+  color: var(--gold-dark);
+  font-family: var(--serif);
+  font-variant-numeric: tabular-nums;
+}
+.hist-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.hist-note {
+  font-size: 12px;
+  color: var(--gold-muted);
+}
+.hist-clear {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--gold-muted);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.16s, border-color 0.16s;
+}
+.hist-clear:hover {
+  border-color: #b4453a;
+  color: #b4453a;
 }
