@@ -220,7 +220,12 @@ export interface SeatInit {
   isAI: boolean;
 }
 
-export function createGame(config: GameConfig, seats?: SeatInit[]): { state: GameState; events: GameEvent[] } {
+export function createGame(
+  config: GameConfig,
+  seats?: SeatInit[],
+  firstSeat?: number,
+  deckOrder?: Card[],
+): { state: GameState; events: GameEvent[] } {
   const players: PlayerState[] = [];
   const aiNames = ['Aurel', 'Selvar', 'Verda', 'Thalos'];
   for (let i = 0; i < config.players; i++) {
@@ -239,10 +244,11 @@ export function createGame(config: GameConfig, seats?: SeatInit[]): { state: Gam
   }
 
   const built = buildAndShuffle(config);
+  // deckOrder：新手引导用的固定牌序（保证演示 0/万能/跑成）；其余一律随机洗牌。
   const s: GameState = {
     config,
     players,
-    deck: built.deck,
+    deck: deckOrder ?? built.deck,
     pile: [],
     discard: [],
     ladderTop: null,
@@ -263,10 +269,10 @@ export function createGame(config: GameConfig, seats?: SeatInit[]): { state: Gam
   }
 
   const events: GameEvent[] = [];
-  // 随机定首家
+  // 定首家：默认随机；新手引导固定座位（让你先手，教学顺序顺）
   const r = rollDie(s.rng);
   s.rng = r.state;
-  const first = (r.rolled - 1) % config.players;
+  const first = firstSeat != null ? firstSeat % config.players : (r.rolled - 1) % config.players;
   startPlayTurn(s, events, first, true);
   return { state: s, events };
 }
@@ -300,6 +306,43 @@ function buildDeckInline(players: number): Card[] {
   }
   for (let i = 0; i < players; i++) push({ kind: 'wild' });
   return cards;
+}
+
+// 新手引导固定牌序：保证人类(seat0)起手就握有「0」与「万能牌」，
+// 配合 Coach 依次演示「打0 / 万能牌 / 跑成」。其余玩家随手发。
+export function buildTutorialDeck(): Card[] {
+  const deck = buildDeckInline(2);
+  const take = (pred: (c: Card) => boolean): Card => {
+    const i = deck.findIndex(pred);
+    return deck.splice(i < 0 ? deck.length - 1 : i, 1)[0];
+  };
+  const num = (color: Color, n: number) =>
+    take((c) => c.kind === 'number' && c.color === color && c.num === n);
+  // seat0（你）：先手能如实报「Aurel 1」起头；随后握有更大的 Aurel、万能牌、顶格的 0。
+  const s0: Card[] = [
+    num('aurel', 1),
+    num('aurel', 3),
+    num('aurel', 5),
+    take((c) => c.kind === 'wild'),
+    num('aurel', 7),
+    num('aurel', 0),
+  ];
+  // seat1（AI）：随手一把，能跟也能诈。
+  const s1: Card[] = [
+    num('thalos', 2),
+    num('verda', 4),
+    num('selvar', 6),
+    num('thalos', 8),
+    num('verda', 3),
+    num('selvar', 5),
+  ];
+  // 发牌走 pop()（队尾先出），轮流 seat0→seat1。把 dealOrder[0] 摆到牌堆末尾即可。
+  const dealOrder: Card[] = [];
+  for (let r = 0; r < 6; r++) {
+    dealOrder.push(s0[r]);
+    dealOrder.push(s1[r]);
+  }
+  return [...deck, ...dealOrder.slice().reverse()];
 }
 
 // ============================================================

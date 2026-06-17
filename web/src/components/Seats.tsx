@@ -59,11 +59,20 @@ function Seat({ p, view }: { p: PublicPlayer; view: PlayerView }) {
 
 export function Seats({ view }: { view: PlayerView }) {
   const opponents = view.players.filter((p) => p.seat !== view.you);
+  const mid = Math.ceil(opponents.length / 2);
+  // 拆成左右两组：桌面/竖屏下 .opp-side 用 display:contents 拼回一排；横屏分到两侧。
   return (
     <div className="opp-row">
-      {opponents.map((p) => (
-        <Seat key={p.seat} p={p} view={view} />
-      ))}
+      <div className="opp-side opp-left">
+        {opponents.slice(0, mid).map((p) => (
+          <Seat key={p.seat} p={p} view={view} />
+        ))}
+      </div>
+      <div className="opp-side opp-right">
+        {opponents.slice(mid).map((p) => (
+          <Seat key={p.seat} p={p} view={view} />
+        ))}
+      </div>
     </div>
   );
 }

@@ -17,6 +17,7 @@ function recommendedClaim(card: Card, claims: Claim[]): Claim | null {
 
 export function ActionBar({ view }: { view: PlayerView }) {
   const human = useGame((s) => s.human);
+  const tutorial = useGame((s) => s.tutorial);
   const [selId, setSelId] = useState<number | null>(null);
   const p = view.prompt;
 
@@ -125,7 +126,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
             盖牌出这张，宣称为（按数字键 / 回车出最稳）：
             {selCard.kind === 'wild' && <em> 万能牌 —— 喊什么都判真</em>}
           </span>
-          <div className="claim-row">
+          <div className={`claim-row${tutorial ? ' tut-glow' : ''}`}>
             {claims.map((c, i) => (
               <ClaimChip key={i} claim={c} truthful={truthfulFor(c)} hotkey={i < 9 ? i + 1 : undefined} onClick={() => onClaimClick(c)} />
             ))}
@@ -138,7 +139,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
           你的手牌 · {view.yourHand.length}
           {myTurnPlay && <span className="kbd-hint">　数字键选牌 · 回车出最稳 · Esc 取消</span>}
         </div>
-        <div className="hand-cards">
+        <div className={`hand-cards${tutorial && myTurnPlay && !selCard ? ' tut-glow' : ''}`}>
           {view.yourHand.length === 0 && <span className="hand-empty">（空）</span>}
           {view.yourHand.map((card, i) => (
             <div className="hand-card" key={card.id} style={{ animationDelay: `${Math.min(i, 9) * 35}ms` }}>
@@ -159,6 +160,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
 
 function Prompt({ view }: { view: PlayerView }) {
   const human = useGame((s) => s.human);
+  const tutorial = useGame((s) => s.tutorial);
   const p = view.prompt;
   const nameOf = (seat: number) => view.players[seat]?.name ?? `#${seat}`;
 
@@ -171,7 +173,7 @@ function Prompt({ view }: { view: PlayerView }) {
         <span>
           <strong>{nameOf(p.player)}</strong> 盖牌出了一张，宣称 <ClaimChip claim={p.claim} />。信就放行，疑就截牌翻开（夺牌堆 {view.pileCount} 张）。
         </span>
-        <div className="ctrl-btns">
+        <div className={`ctrl-btns${tutorial ? ' tut-glow' : ''}`}>
           <button className="btn btn-accept" type="button" onClick={() => human({ type: 'Accept' })}>
             放行 <kbd>空格</kbd>
           </button>
@@ -188,7 +190,7 @@ function Prompt({ view }: { view: PlayerView }) {
         <span>
           源涌起 —— 你受罚。本轮还需投 <strong>{p.rollsRemaining}</strong> 次，任一掷中即被淹没。按数字键 <kbd>1</kbd>–<kbd>6</kbd> 选点掷骰：
         </span>
-        <div className="dice-pick">
+        <div className={`dice-pick${tutorial ? ' tut-glow' : ''}`}>
           {[1, 2, 3, 4, 5, 6].map((n) => (
             <button key={n} className="die-btn" type="button" onClick={() => human({ type: 'ChooseNumber', n })}>
               {['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][n]}

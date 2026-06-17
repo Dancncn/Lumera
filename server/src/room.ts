@@ -2,6 +2,7 @@ import { actorOf, apply, createGame, DEFAULT_CONFIG, GameError, viewFor } from '
 import { AiPlayer, Difficulty, PERSONA_LABEL, pickProfile } from '../../web/src/engine/ai';
 import { Command, GameEvent, GameState } from '../../web/src/engine/types';
 import { ServerMsg, SeatInfo, MAX_NAME } from '../../web/src/net/protocol';
+import { countGame, countPlayer } from './stats';
 
 const ROOM_DIFFICULTY: Difficulty = (process.env.YUANHE_AI_DIFFICULTY as Difficulty) ?? 'normal';
 
@@ -191,6 +192,7 @@ export class Room {
     free.token = token;
     free.name = cleanName(name, `玩家${free.seat + 1}`);
     free.conn = conn;
+    countPlayer();
     this.clearGrace();
     if (!this.hostToken) this.hostToken = token;
     void players;
@@ -233,6 +235,7 @@ export class Room {
     const { state, events } = createGame({ ...DEFAULT_CONFIG, players: this.capacity, seed }, seatInits);
     this.state = state;
     this.lastEvents = events;
+    countGame();
     this.observeAll(events);
     this.broadcastSync();
     this.broadcastRoom();

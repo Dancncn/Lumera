@@ -26,7 +26,10 @@ function renderLine(line: string): ReactNode {
 
 // 侧面浮窗式事件流：默认展开，可收起为一个小标签；鼠标滚动查看。
 export function FloatingLog({ view }: { view: PlayerView }) {
-  const [open, setOpen] = useState(true);
+  // 桌面默认展开；手机窄屏 / 横屏矮屏默认收起为标签，避免侧栏压住牌局。
+  const [open, setOpen] = useState(
+    () => typeof window === 'undefined' || (window.innerWidth > 820 && window.innerHeight > 560),
+  );
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

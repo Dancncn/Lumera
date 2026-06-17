@@ -391,6 +391,10 @@ button {
   gap: 16px;
   flex-wrap: wrap;
 }
+/* 左右分组容器：桌面/竖屏隐形（拼回一排），横屏才变成两侧的竖列 */
+.opp-side {
+  display: contents;
+}
 .seat {
   position: relative;
   width: 188px;
@@ -1724,4 +1728,694 @@ kbd {
   margin: 14px auto 0;
   background: linear-gradient(90deg, transparent, var(--gold) 28%, var(--gold) 72%, transparent);
   opacity: 0.5;
+}
+
+/* ============================================================
+   移动端适配（窄屏）：去溢出、事件流改底部抽屉、各区收紧
+   ============================================================ */
+@media (max-width: 760px) {
+  :root {
+    --card-w: 70px;
+    --card-h: 100px;
+  }
+
+  /* 顶栏：紧凑、不换行 */
+  .topbar {
+    padding: 9px 12px;
+  }
+  .brand-emblem {
+    width: 26px;
+    height: 26px;
+  }
+  .brand-text {
+    font-size: 16px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .topbar-right {
+    gap: 8px;
+  }
+  .btn-ghost {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  /* 牌桌主体 */
+  .board {
+    padding: 10px 10px 8px;
+    gap: 4px;
+  }
+
+  /* 桌面的流动河在手机上隐去，避免拥挤 */
+  .table .river {
+    display: none;
+  }
+
+  /* 对手席：自适应换行、紧凑 */
+  .opp-row {
+    gap: 8px;
+  }
+  .seat {
+    flex: 1 1 138px;
+    width: auto;
+    max-width: 200px;
+    padding: 8px 10px;
+  }
+  .seat-name {
+    font-size: 13px;
+  }
+  .seat-stats {
+    gap: 8px;
+    font-size: 11.5px;
+  }
+  .seat-thinking {
+    font-size: 10px;
+    padding: 2px 7px;
+  }
+
+  /* 中央桌布：去掉大 min-width，避免横向溢出 */
+  .cloth {
+    min-width: 0;
+    width: 100%;
+    padding: 16px 12px;
+  }
+  .center {
+    gap: 14px;
+  }
+  .pile-stack {
+    width: 78px;
+  }
+  .claim-tag {
+    font-size: 9px;
+    padding: 2px 8px;
+  }
+
+  /* 你的状态条 + 操作区 */
+  .selfplate {
+    gap: 8px;
+    padding: 5px 12px;
+  }
+  .self-name {
+    font-size: 14px;
+  }
+  .prompt {
+    font-size: 13.5px;
+    gap: 8px;
+  }
+  .ctrl-tip,
+  .claim-picker-tip {
+    font-size: 12.5px;
+  }
+  .btn-accept,
+  .btn-challenge {
+    padding: 9px 18px;
+    font-size: 14px;
+  }
+  .die-btn {
+    width: 46px;
+    height: 46px;
+    font-size: 24px;
+  }
+  .hand-cards {
+    gap: 7px;
+  }
+
+  /* 事件流：开启时变底部抽屉，不再侧栏压住牌局 */
+  .flog {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    top: auto;
+    bottom: 8px;
+    height: 40vh;
+    border-radius: 16px;
+  }
+  .log-tab {
+    top: auto;
+    bottom: 90px;
+  }
+
+  /* 注意横幅自适应换行 */
+  .play-toast {
+    max-width: 92vw;
+    white-space: normal;
+    text-align: center;
+    font-size: 13.5px;
+    padding: 8px 16px;
+  }
+
+  /* 主页 */
+  .start {
+    padding: 4vh 16px;
+  }
+  .start-emblem {
+    width: 92px;
+  }
+  .start-title {
+    font-size: 30px;
+  }
+  .start-desc {
+    font-size: 14px;
+  }
+  .start-how {
+    max-width: 100%;
+  }
+  .start-how p {
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .start-go {
+    padding: 14px 40px;
+    letter-spacing: 4px;
+  }
+  .river {
+    width: 62px;
+  }
+  .start-corner {
+    top: 12px;
+    right: 14px;
+  }
+
+  /* 弹窗 */
+  .rules-modal {
+    width: 94vw;
+    max-height: 88vh;
+  }
+  .gameover {
+    width: 94vw;
+    padding: 22px 18px;
+  }
+}
+
+/* ============================================================
+   新手引导（Coach）
+   ============================================================ */
+.coach-enter {
+  margin-top: 10px;
+}
+.coach {
+  position: fixed;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, 92vw);
+  z-index: 26;
+  pointer-events: none;
+}
+.coach-bubble {
+  pointer-events: auto;
+  background: linear-gradient(180deg, #fffdf8, #f4ecd9);
+  border: 1px solid var(--gold);
+  border-radius: 14px;
+  padding: 12px 16px 11px;
+  box-shadow: 0 14px 34px rgba(80, 66, 40, 0.22);
+  animation: bubble-in 0.22s var(--ease);
+}
+.coach-tag {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--gold-muted);
+}
+.coach-text {
+  margin: 6px 0 11px;
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--ink);
+}
+.coach-btns {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+.coach-skip {
+  border: none;
+  background: transparent;
+  color: var(--gold-muted);
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+.coach-skip:hover {
+  color: var(--gold-dark);
+}
+.coach-ok {
+  border: 1px solid var(--gold);
+  background: rgba(180, 126, 36, 0.1);
+  color: var(--gold-dark);
+  border-radius: 999px;
+  padding: 6px 20px;
+  font-size: 14px;
+  letter-spacing: 1px;
+  transition: background 0.16s var(--ease);
+}
+.coach-ok:hover {
+  background: rgba(180, 126, 36, 0.18);
+}
+.coach-tab {
+  position: fixed;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 26;
+  border: 1px solid var(--line);
+  background: rgba(250, 248, 243, 0.95);
+  color: var(--gold-muted);
+  font-size: 12px;
+  letter-spacing: 2px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  box-shadow: 0 6px 16px rgba(80, 66, 40, 0.14);
+}
+.coach-tab:hover {
+  color: var(--gold-dark);
+  border-color: var(--gold);
+}
+
+/* ============================================================
+   横屏 / 矮屏（手机横放）：竖向高度紧张，整体压扁
+   ============================================================ */
+@media (orientation: landscape) and (max-height: 560px) {
+  :root {
+    --card-w: 52px;
+    --card-h: 74px;
+  }
+  .topbar {
+    padding: 4px 16px;
+  }
+  .brand-text {
+    font-size: 16px;
+    letter-spacing: 1px;
+  }
+  .brand-emblem {
+    width: 24px;
+    height: 24px;
+  }
+  .board {
+    position: relative;
+    padding: 6px 14px 4px;
+    gap: 2px;
+    overflow-y: auto;
+  }
+  .table .river {
+    display: none;
+  }
+  /* 对手挪到左右两侧的竖列，腾出竖向空间给桌心与手牌 */
+  .opp-row {
+    position: absolute;
+    top: 4px;
+    left: 8px;
+    right: 8px;
+    gap: 0;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    pointer-events: none;
+    z-index: 3;
+  }
+  .opp-side {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 148px;
+  }
+  .opp-right {
+    align-items: flex-end;
+  }
+  .seat {
+    width: 148px;
+    padding: 5px 10px;
+  }
+  .seat-stats {
+    font-size: 11px;
+    gap: 8px;
+  }
+  /* 桌心留出两侧空间，不和对手列重叠 */
+  .table-center {
+    padding: 0 152px;
+  }
+  .cloth {
+    min-width: 0;
+    min-height: 0;
+    padding: 8px 20px;
+  }
+  .center {
+    gap: 18px;
+  }
+  .ladder-claim {
+    gap: 7px;
+  }
+  .deck-label,
+  .pile-label {
+    margin-top: 5px;
+    font-size: 11px;
+  }
+  .selfplate {
+    padding: 3px 12px;
+    margin-bottom: 3px;
+  }
+  .action-zone {
+    margin-top: 4px;
+    padding-top: 6px;
+  }
+  .actionbar {
+    margin-top: 2px;
+  }
+  .hand {
+    margin-top: 4px;
+  }
+  .hand-label {
+    display: none; /* 横屏矮屏省高度，手牌不言自明 */
+  }
+  .prompt {
+    font-size: 13px;
+    gap: 10px;
+  }
+  .play-controls {
+    margin-top: 5px;
+  }
+  .claim-picker {
+    margin-top: 6px;
+    padding: 8px 12px;
+  }
+  .flog {
+    top: 50px;
+    bottom: 8px;
+    height: auto;
+    width: 240px;
+    left: auto;
+    right: 8px;
+  }
+  .coach {
+    top: 50px;
+  }
+  .coach-tab {
+    top: 50px;
+  }
+  /* 主页横屏：标题与留白收紧 */
+  .start {
+    padding: 3vh 16px;
+  }
+  .start-emblem {
+    width: 68px;
+  }
+  .start-title {
+    font-size: 27px;
+  }
+  .start-how {
+    margin-top: 12px;
+  }
+  .start-how p {
+    margin: 5px 0;
+    font-size: 13px;
+  }
+}
+
+/* ============================================================
+   规则弹窗内的实景小动画（接牌 / 截牌翻面，自动循环）
+   ============================================================ */
+.rule-demo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 18px;
+  margin: 12px 0 2px;
+  padding: 12px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 12px;
+  background: rgba(252, 250, 244, 0.5);
+}
+.rd-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.rd-cap {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--gold-muted);
+  white-space: nowrap;
+}
+.rd-ok {
+  color: #3f6b3a;
+}
+.rd-arrow {
+  align-self: center;
+  margin-top: 26px;
+  color: var(--gold);
+  font-size: 18px;
+}
+.rd-slot {
+  position: relative;
+  width: 56px;
+  height: 100px;
+}
+.rd-opt {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  animation: rd-show 5s var(--ease) infinite;
+}
+.rd-opt-b {
+  animation-delay: 2.5s;
+}
+@keyframes rd-show {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.92); }
+  6% { opacity: 1; transform: translateY(0) scale(1); }
+  44% { opacity: 1; transform: translateY(0) scale(1); }
+  50% { opacity: 0; transform: translateY(6px) scale(0.96); }
+  100% { opacity: 0; }
+}
+.rd-flip {
+  width: 56px;
+  height: 80px;
+  perspective: 480px;
+}
+.rd-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: rd-flip 4.2s var(--ease) infinite;
+}
+.rd-flip-back,
+.rd-flip-front {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rd-flip-front {
+  transform: rotateY(180deg);
+}
+@keyframes rd-flip {
+  0%, 28% { transform: rotateY(0deg); }
+  52%, 88% { transform: rotateY(180deg); }
+  100% { transform: rotateY(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rd-opt-a {
+    opacity: 1;
+    animation: none;
+  }
+  .rd-opt-b {
+    display: none;
+  }
+  .rd-flip-inner {
+    animation: none;
+    transform: rotateY(180deg);
+  }
+}
+
+/* ============================================================
+   新手引导高亮指引圈（套在该点的牌/按钮上，呼吸光圈，不挤占布局）
+   ============================================================ */
+.tut-glow {
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px rgba(180, 126, 36, 0.35);
+  animation: tut-glow 1.5s ease-in-out infinite;
+}
+@keyframes tut-glow {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(180, 126, 36, 0.3); }
+  50% { box-shadow: 0 0 0 3px rgba(180, 126, 36, 0.62), 0 0 18px rgba(180, 126, 36, 0.34); }
+}
+
+/* ============================================================
+   认牌图卡（规则弹窗 / 新手引导通用）
+   ============================================================ */
+.card-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 14px;
+  justify-content: center;
+  margin: 12px 0 4px;
+  padding: 12px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 12px;
+  background: rgba(252, 250, 244, 0.5);
+}
+.cg-compact {
+  margin: 8px 0 2px;
+  padding: 6px;
+  gap: 8px 10px;
+  border: none;
+  background: transparent;
+}
+.cg-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.cg-label {
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+  color: var(--gold-muted);
+  white-space: nowrap;
+}
+
+/* 梯压计：当前梯顶数字的高度（0=顶格10），越高条越满、越偏红——“只升不降”的压力感 */
+.ladder-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: 9px;
+}
+.lg-track {
+  width: 92px;
+  height: 6px;
+  border-radius: 4px;
+  background: rgba(20, 16, 10, 0.22);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.lg-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.55s cubic-bezier(0.4, 0, 0.2, 1), background 0.55s ease;
+}
+.lg-cap {
+  font-size: 9.5px;
+  letter-spacing: 0.5px;
+  color: var(--gold-muted);
+  white-space: nowrap;
+}
+
+/* 牌堆叠肥：赌注越大，牌堆发金光 + 标签提示 */
+.pile-area.pile-fat .pile-stack {
+  filter: drop-shadow(0 0 9px rgba(201, 162, 63, 0.5));
+  animation: pile-fat-pulse 1.8s ease-in-out infinite;
+}
+.pile-area.pile-fat .pile-label {
+  color: var(--gold);
+  font-weight: 600;
+}
+@keyframes pile-fat-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pile-area.pile-fat .pile-stack { animation: none; }
+}
+
+/* 引导毕业横幅 + 次级按钮 */
+.go-grad {
+  margin: 2px auto 14px;
+  max-width: 30em;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--gold-muted);
+  letter-spacing: 0.4px;
+}
+.start-ghost {
+  margin-left: 12px;
+  padding: 9px 18px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--gold-muted);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.start-ghost:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* 引导气泡里嵌的实景演示 */
+.coach-wide {
+  width: min(480px, 94vw);
+}
+.coach-demo {
+  display: flex;
+  justify-content: center;
+  margin: 2px 0 10px;
+}
+.coach-demo .rule-demo,
+.coach-demo .card-gallery {
+  margin: 0;
+}
+
+/* ============================================================
+   数据监控弹窗
+   ============================================================ */
+.stats-modal {
+  position: relative;
+  z-index: 1;
+  width: min(440px, 92vw);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 0 0 18px;
+  overflow: hidden;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 18px;
+}
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  padding: 18px 10px;
+  background: var(--card-face);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+.stat-num {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--gold-dark);
+  line-height: 1;
+  letter-spacing: 0.5px;
+}
+.stat-num i {
+  font-style: normal;
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin-left: 3px;
+}
+.stat-cap {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.stats-foot {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--gold-muted);
 }

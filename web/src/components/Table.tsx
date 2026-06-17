@@ -2,6 +2,7 @@ import { PlayerView } from '../engine/types';
 import { useGame } from '../store/gameStore';
 import { ActionBar } from './ActionBar';
 import { Center } from './Center';
+import { Coach } from './Coach';
 import { FloatingLog } from './FloatingLog';
 import { FlyCards } from './FlyCards';
 import { Emblem } from './Emblem';
@@ -13,6 +14,7 @@ import { Seats, SelfPlate } from './Seats';
 
 export function Table({ view }: { view: PlayerView }) {
   const newGame = useGame((s) => s.newGame);
+  const tutorial = useGame((s) => s.tutorial);
   const over = view.prompt.kind === 'over';
 
   return (
@@ -20,6 +22,7 @@ export function Table({ view }: { view: PlayerView }) {
       <SideRivers />
       <PlayToast view={view} />
       <FlyCards />
+      {tutorial && <Coach view={view} />}
       <header className="topbar">
         <div className="brand">
           <Emblem className="brand-emblem" />

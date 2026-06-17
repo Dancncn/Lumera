@@ -32,6 +32,8 @@ export function Center({ view }: { view: PlayerView }) {
   const topClaim = view.prompt.kind === 'respond' ? view.prompt.claim : view.ladderTop;
   const claimActor = view.prompt.kind === 'respond' ? view.players[view.prompt.player]?.name ?? null : null;
   const claimCard: Card | null = topClaim ? { id: -1, kind: 'number', color: topClaim.color, num: topClaim.num } : null;
+  const ladderVal = topClaim ? (topClaim.num === 0 ? 10 : topClaim.num) : 0; // 0=顶格(10)
+  const pileFat = view.pileCount >= 6; // 牌堆叠肥：赌注变大的视觉信号
 
   return (
     <div className="center">
@@ -59,9 +61,20 @@ export function Center({ view }: { view: PlayerView }) {
             <span>待首家宣称 1–3</span>
           </div>
         )}
+        {topClaim && (
+          <div className="ladder-gauge" title={`梯压 ${ladderVal}/10`}>
+            <div className="lg-track">
+              <div
+                className="lg-fill"
+                style={{ width: `${ladderVal * 10}%`, background: `hsl(${46 - ((ladderVal - 1) / 9) * 40} 66% 47%)` }}
+              />
+            </div>
+            <span className="lg-cap">梯压 {ladderVal}/10 · 只升不降</span>
+          </div>
+        )}
       </div>
 
-      <div className="pile-area">
+      <div className={`pile-area${pileFat ? ' pile-fat' : ''}`}>
         <div className="pile-stack" data-pile>
 
           {pileShown === 0 ? (
@@ -74,7 +87,7 @@ export function Center({ view }: { view: PlayerView }) {
             ))
           )}
         </div>
-        <div className="pile-label">赌注牌堆 {view.pileCount} 张</div>
+        <div className="pile-label">赌注牌堆 {view.pileCount} 张{pileFat ? ' · 肥' : ''}</div>
       </div>
 
       {view.lastReveal && (

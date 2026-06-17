@@ -5,6 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Hub } from './hub';
 import { Conn } from './room';
 import { makeStaticHandler } from './static';
+import { countOnline, countVisit, snapshot } from './stats';
 import { ClientMsg, MAX_ROOM_ID } from '../../web/src/net/protocol';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -22,6 +23,13 @@ const http = createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true, rooms: hub.count() }));
     return;
   }
+  if (req.url === '/stats') {
+    res
+      .writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
+      .end(JSON.stringify(snapshot()));
+    return;
+  }
+  if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) countVisit();
   staticHandler(req, res).catch(() => {
     try {
       if (!res.headersSent) res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
@@ -85,6 +93,7 @@ wss.on('connection', (ws) => {
   };
   const ctx: Ctx = { conn, roomId: null };
   (ws as LiveSocket).__alive = true;
+  countOnline(wss.clients.size);
 
   ws.on('pong', () => {
     (ws as LiveSocket).__alive = true;

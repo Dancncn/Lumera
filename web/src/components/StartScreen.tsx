@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useGame } from '../store/gameStore';
 import { Difficulty } from '../engine/ai';
+import { DataMonitor } from './DataMonitor';
 import { Emblem } from './Emblem';
 import { SideRivers } from './MeteorShower';
 import { RulesButton } from './RulesModal';
@@ -17,6 +18,7 @@ const DIFFS: { key: Difficulty; label: string; hint: string }[] = [
 
 export function StartScreen() {
   const newGame = useGame((s) => s.newGame);
+  const startTutorial = useGame((s) => s.startTutorial);
   const joinRoom = useGame((s) => s.joinRoom);
   const [players, setPlayers] = useState(3);
   const [tab, setTab] = useState<'solo' | 'online'>('solo');
@@ -34,6 +36,7 @@ export function StartScreen() {
     <div className="start-wrap">
       <SideRivers />
       <div className="start-corner">
+        <DataMonitor />
         <RulesButton />
       </div>
 
@@ -91,6 +94,9 @@ export function StartScreen() {
             </div>
             <button className="start-go" onClick={() => newGame(players, difficulty)} type="button">
               涌出 · 入局
+            </button>
+            <button className="btn coach-enter" onClick={() => startTutorial()} type="button">
+              新手引导 · 带你走一遍
             </button>
           </div>
         ) : (

@@ -3,6 +3,8 @@ import { useGame } from '../store/gameStore';
 
 export function GameOver({ view }: { view: PlayerView }) {
   const newGame = useGame((s) => s.newGame);
+  const tutorial = useGame((s) => s.tutorial);
+  const startTutorial = useGame((s) => s.startTutorial);
   const ranking = view.ranking ?? [];
   const players = view.players.length;
   const winner = ranking[0];
@@ -11,7 +13,12 @@ export function GameOver({ view }: { view: PlayerView }) {
   return (
     <div className="overlay">
       <div className="gameover">
-        <div className="go-title">诸念归源 · 本局结算</div>
+        <div className="go-title">{tutorial ? '新手引导 · 完成' : '诸念归源 · 本局结算'}</div>
+        {tutorial && (
+          <div className="go-grad">
+            认牌、出牌接梯、放行 / 截牌、摊牌受罚 —— 一整轮你都走过了。来一局真正的对局练练手吧。
+          </div>
+        )}
         {winner && (
           <div className="go-winner">
             {winner.seat === view.you ? '你' : winner.name} 第一个汇成 —— 创造站住了。
@@ -47,9 +54,20 @@ export function GameOver({ view }: { view: PlayerView }) {
         <div className="go-formula">总分 = 计分区张数 + 计分卡面值 − 失凝聚（每命 −5）</div>
         {youRank > 0 && <div className="go-yourank">你的名次：第 {youRank} / {ranking.length}</div>}
         <div className="go-btns">
-          <button className="start-go" type="button" onClick={() => newGame(players)}>
-            再转一次轮子（同人数）
-          </button>
+          {tutorial ? (
+            <>
+              <button className="start-go" type="button" onClick={() => newGame(3, 'normal')}>
+                自由打一局（3 人）
+              </button>
+              <button className="start-ghost" type="button" onClick={() => startTutorial()}>
+                再走一遍引导
+              </button>
+            </>
+          ) : (
+            <button className="start-go" type="button" onClick={() => newGame(players)}>
+              再转一次轮子（同人数）
+            </button>
+          )}
         </div>
       </div>
     </div>

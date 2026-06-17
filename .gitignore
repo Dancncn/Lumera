@@ -35,3 +35,6 @@ Thumbs.db
 coverage/
 tmp/
 temp/
+
+# Runtime stats (server-side)
+server/src/state/

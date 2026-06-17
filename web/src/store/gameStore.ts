@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { actorOf, apply, createGame, DEFAULT_CONFIG, viewFor } from '../engine/game';
+import { actorOf, apply, buildTutorialDeck, createGame, DEFAULT_CONFIG, viewFor } from '../engine/game';
 import { AiPlayer, Difficulty, PERSONA_LABEL, pickProfile } from '../engine/ai';
-import { Command, GameEvent, GameState, PlayerView } from '../engine/types';
+import { Card, Command, GameEvent, GameState, PlayerView } from '../engine/types';
 import { NetClient, ConnStatus, loadToken } from '../net/client';
 import { JoinedMsg, RoomMsg, SeatInfo, SyncMsg } from '../net/protocol';
 
@@ -35,7 +35,9 @@ interface Store {
   thinking: number | null;
   lastEvents: GameEvent[];
   lastDie: DieFlash | null;
-  newGame: (players: number, difficulty?: Difficulty) => void;
+  tutorial: boolean;
+  newGame: (players: number, difficulty?: Difficulty, firstSeat?: number, deck?: Card[]) => void;
+  startTutorial: () => void;
   human: (cmd: Command) => void;
   joinRoom: (roomId: string, name: string, players: number) => void;
   startRoom: () => void;
@@ -147,8 +149,9 @@ export const useGame = create<Store>((set, get) => {
     thinking: null,
     lastEvents: [],
     lastDie: null,
+    tutorial: false,
 
-    newGame: (players: number, diff?: Difficulty) => {
+    newGame: (players: number, diff?: Difficulty, firstSeat?: number, deck?: Card[]) => {
       if (get().mode === 'online') {
         net?.restart();
         return;
@@ -163,10 +166,16 @@ export const useGame = create<Store>((set, get) => {
         ais.set(i, new AiPlayer({ seat: i, seed, profile, difficulty }));
         return { name: `${AI_NAMES[i % AI_NAMES.length]} · ${PERSONA_LABEL[profile]}`, isAI: true };
       });
-      const { state, events } = createGame({ ...DEFAULT_CONFIG, players, seed }, seats);
+      const { state, events } = createGame({ ...DEFAULT_CONFIG, players, seed }, seats, firstSeat, deck);
       observeAll(events, state);
-      set({ state, lastEvents: events, lastDie: null, thinking: null });
+      set({ state, lastEvents: events, lastDie: null, thinking: null, tutorial: false });
       loop();
+    },
+
+    startTutorial: () => {
+      // 2 人易局、你先手、固定牌序（保证演示 0/万能/跑成），跟着提示走一遍
+      get().newGame(2, 'easy', 0, buildTutorialDeck());
+      set({ tutorial: true });
     },
 
     human: (cmd: Command) => {
