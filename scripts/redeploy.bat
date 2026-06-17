@@ -8,7 +8,7 @@ git push gitea
 if errorlevel 1 ( echo 推送失败，已中止 & exit /b 1 )
 
 echo [2/2] 通知香港服务器拉取重建 ...
-ssh tlhk bash /opt/yuanhe/deploy.sh
+ssh tlhk bash /opt/Lumera/deploy.sh
 if errorlevel 1 ( echo 服务器部署失败 & exit /b 1 )
 
 echo.

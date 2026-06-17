@@ -1,68 +1,44 @@
-# 部署到香港 VPS
+# 部署到香港 VPS（实际线上形态）
 
-单进程 Node 服务器，同源伺服前端静态资源 + WebSocket 端点；前面挂 Caddy 反向代理 + 自动 HTTPS。香港无需备案，直接绑域名签证书。
+线上：**https://lumera.danarnoux.com**。这台 VPS 用 aaPanel/宝塔 管 nginx，还跑着 Gitea/MySQL 等，所以 Lumera 不抢 80/443、不动面板：Node 服务只监听 `127.0.0.1:8787`，由 nginx 反代到子域名，证书走 Let's Encrypt。部署方式是「**服务器从 Gitea 拉取构建**」。
 
-## 一、VPS 一次性准备（Ubuntu）
+## 服务器布局
+
+```
+/opt/Lumera/
+  server.js        # esbuild 单文件包（运行态）
+  public/          # 前端静态资源（运行态）
+  repo/            # git clone 的源码（含只读 token 的 remote）
+  deploy.sh        # 拉取→构建→换包→重启
+```
+- systemd 服务 `Lumera`（运行用户 `lumera`，见 [Lumera.service](Lumera.service)）。`systemctl status Lumera`、`journalctl -u Lumera -f`。
+- SSH 别名 `ssh tlhk`（免密，端口 2200）。
+
+## 日常更新（两步，或一键）
 
 ```bash
-# Node（20 LTS）
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# Caddy
-sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-sudo apt-get update && sudo apt-get install -y caddy
+# 本地：提交并推到 Gitea
+git push gitea
+# 服务器拉取重建
+ssh tlhk bash /opt/Lumera/deploy.sh
 ```
+一键：本地跑 `scripts\redeploy.bat`（= 上面两步）。`deploy.sh` 用 `set -e`，构建失败不会换包/重启，线上保持旧版本不受影响。
 
-把域名的 A 记录指向 VPS 公网 IP（香港机房直接生效，无需备案）。防火墙放行 80/443。
+## 一次性搭建（若换新机重建）
 
-## 二、一键部署（在 Windows 本地）
+1. Node 20（官方 tarball 装到 `/usr/local`，软链 `/usr/bin/node`）。
+2. 建用户 + 目录：`useradd --system --no-create-home --shell /usr/sbin/nologin lumera` ; `mkdir -p /opt/Lumera`。
+3. 在 Gitea 建只读 token，`git clone https://<token>@git.yukilove.me/dandan/Lumera /opt/Lumera/repo`。
+4. 放 `deploy.sh`、装 `Lumera.service`（`systemctl enable --now Lumera`），首次 `bash /opt/Lumera/deploy.sh`。
+5. nginx 反代：vhost `/www/server/panel/vhost/nginx/lumera.danarnoux.com.conf`，80→443 跳转 + ACME 例外，443 `reverse_proxy 127.0.0.1:8787`，WebSocket 用面板 `0.websocket.conf` 的 `$connection_upgrade`。
+6. 证书：acme.sh（默认 CA = Let's Encrypt），HTTP-01 webroot `/var/www/acme`，签发后 `--install-cert` 到 `/etc/nginx/ssl/lumera.danarnoux.com.{crt,key}`，自动续期。
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1 -VpsHost 1.2.3.4 -Domain play.example.com
-```
+## DNS / HTTPS 取舍
 
-脚本会：本地构建 → 上传 `server.js` + `public/` + systemd 单元 → 安装并重启 `yuanhe` 服务 → 写好 Caddyfile（域名替换）并 reload Caddy。需提前配好到 VPS 的 SSH 免密（`ssh-copy-id`）。脚本以 root 登录时自动免 sudo，非 root 时自动加 sudo。
+域名在 Cloudflare，用**灰色云朵（仅 DNS，A 记录直指 VPS IP）**——大陆访问香港更快更稳（CF 免费版大陆无节点，橙云会把流量绕到海外）。灰云下浏览器直连源站，故源站自带 Let's Encrypt 受信证书。代价是暴露源站 IP、无 CF 抗 D；真被攻击再切橙云。
 
-> 注意：脚本按「这台 VPS 只跑本服务」的假设，会**整体改写** `/etc/caddy/Caddyfile`（覆盖前自动备份为带时间戳的 `Caddyfile.bak.<秒>`）。若这台机器上 Caddy 还反代了别的站点，请改用 `import` 片段：把本站点写进 `/etc/caddy/conf.d/yuanhe.caddy`，主 Caddyfile 里加一行 `import conf.d/*.caddy`，不要用本脚本的整体覆盖。
+## 说明
 
-可选参数：`-User`（默认 root）、`-RemoteDir`（默认 /opt/yuanhe）。
-
-## 三、手动部署（等价步骤）
-
-本地 `scripts\build.bat` 出包后，把 `server\dist\server.js` 与 `server\dist\public\` 拷到 VPS `/opt/yuanhe/`，然后：
-
-```bash
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin yuanhe
-sudo chown -R yuanhe:yuanhe /opt/yuanhe
-sudo cp /opt/yuanhe/yuanhe.service /etc/systemd/system/    # 用 deploy/yuanhe.service
-sudo systemctl daemon-reload && sudo systemctl enable --now yuanhe
-```
-
-Caddyfile（`/etc/caddy/Caddyfile`，把域名换成你的）：
-
-```
-play.example.com {
-    encode zstd gzip
-    reverse_proxy 127.0.0.1:8787
-}
-```
-
-```bash
-sudo systemctl reload caddy
-```
-
-## 四、运维
-
-- 日志：`journalctl -u yuanhe -f`
-- 重启：`sudo systemctl restart yuanhe`
-- 健康检查：`curl http://127.0.0.1:8787/healthz` → `{"ok":true,"rooms":N}`
-- 服务器只监听 `127.0.0.1:8787`，公网仅经 Caddy（HTTPS）进入；WebSocket 走同域 `wss://你的域名/ws`，Caddy 自动透传 Upgrade。
-
-## 五、说明
-
-- 房间状态在内存中，重启即清空（demo 无数据库；`RoomStore` 抽象已留好横向扩展的接缝）。
-- AI 思考延迟由 `YUANHE_DELAY_SCALE` 调节（默认 1；越小越快，0 近乎瞬发）。
-- 若想要「真单文件、免装 Node」的部署，可改用 `bun build --compile` 产出自包含可执行文件，systemd 的 `ExecStart` 换成该文件即可。
+- 房间状态在内存，重启即清空（demo 无数据库；`RoomStore` 抽象留了横向扩展接缝）。
+- 联机 AI 难度 `YUANHE_AI_DIFFICULTY`（默认 normal）、思考延迟 `YUANHE_DELAY_SCALE`（默认 1）、房间/连接上限 `MAX_ROOMS`/`MAX_CONNECTIONS`、空房宽限 `YUANHE_ROOM_GRACE_MS`，都是环境变量可调。
+- 实测：120 并发玩家 / 40 局同时进行，峰值内存 57MB、CPU ~1% 单核、0 错误（压测脚本 `server/test/load.ts`）。

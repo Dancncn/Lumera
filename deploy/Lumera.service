@@ -1,12 +1,12 @@
 [Unit]
-Description=Yuanhe (Lumera) online card game server
+Description=Lumera online card game server
 After=network.target
 
 [Service]
 Type=simple
-User=yuanhe
-WorkingDirectory=/opt/yuanhe
-ExecStart=/usr/bin/node /opt/yuanhe/server.js
+User=lumera
+WorkingDirectory=/opt/Lumera
+ExecStart=/usr/bin/node /opt/Lumera/server.js
 Environment=PORT=8787
 Environment=HOST=127.0.0.1
 Restart=on-failure
@@ -14,7 +14,7 @@ RestartSec=3
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/yuanhe
+ReadWritePaths=/opt/Lumera
 PrivateTmp=true
 
 [Install]
