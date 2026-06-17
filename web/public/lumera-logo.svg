@@ -1,0 +1,52 @@
+<svg width="100%" viewBox="0 0 680 530" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>源 · Lumera 标志</title>
+<desc>极简线条标志：金色细线的圆环象征源与周行的循环，圆周上下左右四个等距的彩色节点分别是阳、月、地、海四股力，四道彩色螺旋自中心旋出，环外散落星点如银河。</desc>
+
+<rect x="0" y="0" width="680" height="530" rx="16" fill="#FAF8F3"/>
+
+<circle cx="340" cy="250" r="150" fill="none" stroke="#C2A158" stroke-width="1.1"/>
+<circle cx="340" cy="250" r="140" fill="none" stroke="#C2A158" stroke-width="0.5" stroke-opacity="0.35"/>
+
+<path d="M340,250 C384,212 372,142 340,100" fill="none" stroke="#C79A3A" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M340,250 C384,292 456,282 490,250" fill="none" stroke="#4C77A8" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M340,250 C296,288 308,360 340,400" fill="none" stroke="#9AA3B2" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M340,250 C292,212 222,222 190,250" fill="none" stroke="#5F8C5A" stroke-width="1.5" stroke-linecap="round"/>
+
+<circle cx="502" cy="317" r="2" fill="#4C77A8" fill-opacity="0.55"/>
+<circle cx="457" cy="367" r="1.5" fill="#C2A158" fill-opacity="0.5"/>
+<circle cx="408" cy="414" r="2.4" fill="#C2A158" fill-opacity="0.45"/>
+<circle cx="275" cy="407" r="1.8" fill="#5F8C5A" fill-opacity="0.5"/>
+<circle cx="213" cy="377" r="2.6" fill="#C2A158" fill-opacity="0.5"/>
+<circle cx="187" cy="314" r="1.5" fill="#C2A158" fill-opacity="0.5"/>
+<circle cx="177" cy="183" r="2.2" fill="#9AA3B2" fill-opacity="0.55"/>
+<circle cx="221" cy="131" r="1.6" fill="#C2A158" fill-opacity="0.5"/>
+<circle cx="270" cy="82" r="2.4" fill="#C2A158" fill-opacity="0.45"/>
+<circle cx="405" cy="93" r="1.8" fill="#C79A3A" fill-opacity="0.55"/>
+<circle cx="466" cy="124" r="2.5" fill="#C2A158" fill-opacity="0.5"/>
+<circle cx="493" cy="187" r="1.5" fill="#C2A158" fill-opacity="0.5"/>
+
+<circle cx="340" cy="250" r="13" fill="none" stroke="#C2A158" stroke-width="0.8"/>
+<circle cx="340" cy="250" r="2.6" fill="#C2A158"/>
+
+<circle cx="340" cy="100" r="9" fill="none" stroke="#C2A158" stroke-width="0.8"/>
+<circle cx="340" cy="100" r="5" fill="#C79A3A"/>
+<circle cx="490" cy="250" r="9" fill="none" stroke="#C2A158" stroke-width="0.8"/>
+<circle cx="490" cy="250" r="5" fill="#4C77A8"/>
+<circle cx="340" cy="400" r="9" fill="none" stroke="#C2A158" stroke-width="0.8"/>
+<circle cx="340" cy="400" r="5" fill="#9AA3B2"/>
+<circle cx="190" cy="250" r="9" fill="none" stroke="#C2A158" stroke-width="0.8"/>
+<circle cx="190" cy="250" r="5" fill="#5F8C5A"/>
+
+<circle cx="150" cy="128" r="1.3" fill="#C2A158" fill-opacity="0.3"/>
+<circle cx="532" cy="150" r="1.6" fill="#C2A158" fill-opacity="0.32"/>
+<circle cx="560" cy="302" r="1.2" fill="#C2A158" fill-opacity="0.28"/>
+<circle cx="122" cy="330" r="1.5" fill="#C2A158" fill-opacity="0.3"/>
+<circle cx="588" cy="222" r="1.1" fill="#C2A158" fill-opacity="0.26"/>
+<circle cx="96" cy="220" r="1.2" fill="#C2A158" fill-opacity="0.26"/>
+
+<circle cx="340" cy="250" r="13" fill="none" stroke="#C2A158" stroke-width="0.8"/>
+
+<text x="340" y="468" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="40" fill="#2B2B2B">源</text>
+<line x1="312" y1="484" x2="368" y2="484" stroke="#C2A158" stroke-width="0.6" stroke-opacity="0.6"/>
+<text x="340" y="503" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="15" letter-spacing="3" fill="#7A6A45">Lumera</text>
+</svg>

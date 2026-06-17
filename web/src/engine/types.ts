@@ -1,0 +1,181 @@
+// ============================================================
+// 《源河》引擎 —— 类型定义（与语言无关的「思想」核心）
+// 真相只活在 GameState 里；外界只能通过 viewFor(state, seat) 拿到过滤视图。
+// ============================================================
+
+/** 四力（颜色）。读：造名；说：金/银/绿/蓝 或 阳/月/地/海。 */
+export type Color = 'aurel' | 'selvar' | 'verda' | 'thalos';
+export const COLORS: Color[] = ['aurel', 'selvar', 'verda', 'thalos'];
+
+/**
+ * 颜色的展示信息：
+ * - name 造名 / glyph 单字 / say 喊色 / hex 在浅色 UI 上的识别色（筹码点等）。
+ * - bg / ink 是「牌面」专用的底色与字色：阳白底金字、月黑底银字、地深绿浅字、海深蓝浅字，
+ *   一律高对比、保证字清晰可读（不再用实心几何 + 假打光）。
+ */
+export const COLOR_META: Record<
+  Color,
+  { name: string; glyph: string; say: string; hex: string; bg: string; ink: string }
+> = {
+  aurel: { name: 'Aurel', glyph: '阳', say: '金', hex: '#C79A3A', bg: '#FBF6E8', ink: '#9A6A14' },
+  selvar: { name: 'Selvar', glyph: '月', say: '银', hex: '#7C8595', bg: '#262A31', ink: '#CCD2DC' },
+  verda: { name: 'Verda', glyph: '地', say: '绿', hex: '#5F8C5A', bg: '#2C4736', ink: '#DCE8D0' },
+  thalos: { name: 'Thalos', glyph: '海', say: '蓝', hex: '#4C77A8', bg: '#1F3A58', ink: '#C2D7EC' },
+};
+
+export type FunctionalKind = 'reverse' | 'skip';
+
+/** 一张牌。number：0..9，其中 0 视为该色最大（=10）。 */
+export type Card =
+  | { id: number; kind: 'number'; color: Color; num: number }
+  | { id: number; kind: 'functional'; func: FunctionalKind }
+  | { id: number; kind: 'wild' };
+
+/** 宣称：盖牌出牌时口头说的颜色 + 数字（可以撒谎）。 */
+export interface Claim {
+  color: Color;
+  num: number; // 0..9
+}
+
+// ---------------- 命令（参与者 → 引擎） ----------------
+export type Command =
+  | { type: 'PlayFunctional'; cardId: number } // 明着甩功能牌（附加动作）
+  | { type: 'Draw' } // 先摸 1 张，再出牌
+  | { type: 'PlayCard'; cardId: number; claim: Claim } // 盖牌出数字牌/万能牌并宣称
+  | { type: 'Fallback' } // 兜底：无数字/万能牌时，亮手 + 弃功能 + 摸一
+  | { type: 'Accept' } // 放过，不质疑
+  | { type: 'Challenge' } // 质疑上家这一手
+  | { type: 'ChooseNumber'; n: number }; // 受罚时选定本次要赌的点数 1..6
+
+// ---------------- 事件（引擎 → 参与者，按世界观换皮命名） ----------------
+export type GameEvent =
+  | { type: 'TurnStarted'; seat: number; isFirst: boolean }
+  | { type: 'FunctionalPlayed'; seat: number; func: FunctionalKind }
+  | { type: 'DirectionReversed'; direction: 1 | -1 }
+  | { type: 'CardDrawn'; seat: number; count: number } // 仅数量公开
+  | { type: 'CardPlayed'; seat: number; claim: Claim; endsLadder: boolean } // 只播宣称
+  | { type: 'Fallback'; seat: number; revealed: Card[] }
+  | { type: 'PlayAccepted'; seat: number }
+  | { type: 'Challenged'; challenger: number; against: number }
+  | { type: 'CardRevealed'; seat: number; card: Card; truthful: boolean } // 摊牌：亮真实牌
+  | { type: 'PileTaken'; seat: number; count: number }
+  | { type: 'TokenAwarded'; seat: number; value: number } // 计分卡（打 0 的勇气奖励）
+  | { type: 'RanOut'; seat: number } // 清空手牌「跑成了」
+  | { type: 'PenaltyStarted'; seat: number; rolls: number }
+  | { type: 'DiceRolled'; seat: number; chosen: number; rolled: number; hit: boolean }
+  | { type: 'Returned'; seat: number; livesLeft: number } // 中枪：一缕念被收回源头（扣凝聚）
+  | { type: 'Survived'; seat: number } // 未中
+  | { type: 'PlayerOut'; seat: number } // 复归出局
+  | { type: 'LadderReset'; leader: number } // 新梯，由 leader 起手
+  | { type: 'GameOver'; ranking: RankEntry[] };
+
+export interface RankEntry {
+  seat: number;
+  name: string;
+  score: number;
+  scoredCount: number;
+  tokenValue: number;
+  livesLost: number;
+  out: boolean;
+}
+
+// ---------------- 可调参数（与状态机隔离，纯标量） ----------------
+export interface GameConfig {
+  players: number; // 2..4
+  startingHand: number; // 起手张数
+  startingLives: number; // 初始凝聚度（命数）
+  tokenValueOnZero: number; // 打出 0 领取的计分卡面值
+  lifeLossValue: number; // 每损失 1 命的扣分（复归出局的 −15 即 3×5，无需额外负债字段）
+  refillTo: number; // 清空手牌跑成后补牌到几张
+  escalationResetsOnHit: boolean; // 中枪后受罚累进是否重置
+  seed: number;
+}
+
+export const DEFAULT_CONFIG: Omit<GameConfig, 'players' | 'seed'> = {
+  startingHand: 6,
+  startingLives: 3,
+  tokenValueOnZero: 2,
+  lifeLossValue: 5,
+  refillTo: 6,
+  escalationResetsOnHit: true,
+};
+
+// ---------------- 引擎内部状态（真相） ----------------
+export interface PlayerState {
+  seat: number;
+  name: string;
+  isAI: boolean;
+  hand: Card[];
+  lives: number;
+  scored: Card[]; // 收走的牌堆牌（计分区）
+  tokens: number; // 计分卡面值合计
+  escalation: number; // 下次受罚投骰次数（>=1）
+  out: boolean;
+}
+
+export interface PileEntry {
+  card: Card; // 真实牌（盖着，不进任何人的视图）
+  claim: Claim; // 宣称（公开）
+  by: number;
+}
+
+/** 状态机阶段。 */
+export type Phase =
+  | { kind: 'play'; current: number; isFirst: boolean; hasDrawn: boolean }
+  | { kind: 'respond'; player: number; responder: number } // player 刚出牌（位于 pile 顶），responder 决定
+  | { kind: 'penalty'; roller: number; rollsRemaining: number }
+  | { kind: 'over' };
+
+export interface GameState {
+  config: GameConfig;
+  players: PlayerState[];
+  deck: Card[];
+  pile: PileEntry[];
+  discard: Card[]; // 明牌甩出/兜底弃掉的功能牌（离开博弈，仅留作牌张守恒）
+  ladderTop: Claim | null; // 当前梯顶宣称；null = 新梯（首家须宣称 1..3）
+  direction: 1 | -1;
+  pendingSkip: number; // 已甩出的「禁止」累积，下次推进时消费
+  phase: Phase;
+  rng: number; // 种子化 RNG 当前状态
+  log: string[];
+  lastReveal?: { seat: number; card: Card; truthful: boolean };
+  ranking?: RankEntry[];
+  seq: number; // 单调递增，便于前端 diff
+}
+
+// ---------------- 过滤视图（每个座位拿到的脱敏快照） ----------------
+export interface PublicPlayer {
+  seat: number;
+  name: string;
+  isAI: boolean;
+  lives: number; // 凝聚度
+  handCount: number; // 手牌数量（不含内容）
+  scoredCount: number;
+  tokenValue: number;
+  escalation: number;
+  out: boolean;
+}
+
+/** 当前轮到「你」时能做什么。 */
+export type ViewPrompt =
+  | { kind: 'play'; isFirst: boolean; canDraw: boolean; canFallback: boolean }
+  | { kind: 'respond'; player: number; claim: Claim }
+  | { kind: 'penalty'; roller: number; rollsRemaining: number }
+  | { kind: 'idle' } // 不是你行动
+  | { kind: 'over' };
+
+export interface PlayerView {
+  you: number;
+  current: number; // 当前必须行动的座位
+  direction: 1 | -1;
+  startingLives: number; // 初始凝聚度（用于命格显示）
+  players: PublicPlayer[];
+  yourHand: Card[]; // 仅你自己的真实手牌
+  ladderTop: Claim | null;
+  pileCount: number;
+  deckCount: number;
+  prompt: ViewPrompt;
+  lastReveal?: { seat: number; card: Card; truthful: boolean }; // 摊牌结果（公开）
+  ranking?: RankEntry[];
+  log: string[];
+}

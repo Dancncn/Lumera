@@ -1,0 +1,10 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <title>源 · Lumera</title>
+  <rect width="32" height="32" rx="7" fill="#262019" />
+  <circle cx="16" cy="16" r="9.6" fill="none" stroke="#dabf7c" stroke-width="2.1" />
+  <circle cx="16" cy="6.4" r="2.5" fill="#e0b24a" />
+  <circle cx="25.6" cy="16" r="2.5" fill="#5b8fd0" />
+  <circle cx="16" cy="25.6" r="2.5" fill="#aab3c2" />
+  <circle cx="6.4" cy="16" r="2.5" fill="#74b06d" />
+  <circle cx="16" cy="16" r="2.3" fill="#dabf7c" />
+</svg>
