@@ -50,6 +50,8 @@ web/src/
 
 核心纪律（与原架构一致）：所有规则判定只活在 `engine/` 里；`store` 和 `components` 只渲染视图、发命令。
 
+> 延伸阅读：整体架构（含联机后端）见 [../docs/architecture.md](../docs/architecture.md)；`ai.ts` 的性格档案、诈牌/质疑概率模型与拟人节奏，详见 [../docs/ai-system.md](../docs/ai-system.md)。
+
 ## 已实现的规则（对照 `docs/game-rules.md`）
 
 盖牌宣称可撒谎、数字梯子只升不降（同色更大 / 同数字换色，0=该色最大）、质疑摊牌逐项比对、

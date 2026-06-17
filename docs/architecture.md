@@ -57,7 +57,7 @@ Lumera/
 │       └── stats.ts     在线/对局统计（/stats 暴露）
 ├── scripts/             setup / dev / build / run-local（.bat） + deploy.ps1
 ├── deploy/              systemd 单元 + Caddyfile + 部署指南
-└── docs/                worldview.md / game-rules.md / architecture.md（本文）
+└── docs/                worldview.md / game-rules.md / architecture.md（本文）/ ai-system.md
 ```
 
 核心纪律：所有游戏逻辑只活在 `web/src/engine/` 里，且引擎不依赖 React、不碰 IO、不碰网络。前端 `store`/`components` 与后端 `server/` 都只是它的薄封装——一个把命令从用户操作喂进去，一个把命令从 WebSocket 喂进去。这是「引擎即协议、写一次跑两端」能成立的工程前提，也是必须守住的边界：任何规则判定一旦泄进前端或 `server`，这个架构就破了。
@@ -77,6 +77,8 @@ export function viewFor(s: GameState, seat: number): PlayerView;
 `viewFor` 把真相投影成某个座位有权看到的部分，**是整个系统的安全边界**：它是 AI 和联机客户端拿数据的唯一入口，两者拿到同一个 `PlayerView`，因此「会读底牌的作弊 AI」在结构上根本写不出来。视图的公开部分有各人凝聚度（命数）、手牌数量（注意是数量、不是内容）、计分区、当前梯顶（宣称的那张牌）、出牌方向、牌库剩余、各人受罚累进次数；私有部分只有你自己的真实手牌；桌上盖着的真实牌不在任何人的视图里，只有被质疑摊牌时才在 `CardRevealed` 事件里亮出。
 
 `actorOf(state)` 返回当前必须行动的座位，供前端与服务器判断「轮到谁」「该不该自动驱动 AI」。
+
+> 人机对手（AI）就建立在这层边界之上：它只吃 `viewFor` 给的过滤视图，靠统计推断而非偷看底牌来决策。其性格档案、诈牌/质疑概率模型与拟人节奏，详见 [ai-system.md](ai-system.md)。
 
 ## 五、状态机与协议
 

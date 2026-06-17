@@ -84,3 +84,7 @@
 > 你，就是其中一缕。
 >
 > 轮子已经在转了。
+
+---
+
+> 相关文档：规则定稿 [game-rules.md](game-rules.md)、技术架构 [architecture.md](architecture.md)、人机系统 [ai-system.md](ai-system.md)。

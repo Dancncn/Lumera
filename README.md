@@ -11,7 +11,16 @@
 - **单机人机**：浏览器里直接 `import` 引擎，零网络（`web/src/store/gameStore.ts` 的 local 模式）。
 - **联机**：Node 服务器 `server/` 复用同一份引擎，每个房间一个独占 `GameState` 的异步 actor，按座位推送过滤视图。前后端共享 `Command`/`GameEvent`/`PlayerView` 类型（都是 TS），无需任何代码生成。
 
-> 为什么不是 Rust+WASM+axum？技术评审判定：对玩法尚未定稿的 demo，把这份已跑通、过了 1200 局无头模拟的 TS 引擎用 Rust 重写一遍是纯成本、零收益（架构的「思想」与语言无关，早已实现）。联机的真实收益用 Node 复用引擎即可兑现，几小时跑通而非数天重写。详见 `web/README.md` 与记忆里的选型决策。
+> 为什么不是 Rust+WASM+axum？技术评审判定：对玩法尚未定稿的 demo，把这份已跑通、过了 1200 局无头模拟的 TS 引擎用 Rust 重写一遍是纯成本、零收益（架构的「思想」与语言无关，早已实现）。联机的真实收益用 Node 复用引擎即可兑现，几小时跑通而非数天重写。详见 [docs/architecture.md](docs/architecture.md) 与 `web/README.md`。
+
+## 文档
+
+| 文档 | 内容 |
+|------|------|
+| [docs/worldview.md](docs/worldview.md) | 世界观与背景故事——源、四力、回流；「皮西骨东」的命名与叙事 |
+| [docs/game-rules.md](docs/game-rules.md) | 规则定稿——牌库构成、数字梯子、质疑摊牌、轮盘受罚、三条得分路线、计分 |
+| [docs/architecture.md](docs/architecture.md) | 技术架构——权威状态机、引擎即协议、单机/联机两端、状态机与协议、可调参数 |
+| [docs/ai-system.md](docs/ai-system.md) | 人机系统的数学模型与技术实现——性格档案、难度调制、诈牌/质疑概率、拟人节奏 |
 
 ## 目录
 
