@@ -25,6 +25,23 @@ export const COLOR_META: Record<
 
 export type FunctionalKind = 'reverse' | 'skip';
 
+/**
+ * 混沌天气（可选玩法）。每开新梯有几率降下一种天气，为战局加噪。
+ * 一次性结算：bounty/shuffle/surge/bless（开梯即生效）；
+ * 持续整梯：ban/veer（本梯每次出牌后按概率附带禁止/转向）。
+ */
+export type WeatherKind = 'bounty' | 'shuffle' | 'surge' | 'ban' | 'veer' | 'bless';
+export const WEATHER_KINDS: WeatherKind[] = ['bounty', 'shuffle', 'surge', 'ban', 'veer', 'bless'];
+/** 天气的展示信息（name/desc 同时作为 i18n key，简体为源）。 */
+export const WEATHER_META: Record<WeatherKind, { name: string; desc: string }> = {
+  bounty: { name: '丰沛', desc: '全场各摸 2 张手牌' },
+  shuffle: { name: '乱流', desc: '全场各抽 2 张，混洗后重新分发' },
+  surge: { name: '源涌', desc: '全场受罚累进 +1~2' },
+  ban: { name: '禁制', desc: '本梯：出牌后 40% 触发「禁止」' },
+  veer: { name: '乱向', desc: '本梯：出牌后 60% 触发「转向」' },
+  bless: { name: '恩泽', desc: '全场各得 2~4 分' },
+};
+
 /** 一张牌。number：0..9，其中 0 视为该色最大（=10）。 */
 export type Card =
   | { id: number; kind: 'number'; color: Color; num: number }
@@ -67,6 +84,8 @@ export type GameEvent =
   | { type: 'Survived'; seat: number } // 未中
   | { type: 'PlayerOut'; seat: number } // 复归出局
   | { type: 'LadderReset'; leader: number } // 新梯，由 leader 起手
+  | { type: 'WeatherChanged'; kind: WeatherKind; seat: number } // 新梯降下一种天气（seat=首家）
+  | { type: 'WeatherTriggered'; kind: 'ban' | 'veer'; seat: number } // 持续天气在某次出牌后触发（禁止/转向）
   | { type: 'GameOver'; ranking: RankEntry[] };
 
 /** 结构化日志条目：tpl 是中文模板（同时作为 i18n key），p 是命名参数。 */
@@ -96,6 +115,8 @@ export interface GameConfig {
   refillAfterCaughtLast: number; // 撒谎打最后一张被抓（不算跑成、受罚后）补牌到几张
   maxFunctionalInOpener: number; // 开局保底：起手手牌里功能牌最多几张（削弱开局方差，防被功能牌堵手）
   escalationResetsOnHit: boolean; // 中枪后受罚累进是否重置
+  weather: boolean; // 混沌天气开关（可选玩法）
+  weatherChance: number; // 每开新梯触发天气的概率（0..1）；开局首梯豁免、触发后隔梯冷却
   seed: number;
 }
 
@@ -108,6 +129,8 @@ export const DEFAULT_CONFIG: Omit<GameConfig, 'players' | 'seed'> = {
   refillAfterCaughtLast: 2,
   maxFunctionalInOpener: 1,
   escalationResetsOnHit: true,
+  weather: false,
+  weatherChance: 0.28,
 };
 
 // ---------------- 引擎内部状态（真相） ----------------
@@ -145,6 +168,8 @@ export interface GameState {
   ladderTop: Claim | null; // 当前梯顶宣称；null = 新梯（首家须宣称 1..3）
   direction: 1 | -1;
   pendingSkip: number; // 已甩出的「禁止」累积，下次推进时消费
+  weather: WeatherKind | null; // 当前梯的天气（开梯定、出牌读、换梯清）；关闭天气时恒为 null
+  weatherCooldown: number; // 触发天气后的冷却梯数，>0 时本梯不再降天气
   phase: Phase;
   rng: number; // 种子化 RNG 当前状态
   log: LogEntry[];
@@ -178,6 +203,7 @@ export interface PlayerView {
   you: number;
   current: number; // 当前必须行动的座位
   direction: 1 | -1;
+  weather: WeatherKind | null; // 当前梯的天气（公开信息）
   startingLives: number; // 初始凝聚度（用于命格显示）
   players: PublicPlayer[];
   yourHand: Card[]; // 仅你自己的真实手牌

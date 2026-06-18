@@ -43,7 +43,7 @@ interface Store {
   notice: string | null;
   difficulty: Difficulty;
   players: number;
-  newGame: (players: number, difficulty?: Difficulty, firstSeat?: number, deck?: Card[]) => void;
+  newGame: (players: number, difficulty?: Difficulty, firstSeat?: number, deck?: Card[], weather?: boolean) => void;
   startTutorial: () => void;
   stageGame: (firstSeat: number, deck: Card[]) => void;
   stageCmd: (seat: number, cmd: Command) => void;
@@ -61,6 +61,7 @@ let respondPending = new Set<number>(); // 本轮还未表态（既没质疑也�
 let net: NetClient | null = null;
 let ais = new Map<number, AiPlayer>();
 let difficulty: Difficulty = 'normal';
+let weatherOn = false; // 记住天气开关，使「再来一局」沿用上次选择（教程显式关闭）
 
 // 质疑窗口：出牌后留给全场 8 秒反应（先喊先得）。纯 AI 收得更快。
 const RESPOND_WINDOW_HUMAN = 8000;
@@ -257,13 +258,14 @@ export const useGame = create<Store>((set, get) => {
     difficulty: 'normal',
     players: 3,
 
-    newGame: (players: number, diff?: Difficulty, firstSeat?: number, deck?: Card[]) => {
+    newGame: (players: number, diff?: Difficulty, firstSeat?: number, deck?: Card[], weather?: boolean) => {
       if (get().mode === 'online') {
         net?.restart();
         return;
       }
       teardownLocal();
       if (diff) difficulty = diff;
+      if (weather !== undefined) weatherOn = weather;
       const seed = ((Date.now() & 0x7fffffff) ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0;
       ais = new Map();
       const seats = Array.from({ length: players }, (_, i) => {
@@ -272,7 +274,7 @@ export const useGame = create<Store>((set, get) => {
         ais.set(i, new AiPlayer({ seat: i, seed, profile, difficulty }));
         return { name: `${AI_NAMES[i % AI_NAMES.length]} · ${PERSONA_LABEL[profile]}`, isAI: true };
       });
-      const { state, events } = createGame({ ...DEFAULT_CONFIG, players, seed }, seats, firstSeat, deck);
+      const { state, events } = createGame({ ...DEFAULT_CONFIG, players, seed, weather: weatherOn }, seats, firstSeat, deck);
       observeAll(events, state);
       set({ state, lastEvents: events, lastDie: null, penaltySeat: null, thinking: null, tutorial: false, difficulty, players });
       reportLocalGame(); // 单机局也计入「对局」统计
@@ -280,8 +282,8 @@ export const useGame = create<Store>((set, get) => {
     },
 
     startTutorial: () => {
-      // 2 人易局、你先手、固定牌序（保证演示 0/万能/跑成），跟着提示走一遍
-      get().newGame(2, 'easy', 0, buildTutorialDeck());
+      // 2 人易局、你先手、固定牌序（保证演示 0/万能/跑成），跟着提示走一遍（教程不下天气）
+      get().newGame(2, 'easy', 0, buildTutorialDeck(), false);
       set({ tutorial: true, tutorialStage: null });
     },
 

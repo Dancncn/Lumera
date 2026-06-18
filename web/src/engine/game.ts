@@ -22,8 +22,11 @@ import {
   PublicPlayer,
   RankEntry,
   ViewPrompt,
+  WeatherKind,
+  WEATHER_KINDS,
+  WEATHER_META,
 } from './types';
-import { rollDie, shuffle } from './rng';
+import { nextRng, rollDie, shuffle } from './rng';
 
 export class GameError extends Error {}
 // 函数声明而非箭头：能被 TS 控制流分析识别为 never 收窄。
@@ -146,6 +149,12 @@ function logLine(s: GameState, ev: GameEvent): LogEntry | null {
       return { tpl: '{name} 本轮全数险过，未损凝聚（下次受罚累进 +1）', p: { name: nm(ev.seat) } };
     case 'PlayerOut':
       return { tpl: '{name} 凝聚耗尽，复归于源（出局）', p: { name: nm(ev.seat) } };
+    case 'WeatherChanged':
+      return { tpl: WEATHER_LOG[ev.kind] };
+    case 'WeatherTriggered':
+      return ev.kind === 'veer'
+        ? { tpl: '〔乱向〕{name} 出牌触发转向，方向反转', p: { name: nm(ev.seat) } }
+        : { tpl: '〔禁制〕{name} 出牌触发禁止，跳过一名应对者', p: { name: nm(ev.seat) } };
     case 'GameOver':
       return { tpl: '—— 本局终了，诸念归源结算 ——' };
     default:
@@ -193,8 +202,99 @@ function endGame(s: GameState, events: GameEvent[]): void {
   emit(s, events, { type: 'GameOver', ranking });
 }
 
-/** 开启一个新的出牌回合（含：终局检查 + 空手补牌防死锁 + TurnStarted）。 */
-function startPlayTurn(s: GameState, events: GameEvent[], current: number, isFirst: boolean): void {
+// ---------------- 混沌天气（可选玩法） ----------------
+const WEATHER_COOLDOWN = 1; // 触发后冷却梯数（至少隔 1 梯，避免连下）
+const WEATHER_BOUNTY = 2; // ① 丰沛：全场各 +N 张
+const WEATHER_SWAP = 2; // ② 乱流：每人抽 N 张混洗重分
+const WEATHER_SURGE_MIN = 1; // ③ 源涌：受罚累进 +[min..max]
+const WEATHER_SURGE_MAX = 2;
+const WEATHER_BAN_CHANCE = 0.4; // ④ 禁制：本梯出牌后触发「禁止」概率
+const WEATHER_VEER_CHANCE = 0.6; // ⑤ 乱向：本梯出牌后触发「转向」概率
+const WEATHER_BLESS_MIN = 2; // ⑥ 恩泽：全场各 +[min..max] 分
+const WEATHER_BLESS_MAX = 4;
+const ESCALATION_CAP = 6; // 受罚赌点封顶（与 startPenalty 的 Math.min 一致）
+
+// 浮动日志模板（自包含整句，作为 i18n key；避免参数子串拼接导致漏译）。
+const WEATHER_LOG: Record<WeatherKind, string> = {
+  bounty: '【天气 · 丰沛】全场各摸 2 张手牌',
+  shuffle: '【天气 · 乱流】全场各抽 2 张，混洗后重新分发',
+  surge: '【天气 · 源涌】全场受罚累进 +1~2',
+  ban: '【天气 · 禁制】本梯出牌后 40% 触发「禁止」',
+  veer: '【天气 · 乱向】本梯出牌后 60% 触发「转向」',
+  bless: '【天气 · 恩泽】全场各得 2~4 分',
+};
+
+/** 推进一次引擎 RNG，返回 [0,1)（保持确定性：天气随机一律走 s.rng，绝不用 Math.random）。 */
+function rng01(s: GameState): number {
+  const r = nextRng(s.rng);
+  s.rng = r.state;
+  return r.value;
+}
+/** 闭区间 [lo,hi] 的整数。 */
+function rngInt(s: GameState, lo: number, hi: number): number {
+  return lo + Math.floor(rng01(s) * (hi - lo + 1));
+}
+
+/** 本人数下可降的天气：2 人局排除 veer/ban（转向/禁止在两人桌等同空过）。 */
+function eligibleWeathers(players: number): WeatherKind[] {
+  return players > 2 ? WEATHER_KINDS : WEATHER_KINDS.filter((k) => k !== 'veer' && k !== 'ban');
+}
+
+/** 一次性天气结算（bounty/shuffle/surge/bless 立即生效；ban/veer 仅登记，待出牌时读）。 */
+function applyWeatherEffect(s: GameState, events: GameEvent[], kind: WeatherKind): void {
+  const alive = s.players.filter((p) => !p.out);
+  switch (kind) {
+    case 'bounty':
+      for (const p of alive) drawCards(s, events, p.seat, WEATHER_BOUNTY);
+      break;
+    case 'shuffle': {
+      // 每人随机抽 min(N,手牌) 张投入公共池，混洗后按各自投入数原样发回（手牌数不变、牌张守恒）。
+      const pool: Card[] = [];
+      const took: number[] = s.players.map(() => 0);
+      for (const p of alive) {
+        const k = Math.min(WEATHER_SWAP, p.hand.length);
+        for (let i = 0; i < k; i++) pool.push(p.hand.splice(Math.floor(rng01(s) * p.hand.length), 1)[0]);
+        took[p.seat] = k;
+      }
+      const sh = shuffle(pool, s.rng);
+      s.rng = sh.state;
+      let cur = 0;
+      for (const p of alive) for (let i = 0; i < took[p.seat]; i++) p.hand.push(sh.arr[cur++]);
+      break;
+    }
+    case 'surge': {
+      const delta = rngInt(s, WEATHER_SURGE_MIN, WEATHER_SURGE_MAX);
+      for (const p of alive) p.escalation = Math.min(ESCALATION_CAP, p.escalation + delta);
+      break;
+    }
+    case 'bless':
+      for (const p of alive) p.tokens += rngInt(s, WEATHER_BLESS_MIN, WEATHER_BLESS_MAX);
+      break;
+    case 'ban':
+    case 'veer':
+      break; // 持续整梯，登记在 s.weather，出牌时消费
+  }
+}
+
+/** 新梯开局：按概率降天气（开局首梯由 opening 豁免，触发后冷却隔梯）。 */
+function maybeWeather(s: GameState, events: GameEvent[], leader: number): void {
+  s.weather = null; // 先清掉上一梯的持续天气
+  if (!s.config.weather) return;
+  if (s.weatherCooldown > 0) {
+    s.weatherCooldown--;
+    return;
+  }
+  if (rng01(s) >= s.config.weatherChance) return;
+  const pool = eligibleWeathers(s.players.length);
+  const kind = pool[Math.floor(rng01(s) * pool.length)];
+  s.weather = kind;
+  s.weatherCooldown = WEATHER_COOLDOWN;
+  emit(s, events, { type: 'WeatherChanged', kind, seat: leader });
+  applyWeatherEffect(s, events, kind);
+}
+
+/** 开启一个新的出牌回合（含：终局检查 + 空手补牌防死锁 + 新梯天气 + TurnStarted）。 */
+function startPlayTurn(s: GameState, events: GameEvent[], current: number, isFirst: boolean, opening = false): void {
   if (aliveCount(s) <= 1) return endGame(s, events); // 仅剩一缕
   if (s.deck.length === 0) return endGame(s, events); // 牌库摸空（主终局条件）
   if (s.players[current].hand.length === 0) {
@@ -202,6 +302,8 @@ function startPlayTurn(s: GameState, events: GameEvent[], current: number, isFir
     drawCards(s, events, current, s.config.refillAfterCaughtLast);
     if (s.deck.length === 0) return endGame(s, events);
   }
+  // 新梯降天气（开局首梯豁免）；梯中接牌（isFirst=false）保留本梯持续天气不动。
+  if (isFirst && !opening) maybeWeather(s, events, current);
   s.lastReveal = undefined;
   s.phase = { kind: 'play', current, isFirst, hasDrawn: false };
   emit(s, events, { type: 'TurnStarted', seat: current, isFirst });
@@ -267,6 +369,8 @@ export function createGame(
     ladderTop: null,
     direction: 1,
     pendingSkip: 0,
+    weather: null,
+    weatherCooldown: 0,
     phase: { kind: 'over' }, // 占位，下面 startPlayTurn 覆盖
     rng: built.rng,
     log: [{ tpl: '一条流转的光裂成四道，轮子已经在转了。' }],
@@ -302,7 +406,7 @@ export function createGame(
   const r = rollDie(s.rng);
   s.rng = r.state;
   const first = firstSeat != null ? firstSeat % config.players : (r.rolled - 1) % config.players;
-  startPlayTurn(s, events, first, true);
+  startPlayTurn(s, events, first, true, true); // opening=true：开局首梯不降天气
   return { state: s, events };
 }
 
@@ -449,6 +553,15 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
       s.pile.push({ card, claim: cmd.claim, by: seat });
       const endsLadder = cmd.claim.num === 0;
       emit(s, events, { type: 'CardPlayed', seat, claim: cmd.claim, endsLadder });
+      // 持续天气：出牌后按概率附带 转向(veer) / 禁止(ban)，须在推进选定应对者前生效。
+      if (s.weather === 'veer' && rng01(s) < WEATHER_VEER_CHANCE) {
+        s.direction = (s.direction * -1) as 1 | -1;
+        emit(s, events, { type: 'WeatherTriggered', kind: 'veer', seat });
+      }
+      if (s.weather === 'ban' && rng01(s) < WEATHER_BAN_CHANCE) {
+        s.pendingSkip += 1;
+        emit(s, events, { type: 'WeatherTriggered', kind: 'ban', seat });
+      }
       const responder = advance(s, seat, s.direction, s.pendingSkip);
       s.pendingSkip = 0;
       s.phase = { kind: 'respond', player: seat, responder };
@@ -621,6 +734,7 @@ export function viewFor(s: GameState, seat: number): PlayerView {
     you: seat,
     current: currentActor(s),
     direction: s.direction,
+    weather: s.weather,
     startingLives: s.config.startingLives,
     players,
     yourHand: s.players[seat].hand.slice(), // 仅你自己的真实手牌

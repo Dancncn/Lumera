@@ -23,9 +23,9 @@ export function Coach({ view }: { view: PlayerView }) {
   const prevKey = useRef<string | null>(null);
 
   function enterFreePlay() {
-    // 关卡结束后进入自由练习局
+    // 关卡结束后进入自由练习局（不下天气）
     const { newGame } = useGame.getState();
-    newGame(2, 'easy', 0, buildTutorialDeck());
+    newGame(2, 'easy', 0, buildTutorialDeck(), false);
     useGame.setState({ tutorial: true, tutorialStage: null });
     setPhase('play');
   }

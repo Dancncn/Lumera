@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "sim": "tsx src/engine/sim.ts"
+    "sim": "tsx src/engine/sim.ts",
+    "sim:weather": "tsx src/engine/simWeather.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -31,6 +31,7 @@ export function StartScreen() {
   const [name, setName] = useState('');
   const [roomId, setRoomId] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
+  const [weather, setWeather] = useState(false);
 
   function enterOnline() {
     const room = roomId.trim() || randomRoom();
@@ -98,7 +99,21 @@ export function StartScreen() {
               </div>
               <span className="start-hint">{t(DIFFS.find((d) => d.key === difficulty)?.hint ?? '')}</span>
             </div>
-            <button className="start-go" onClick={() => newGame(players, difficulty)} type="button">
+            <div className="start-players">
+              <span className="start-label">{t('混沌天气')}</span>
+              <div className="seg">
+                <button className={`seg-btn ${!weather ? 'seg-on' : ''}`} onClick={() => setWeather(false)} type="button">
+                  {t('关')}
+                </button>
+                <button className={`seg-btn ${weather ? 'seg-on' : ''}`} onClick={() => setWeather(true)} type="button">
+                  {t('开')}
+                </button>
+              </div>
+              <span className="start-hint">
+                {weather ? t('每开新梯有几率降下随机事件，为战局加噪（休闲向，平衡会变松）') : t('经典规则，无随机事件')}
+              </span>
+            </div>
+            <button className="start-go" onClick={() => newGame(players, difficulty, undefined, undefined, weather)} type="button">
               {t('涌出 · 入局')}
             </button>
             <button className="btn coach-enter" onClick={() => startTutorial()} type="button">

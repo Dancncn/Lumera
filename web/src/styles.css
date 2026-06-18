@@ -39,6 +39,7 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  overflow-x: hidden;
 }
 body {
   font-family: var(--serif);
@@ -1992,24 +1993,34 @@ kbd {
     --card-h: 100px;
   }
 
-  /* 顶栏：紧凑、不换行 */
+  /* 顶栏：紧凑、不换行、不溢出 */
   .topbar {
-    padding: 9px 12px;
+    padding: 9px 10px;
+    overflow: hidden;
   }
   .brand-emblem {
     width: 26px;
     height: 26px;
   }
+  .brand {
+    gap: 6px;
+    flex-shrink: 0;
+  }
   .brand-text {
-    font-size: 16px;
+    font-size: 15px;
     letter-spacing: 1px;
     white-space: nowrap;
   }
+  .brand-text i {
+    display: none;
+  }
   .topbar-right {
-    gap: 8px;
+    gap: 4px;
+    flex-shrink: 1;
+    min-width: 0;
   }
   .btn-ghost {
-    padding: 6px 12px;
+    padding: 6px 8px;
     font-size: 13px;
   }
 
@@ -2158,6 +2169,12 @@ kbd {
     width: 94vw;
     padding: 22px 18px;
   }
+
+  /* 遮罩层：移动端收窄内边距，防止面板溢出 */
+  .overlay {
+    padding: 10px;
+  }
+
 }
 
 /* ============================================================
@@ -3327,6 +3344,21 @@ kbd {
 .eventfx-ladder .eventfx-sub {
   font-size: 12px;
 }
+.eventfx-weather .eventfx-veil {
+  background: radial-gradient(circle at center, rgba(46, 138, 208, 0.18) 0%, rgba(84, 172, 79, 0.12) 45%, transparent 70%);
+  animation: fx-flash 1.6s ease-out both;
+}
+.eventfx-weather .eventfx-title {
+  font-size: 30px;
+  background: linear-gradient(100deg, #2e8ad0, #54ac4f, #e0a92e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 2px 20px rgba(46, 138, 208, 0.35);
+}
+.eventfx-weather .eventfx-sub {
+  font-size: 13px;
+}
 @keyframes fx-sweep {
   0% { background-position: 130% 0; opacity: 0; }
   30% { opacity: 1; }
@@ -3396,11 +3428,11 @@ kbd {
     left: 8px;
     right: 8px;
     width: auto;
-    top: 40px;
+    top: 62px;
   }
   .coach-bubble {
     padding: 9px 13px;
-    max-height: 104px;
+    max-height: 100px;
     overflow-y: auto;
   }
   .coach-text {
@@ -3410,11 +3442,11 @@ kbd {
   }
   .coach-pill {
     left: 8px;
-    top: 40px;
+    top: 62px;
   }
   .coach-tabs {
     left: 8px;
-    top: 40px;
+    top: 62px;
   }
   .lesson-title {
     font-size: 19px;
@@ -3712,10 +3744,14 @@ kbd {
     display: none;
   }
   .btn-icon {
-    padding: 7px 9px;
+    padding: 5px 7px;
+  }
+  .btn-icon svg {
+    width: 16px;
+    height: 16px;
   }
   .log-tab {
-    top: 58px;
+    top: 52px;
     right: 10px;
     width: 34px;
     height: 34px;
@@ -3725,11 +3761,50 @@ kbd {
   }
   .quit-confirm .btn-danger,
   .quit-confirm .btn-ghost {
-    padding: 6px 10px;
-    font-size: 12px;
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+  .lang-btn {
+    padding: 2px 6px;
+    font-size: 11px;
   }
   .about-modal {
     width: 93vw;
+  }
+  /* 教学面板适配移动端 */
+  .lesson {
+    width: min(560px, calc(100vw - 24px));
+    max-height: 82vh;
+  }
+  .lesson-body {
+    padding: 12px 16px 6px;
+  }
+  .lesson-nav {
+    padding: 8px 14px 12px;
+  }
+  /* 教学关卡面板适配移动端 */
+  .stage-panel {
+    width: min(480px, calc(100vw - 24px));
+    padding: 20px 18px 16px;
+  }
+  /* 关卡浮动提示：避开顶栏 */
+  .stage-guide {
+    top: 62px;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    width: auto;
+  }
+  .stage-guide-bubble {
+    max-width: 100%;
+  }
+  .stage-guide-pill {
+    top: 62px;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    width: auto;
+    text-align: center;
   }
 }
 

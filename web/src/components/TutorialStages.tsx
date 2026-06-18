@@ -206,6 +206,7 @@ export function TutorialStages({ onDone, onSkip }: { onDone: () => void; onSkip:
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>('intro');
   const [doneHandled, setDoneHandled] = useState(false);
+  const [guideCollapsed, setGuideCollapsed] = useState(false);
   const state = useGame((s) => s.state);
 
   const stage = stages[idx];
@@ -288,8 +289,6 @@ export function TutorialStages({ onDone, onSkip }: { onDone: () => void; onSkip:
   }
 
   // ---- play phase: floating guide (collapsible) ----
-  const [guideCollapsed, setGuideCollapsed] = useState(false);
-
   if (guideCollapsed) {
     return (
       <button className="stage-guide-pill" type="button" onClick={() => setGuideCollapsed(false)}>
