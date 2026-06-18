@@ -94,6 +94,7 @@ export interface GameConfig {
   lifeLossValue: number; // 每损失 1 命的扣分（复归出局的 −15 即 3×5，无需额外负债字段）
   refillTo: number; // 跑成成功（收走牌堆）后补牌到几张
   refillAfterCaughtLast: number; // 撒谎打最后一张被抓（不算跑成、受罚后）补牌到几张
+  maxFunctionalInOpener: number; // 开局保底：起手手牌里功能牌最多几张（削弱开局方差，防被功能牌堵手）
   escalationResetsOnHit: boolean; // 中枪后受罚累进是否重置
   seed: number;
 }
@@ -105,6 +106,7 @@ export const DEFAULT_CONFIG: Omit<GameConfig, 'players' | 'seed'> = {
   lifeLossValue: 5,
   refillTo: 6,
   refillAfterCaughtLast: 2,
+  maxFunctionalInOpener: 1,
   escalationResetsOnHit: true,
 };
 

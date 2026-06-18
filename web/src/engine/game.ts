@@ -198,7 +198,7 @@ function startPlayTurn(s: GameState, events: GameEvent[], current: number, isFir
   if (aliveCount(s) <= 1) return endGame(s, events); // 仅剩一缕
   if (s.deck.length === 0) return endGame(s, events); // 牌库摸空（主终局条件）
   if (s.players[current].hand.length === 0) {
-    // 走到这里且空手，必然是「撒谎打最后一张被抓」（跑成各路径都已显式补满到 refillTo）。
+    // 走到这里且空手，必然是「撒谎打最后一张被抓」（跑成各路径在结算时已显式补满 refillTo）。
     drawCards(s, events, current, s.config.refillAfterCaughtLast);
     if (s.deck.length === 0) return endGame(s, events);
   }
@@ -278,6 +278,22 @@ export function createGame(
     for (const p of players) {
       const c = s.deck.pop();
       if (c) p.hand.push(c);
+    }
+  }
+
+  // 开局保底：起手功能牌超额时，与牌库「底部」的非功能牌对调（功能牌不能盖着当数字牌出，
+  // 攒太多会被逼诈牌→挨抓）。仅随机局生效；固定牌序（新手引导）跳过。对调确定、守恒、不动牌库顶抽序。
+  if (!deckOrder && config.maxFunctionalInOpener < config.startingHand) {
+    const cap = Math.max(0, config.maxFunctionalInOpener);
+    for (const p of players) {
+      let funcCount = p.hand.reduce((n, c) => n + (c.kind === 'functional' ? 1 : 0), 0);
+      while (funcCount > cap) {
+        const fIdx = p.hand.findIndex((c) => c.kind === 'functional');
+        const nIdx = s.deck.findIndex((c) => c.kind !== 'functional'); // 牌库底部最先找到的非功能牌
+        if (fIdx === -1 || nIdx === -1) break; // 牌库已无非功能牌可换（理论不会发生）
+        [p.hand[fIdx], s.deck[nIdx]] = [s.deck[nIdx], p.hand[fIdx]];
+        funcCount--;
+      }
     }
   }
 
