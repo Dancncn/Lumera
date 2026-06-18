@@ -73,11 +73,13 @@ export class Room {
   private seedCounter = 0;
   private ais = new Map<number, AiPlayer>();
   private profileSeed = 0;
+  private weather: boolean;
   private readonly onEmpty: (id: string) => void;
 
-  constructor(id: string, players: number | undefined, onEmpty: (id: string) => void) {
+  constructor(id: string, players: number | undefined, weather: boolean, onEmpty: (id: string) => void) {
     this.id = id;
     this.capacity = clampPlayers(players);
+    this.weather = weather;
     this.onEmpty = onEmpty;
     this.seats = Array.from({ length: this.capacity }, (_, i) => ({
       seat: i,
@@ -156,6 +158,7 @@ export class Room {
       started: this.started,
       hostSeat: this.hostSeatIndex(),
       seats: this.seatInfos(),
+      weather: this.weather,
     };
     for (const s of this.seats) if (s.conn) s.conn.send(msg);
   }
@@ -186,6 +189,7 @@ export class Room {
         host: this.hostToken === token,
         started: this.started,
         seats: this.seatInfos(),
+        weather: this.weather,
       });
       if (this.state) this.syncSeat(existing);
       this.broadcastRoom();
@@ -212,6 +216,7 @@ export class Room {
           host: this.hostToken === token,
           started: true,
           seats: this.seatInfos(),
+          weather: this.weather,
         });
         if (this.state) this.syncSeat(nameMatch);
         this.broadcastRoom();
@@ -241,7 +246,16 @@ export class Room {
       host: this.hostToken === token,
       started: false,
       seats: this.seatInfos(),
+      weather: this.weather,
     });
+    this.broadcastRoom();
+  }
+
+  // 房主在大厅实时切换天气：仅校验房主；改的是房间「下一次建局」的设置（不影响进行中的对局），广播给全员。
+  setWeather(token: string, weather: boolean): void {
+    if (this.hostToken !== token) return;
+    if (this.weather === weather) return;
+    this.weather = weather;
     this.broadcastRoom();
   }
 
@@ -269,7 +283,7 @@ export class Room {
       const base = s.human ? s.name : AI_NAMES[s.seat % AI_NAMES.length];
       return { name: `${base} · ${PERSONA_LABEL[profile]}`, isAI };
     });
-    const { state, events } = createGame({ ...DEFAULT_CONFIG, players: this.capacity, seed }, seatInits);
+    const { state, events } = createGame({ ...DEFAULT_CONFIG, players: this.capacity, seed, weather: this.weather }, seatInits);
     this.state = state;
     this.lastEvents = events;
     countGame();

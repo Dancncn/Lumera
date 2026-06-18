@@ -133,7 +133,7 @@ wss.on('connection', (ws) => {
         conn.send({ t: 'error', message: '房间号或身份无效' });
         return;
       }
-      const room = hub.obtain(roomId, msg.players);
+      const room = hub.obtain(roomId, msg.players, msg.weather === true);
       if (!room) {
         conn.send({ t: 'error', message: '服务器繁忙，房间数已达上限，请稍后再试' });
         return;
@@ -161,6 +161,9 @@ wss.on('connection', (ws) => {
         break;
       case 'pass':
         room.pass(token);
+        break;
+      case 'setWeather':
+        room.setWeather(token, msg.weather === true);
         break;
       case 'start':
         room.start(token);

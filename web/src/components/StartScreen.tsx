@@ -36,7 +36,7 @@ export function StartScreen() {
   function enterOnline() {
     const room = roomId.trim() || randomRoom();
     setRoomId(room);
-    joinRoom(room, name.trim() || t('玩家'), players);
+    joinRoom(room, name.trim() || t('玩家'), players, weather);
   }
 
   return (
@@ -86,6 +86,21 @@ export function StartScreen() {
           <span className="start-hint">{players === 2 ? t('2 人局：只剩最纯粹的对峙') : t('含转向 / 禁止 / 万能牌')}</span>
         </div>
 
+        <div className="start-players">
+          <span className="start-label">{t('混沌天气')}</span>
+          <div className="seg">
+            <button className={`seg-btn ${!weather ? 'seg-on' : ''}`} onClick={() => setWeather(false)} type="button">
+              {t('关')}
+            </button>
+            <button className={`seg-btn ${weather ? 'seg-on' : ''}`} onClick={() => setWeather(true)} type="button">
+              {t('开')}
+            </button>
+          </div>
+          <span className="start-hint">
+            {weather ? t('每开新梯有几率降下随机事件，为战局加噪（休闲向，平衡会变松）') : t('经典规则，无随机事件')}
+          </span>
+        </div>
+
         {tab === 'solo' ? (
           <div className="online-entry">
             <div className="start-players">
@@ -98,20 +113,6 @@ export function StartScreen() {
                 ))}
               </div>
               <span className="start-hint">{t(DIFFS.find((d) => d.key === difficulty)?.hint ?? '')}</span>
-            </div>
-            <div className="start-players">
-              <span className="start-label">{t('混沌天气')}</span>
-              <div className="seg">
-                <button className={`seg-btn ${!weather ? 'seg-on' : ''}`} onClick={() => setWeather(false)} type="button">
-                  {t('关')}
-                </button>
-                <button className={`seg-btn ${weather ? 'seg-on' : ''}`} onClick={() => setWeather(true)} type="button">
-                  {t('开')}
-                </button>
-              </div>
-              <span className="start-hint">
-                {weather ? t('每开新梯有几率降下随机事件，为战局加噪（休闲向，平衡会变松）') : t('经典规则，无随机事件')}
-              </span>
             </div>
             <button className="start-go" onClick={() => newGame(players, difficulty, undefined, undefined, weather)} type="button">
               {t('涌出 · 入局')}

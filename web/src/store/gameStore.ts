@@ -24,6 +24,7 @@ export interface Lobby {
   capacity: number;
   started: boolean;
   seats: SeatInfo[];
+  weather: boolean;
 }
 
 interface Store {
@@ -50,8 +51,9 @@ interface Store {
   quitToMenu: () => void;
   human: (cmd: Command) => void;
   pass: () => void;
-  joinRoom: (roomId: string, name: string, players: number) => void;
+  joinRoom: (roomId: string, name: string, players: number, weather?: boolean) => void;
   startRoom: () => void;
+  setRoomWeather: (weather: boolean) => void;
   leaveRoom: () => void;
 }
 
@@ -370,7 +372,7 @@ export const useGame = create<Store>((set, get) => {
       }
     },
 
-    joinRoom: (roomId: string, name: string, players: number) => {
+    joinRoom: (roomId: string, name: string, players: number, weather = false) => {
       teardownLocal();
       teardownNet();
       set({
@@ -411,6 +413,7 @@ export const useGame = create<Store>((set, get) => {
               capacity: msg.capacity,
               started: msg.started,
               seats: msg.seats,
+              weather: msg.weather,
             },
             netError: null,
           });
@@ -426,6 +429,7 @@ export const useGame = create<Store>((set, get) => {
               started: msg.started,
               seats: msg.seats,
               host: msg.hostSeat === prev.you,
+              weather: msg.weather,
             },
           });
         },
@@ -442,11 +446,18 @@ export const useGame = create<Store>((set, get) => {
         },
       });
       net = client;
-      client.connect({ roomId, token: loadToken(), name, players });
+      client.connect({ roomId, token: loadToken(), name, players, weather });
     },
 
     startRoom: () => {
       net?.start();
+    },
+
+    setRoomWeather: (weather: boolean) => {
+      // 房主切换：发给服务端，并乐观更新本地大厅（服务端会广播 RoomMsg 回正）
+      net?.setWeather(weather);
+      const lb = get().lobby;
+      if (lb) set({ lobby: { ...lb, weather } });
     },
 
     leaveRoom: () => {

@@ -15,6 +15,7 @@ export function Lobby() {
   const conn = useGame((s) => s.conn);
   const netError = useGame((s) => s.netError);
   const startRoom = useGame((s) => s.startRoom);
+  const setRoomWeather = useGame((s) => s.setRoomWeather);
   const leaveRoom = useGame((s) => s.leaveRoom);
   const { t, tn } = useT();
   const [copied, setCopied] = useState(false);
@@ -50,6 +51,23 @@ export function Lobby() {
               </button>
               <span className={`lobby-conn lobby-conn-${conn}`}>{t(CONN_TEXT[conn] ?? conn)}</span>
             </div>
+
+            {lobby.host && !lobby.started ? (
+              <div className="lobby-room">
+                <span className="lobby-room-label">{t('混沌天气')}</span>
+                <div className="seg">
+                  <button className={`seg-btn ${!lobby.weather ? 'seg-on' : ''}`} type="button" onClick={() => setRoomWeather(false)}>
+                    {t('关')}
+                  </button>
+                  <button className={`seg-btn ${lobby.weather ? 'seg-on' : ''}`} type="button" onClick={() => setRoomWeather(true)}>
+                    {t('开')}
+                  </button>
+                </div>
+                <span className="lobby-conn">{t('仅房主可调 · 即时同步全场')}</span>
+              </div>
+            ) : (
+              <p className="lobby-hint">{t('混沌天气')}：{lobby.weather ? t('开') : t('关')}</p>
+            )}
 
             <div className="lobby-seats">
               {lobby.seats.map((s) => (

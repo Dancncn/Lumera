@@ -2,7 +2,7 @@ import { Room } from './room';
 
 export interface RoomStore {
   get(id: string): Room | undefined;
-  create(id: string, players: number | undefined, onEmpty: (id: string) => void): Room;
+  create(id: string, players: number | undefined, weather: boolean, onEmpty: (id: string) => void): Room;
   delete(id: string): void;
   size(): number;
 }
@@ -14,8 +14,8 @@ class MemoryRoomStore implements RoomStore {
     return this.rooms.get(id);
   }
 
-  create(id: string, players: number | undefined, onEmpty: (id: string) => void): Room {
-    const room = new Room(id, players, onEmpty);
+  create(id: string, players: number | undefined, weather: boolean, onEmpty: (id: string) => void): Room {
+    const room = new Room(id, players, weather, onEmpty);
     this.rooms.set(id, room);
     return room;
   }
@@ -42,11 +42,11 @@ export class Hub {
     this.maxRooms = maxRooms;
   }
 
-  obtain(id: string, players: number | undefined): Room | null {
+  obtain(id: string, players: number | undefined, weather = false): Room | null {
     const existing = this.store.get(id);
-    if (existing) return existing;
+    if (existing) return existing; // 房间已存在：沿用建房时的设置（人数/天气均建房即定）
     if (this.store.size() >= this.maxRooms) return null;
-    return this.store.create(id, players, (rid) => this.store.delete(rid));
+    return this.store.create(id, players, weather, (rid) => this.store.delete(rid));
   }
 
   find(id: string): Room | undefined {

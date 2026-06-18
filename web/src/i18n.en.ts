@@ -55,6 +55,7 @@ export const EN: Record<string, string> = {
   '【天气 · 恩泽】全场各得 2~4 分': '[Weather · Blessing] Everyone gains 2~4 points',
   '〔乱向〕{name} 出牌触发转向，方向反转': "〔Veer〕{name}'s play triggers Reverse — direction flips",
   '〔禁制〕{name} 出牌触发禁止，跳过一名应对者': "〔Interdict〕{name}'s play triggers Skip — one responder is skipped",
+  '仅房主可调 · 即时同步全场': 'Host-only · syncs to everyone instantly',
 
   // AboutModal
   '关于': 'About',

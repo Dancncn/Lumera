@@ -27,18 +27,22 @@ class TestClient {
   done = false;
   ranking = false;
   leaked = false;
+  weatherSetting = false; // 从 joined/room 下发读到的房间天气设置
+  sawWeatherEvent = false; // 对局内是否实际降下过天气
   myCards = new Set<number>();
   private name: string;
   private roomId: string;
   private players: number;
+  private weather: boolean;
 
-  constructor(roomId: string, token: string, name: string, players: number) {
+  constructor(roomId: string, token: string, name: string, players: number, weather = false) {
     this.roomId = roomId;
     this.token = token;
     this.name = name;
     this.players = players;
+    this.weather = weather;
     this.ws = new WebSocket(URL);
-    this.ws.on('open', () => this.send({ t: 'join', roomId, token, name, players }));
+    this.ws.on('open', () => this.send({ t: 'join', roomId, token, name, players, weather }));
     this.ws.on('message', (d) => this.onMsg(JSON.parse(d.toString()) as ServerMsg));
   }
 
@@ -50,9 +54,13 @@ class TestClient {
     if (msg.t === 'joined') {
       this.seat = msg.you;
       this.host = msg.host;
+      this.weatherSetting = msg.weather;
+    } else if (msg.t === 'room') {
+      this.weatherSetting = msg.weather;
     } else if (msg.t === 'sync') {
       const v = msg.view;
       if (v.you !== this.seat) fail(`座位 ${this.seat} 收到的视图 you=${v.you} 不一致`);
+      if (msg.events.some((e) => e.type === 'WeatherChanged')) this.sawWeatherEvent = true;
       for (const id of handIds(v)) this.myCards.add(id);
       if (v.prompt.kind === 'over') {
         this.done = true;
@@ -70,6 +78,10 @@ class TestClient {
     this.send({ t: 'start', roomId: this.roomId, token: this.token });
   }
 
+  setWeather(w: boolean) {
+    this.send({ t: 'setWeather', roomId: this.roomId, token: this.token, weather: w });
+  }
+
   close() {
     this.ws.close();
   }
@@ -83,13 +95,19 @@ async function waitFor(cond: () => boolean, ms: number, label: string): Promise<
   }
 }
 
-async function playRoom(roomId: string, players: number): Promise<TestClient[]> {
-  const a = new TestClient(roomId, `tA-${roomId}`, '甲', players);
-  const b = new TestClient(roomId, `tB-${roomId}`, '乙', players);
+async function playRoom(roomId: string, players: number, weather = false, toggleTo?: boolean): Promise<TestClient[]> {
+  const a = new TestClient(roomId, `tA-${roomId}`, '甲', players, weather);
+  const b = new TestClient(roomId, `tB-${roomId}`, '乙', players, weather);
   await waitFor(() => a.seat >= 0 && b.seat >= 0, 3000, `${roomId} 双方入座`);
   if (a.seat === b.seat) fail(`两名玩家被分到同一座位 ${a.seat}`);
   const host = a.host ? a : b.host ? b : null;
   if (!host) fail('没有房主');
+  if (toggleTo !== undefined) {
+    // 大厅实时切换：先确认建房初值已下发全员，再由房主切换并确认广播回正
+    await waitFor(() => a.weatherSetting === weather && b.weatherSetting === weather, 3000, `${roomId} 建房天气初值下发`);
+    host.setWeather(toggleTo);
+    await waitFor(() => a.weatherSetting === toggleTo && b.weatherSetting === toggleTo, 3000, `${roomId} 房主切换天气广播全员`);
+  }
   host.start();
   await waitFor(() => a.done && b.done, 30000, `${roomId} 对局终局`);
   return [a, b];
@@ -103,9 +121,13 @@ async function main() {
   await new Promise((r) => setTimeout(r, 1200));
 
   try {
-    const [room1, room2] = await Promise.all([playRoom('alpha', 3), playRoom('beta', 4)]);
+    const [room1, room2, room3] = await Promise.all([
+      playRoom('alpha', 3),
+      playRoom('beta', 4),
+      playRoom('gamma', 4, false, true), // 建房关 → 房主在大厅切到开 → 开局（验证实时切换 + deal 用最新值）
+    ]);
 
-    for (const c of [...room1, ...room2]) {
+    for (const c of [...room1, ...room2, ...room3]) {
       if (!c.ranking) fail(`座位 ${c.seat} 终局未收到完整排名`);
     }
 
@@ -114,11 +136,18 @@ async function main() {
     const overlap = [...a.myCards].filter((id) => b.myCards.has(id));
     if (overlap.length) fail(`两名玩家的手牌出现重叠 id（疑似信息泄露）：${overlap.join(',')}`);
 
-    for (const c of [...room1, ...room2]) c.close();
+    // gamma：建房关、房主大厅切到开（playRoom 内已断言广播两态），开局后 deal 应使用最新值=开
+    for (const c of room3) if (!c.weatherSetting) fail(`天气房间 gamma 座位 ${c.seat} 切换后未保持 weather=true`);
+    for (const c of [...room1, ...room2]) if (c.weatherSetting) fail(`经典房间座位 ${c.seat} 误收到 weather=true`);
+    const sawWeather = room3.some((c) => c.sawWeatherEvent);
 
-    console.log('✓ 双房间（alpha 3人 / beta 4人）各自独立跑完整局');
+    for (const c of [...room1, ...room2, ...room3]) c.close();
+
+    console.log('✓ 三房间（alpha 3人 / beta 4人 / gamma 4人）各自独立跑完整局');
     console.log('✓ 每个座位只见到自己的视图（you 一致、手牌无重叠）');
     console.log('✓ 终局排名完整下发');
+    console.log('✓ 房主在大厅实时切换天气：建房初值与切换后值均正确广播全员');
+    console.log(`✓ 切换为开后开局，deal 采用最新设置；本局${sawWeather ? '观测到天气降下' : '未碰巧降下天气（概率事件）'}`);
     console.log('\n联机端到端测试通过。');
     server.kill();
     process.exit(0);
