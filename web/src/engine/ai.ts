@@ -44,6 +44,25 @@ const clamp = (x: number, lo = 0, hi = 1): number => (x < lo ? lo : x > hi ? hi 
 const sigmoid = (x: number): number => 1 / (1 + Math.exp(-x));
 const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
 
+// ── 维度建议包（DLC 维度层）──
+// 天气/未来模式对既有决策标量的有界微调。加项中性元=0、乘子中性元=1。
+// 经典模式（view.weather===null）下 dimAdvice 短路返回 NEUTRAL_ADVICE（冻结引用），
+// 全部 +0/×1 → AI 行为逐字节不变；不读 traits、不进分支、不消费 RNG、不分配。
+// 扩展新模式：加字段（给中性默认）+ 在 dimAdvice 加一个 case + 在对应 hook 加一行 +=/*=。
+interface DimAdvice {
+  dpCh: number;            // decideRespond 末端 pCh 加项（质疑概率偏移）
+  dpDraw: number;          // followPlay pDraw 加项（摸牌概率偏移）
+  dBluffAppetite: number;  // followPlay bluffAppetite 加项（诈牌欲望偏移，负=收敛）
+  honestBluffMul: number;  // followPlay 有如实牌时仍诈的概率乘子（surge<1）
+  skipMul: number;         // 功能牌段：自家 skip 出牌欲望乘子（ban<1）
+  reverseMul: number;      // 功能牌段：自家 reverse 出牌欲望乘子（veer<1）
+  zeroBias: number;        // >0：bless，优先打/诈 0（抢勇者奖励，分数即排名）
+}
+const NEUTRAL_ADVICE: DimAdvice = Object.freeze({
+  dpCh: 0, dpDraw: 0, dBluffAppetite: 0, honestBluffMul: 1,
+  skipMul: 1, reverseMul: 1, zeroBias: 0,
+});
+
 function mixHash(seed: number, seat: number): number {
   let x = (seed ^ (seat + 1) * 0x9e3779b1) >>> 0;
   x = Math.imul(x ^ (x >>> 16), 0x85ebca6b) >>> 0;
@@ -131,6 +150,7 @@ export class AiPlayer {
   private seen = new Map<string, number>();
   private tilt = 0;
   private lastDelay = 600;
+  private advice: DimAdvice = NEUTRAL_ADVICE;
 
   constructor(opts: { seat: number; seed: number; profile?: AiProfile; difficulty?: Difficulty }) {
     this.seat = opts.seat;
@@ -399,8 +419,51 @@ export class AiPlayer {
     return dice.slice(0, Math.max(1, Math.min(count, 6))).sort((a, b) => a - b);
   }
 
+  // 维度层：把当前天气翻译成对既有决策标量的有界微调。强度按 gate（难度门控）缩放，
+  // 让大师读天气最准、新手近乎无视，与 applyDifficulty 已调好的梯度同向。
+  // 纯只读：绝不调用 this.rand()，绝不写 this.seen/this.tilt/this.rng/this.opp。
+  private dimAdvice(view: PlayerView): DimAdvice {
+    if (view.weather === null) return NEUTRAL_ADVICE; // 经典硬短路：零分支、零 RNG、零分配
+    const t = this.traits;
+    const gate = clamp((t.rationality - 0.45) / 0.5); // easy≈0 normal≈0.5+ hard≈0.8 master≈1
+    const a: DimAdvice = { ...NEUTRAL_ADVICE };
+    switch (view.weather) {
+      case 'surge': {
+        // 源涌：受罚累进↑→撒谎被抓更痛（未进 EV 框架，只在出牌侧捕捉）。质疑侧 escRisk 已 capture，dpCh 恒 0。
+        const esc = view.players[view.you]?.escalation ?? 1;
+        a.honestBluffMul = 1 - 0.5 * t.rationality * gate;
+        a.dBluffAppetite = -clamp((esc - 1) / 6) * 0.35 * t.rationality * gate;
+        break;
+      }
+      case 'bless':
+        // 恩泽：打0/跑成/截牌赢家加分（分数即排名）→ 抓0(万能必为真,纯赚)、清手、敢质疑。
+        a.zeroBias = (0.5 + 0.4 * t.risk) * gate;
+        a.dpDraw = -0.14 * gate;
+        a.dpCh = 0.05 * gate;
+        break;
+      case 'bounty':
+        // 丰沛：全场各 +2 张 → 手牌厚，少摸；handCount 信号噪声大，质疑略保守。
+        a.dpDraw = -0.08 * gate;
+        a.dpCh = -0.04 * gate;
+        break;
+      case 'ban':
+        // 禁制：本梯 40% 免费 skip → 自家 skip 主动出牌贬值（只贬 skip）。
+        a.skipMul = 1 - 0.4 * t.read * gate;
+        break;
+      case 'veer':
+        // 乱向：本梯 60% 免费 reverse → 自家 reverse 贬值更狠；下家不定，定点诈牌略保守。
+        a.reverseMul = 1 - 0.6 * t.read * gate;
+        a.dBluffAppetite = -0.06 * gate;
+        break;
+      case 'shuffle':
+        break; // 恒等：手牌数不变、不翻牌、seen 仍有效，无需调整
+    }
+    return a;
+  }
+
   decide(view: PlayerView): Command {
     const p = view.prompt;
+    this.advice = view.weather ? this.dimAdvice(view) : NEUTRAL_ADVICE; // 唯一求值点；经典三元短路
     switch (p.kind) {
       case 'penalty':
         this.lastDelay = this.think(420, 700, 0.2);
@@ -498,6 +561,7 @@ export class AiPlayer {
       if (br > 0.5) pCh = clamp(pCh + (br - 0.5) * 0.35);
     }
 
+    pCh += this.advice.dpCh; // 维度修正（经典=0；rand 比较前叠加，bare += 避免重 clamp 改动经典）
     const hardness = 1 - Math.min(1, Math.abs(pLie - 0.5) * 3);
     this.lastDelay = this.think(820, 1500, hardness);
     return this.rand() < pCh ? { type: 'Challenge' } : { type: 'Accept' };
@@ -531,7 +595,12 @@ export class AiPlayer {
         if (this.rand() < clamp(pFunc, 0, 0.55)) {
           const skip = funcs.find((c) => c.kind === 'functional' && c.func === 'skip');
           const rev = funcs.find((c) => c.kind === 'functional' && c.func === 'reverse');
-          const pick = respTrig > 0.5 && skip ? skip : rev ?? skip ?? funcs[0];
+          // 折价加权选功能牌（不新增 rand）。经典 skipMul=reverseMul=1 时与原
+          // `respTrig>0.5&&skip ? skip : rev??skip??funcs[0]` 各存在性组合逐位一致：
+          // skip 基权 0.5（respTrig>0.5 时升 1.5），rev 基权 1.0，严格 > 取 skip。
+          const wSkip = (skip ? 1 : 0) * (respTrig > 0.5 ? 1.5 : 0.5) * this.advice.skipMul;
+          const wRev = (rev ? 1 : 0) * this.advice.reverseMul;
+          const pick = wSkip > wRev ? (skip ?? rev ?? funcs[0]) : (rev ?? skip ?? funcs[0]);
           this.lastDelay = this.think(700, 800, 0.5);
           return { type: 'PlayFunctional', cardId: pick.id };
         }
@@ -573,6 +642,17 @@ export class AiPlayer {
     return { type: 'PlayCard', cardId: dump.id, claim: { color: COLORS[Math.floor(this.rand() * 4)], num: 1 + Math.floor(this.rand() * 3) } };
   }
 
+  // 恩泽专用：优先 claim 0 抢勇者奖励。safe=true（万能牌必为真，纯赚）无条件取 0；
+  // safe=false（数字诈 0，被抓有罚）仅在聚合危险低时取。经典 zeroBias=0 首行短路返回 null
+  // → 调用点 `?? this.pickClaim(...)` 逐字节等价。
+  private blessZeroClaim(claims: Claim[], view: PlayerView, danger: number, safe: boolean): Claim | null {
+    if (this.advice.zeroBias <= 0) return null;
+    const zero = claims.find((c) => c.num === 0);
+    if (!zero) return null;
+    if (safe) return zero;
+    return danger < 0.22 * (1 + this.traits.risk) ? zero : null;
+  }
+
   private followPlay(view: PlayerView, numbers: NumCard[], wild: Card | undefined, canDraw: boolean): Command {
     const honest = numbers
       .map((c) => ({ c, claim: { color: c.color, num: c.num } as Claim }))
@@ -580,7 +660,15 @@ export class AiPlayer {
       .sort((a, b) => val(a.claim.num) - val(b.claim.num));
 
     if (honest.length) {
-      const bluffRate = this.difficulty === 'master' ? 0.06 : this.traits.bluff * 0.18;
+      // 恩泽：能合法如实打 0 就确定性打 0（额外加分；不掷骰、不新增 rand）。经典 zeroBias=0 整块跳过。
+      if (this.advice.zeroBias > 0) {
+        const z = honest.find((x) => x.claim.num === 0);
+        if (z) {
+          this.lastDelay = this.think(560, 800, 0.3);
+          return { type: 'PlayCard', cardId: z.c.id, claim: z.claim };
+        }
+      }
+      const bluffRate = (this.difficulty === 'master' ? 0.06 : this.traits.bluff * 0.18) * this.advice.honestBluffMul;
       const bluffInstead = this.rand() < bluffRate && numbers.length > honest.length;
       if (!bluffInstead) {
         const pick = this.pickEscalation(honest);
@@ -604,6 +692,7 @@ export class AiPlayer {
         const resp = nextAlive(view, view.you, view.direction);
         pDraw += this.challengeRate(resp) * 0.15;
       }
+      pDraw += this.advice.dpDraw; // 维度修正（经典=0）：bounty/bless 略降摸牌
       if (this.rand() < pDraw) {
         this.lastDelay = this.think(620, 700, 0.4);
         return { type: 'Draw' };
@@ -614,7 +703,7 @@ export class AiPlayer {
       const keepWild = this.rand() < this.traits.risk * 0.45 && honest.length > 0;
       if (!keepWild) {
         this.lastDelay = this.think(700, 900, 0.45);
-        return { type: 'PlayCard', cardId: wild.id, claim: this.pickClaim(claims, view) };
+        return { type: 'PlayCard', cardId: wild.id, claim: this.blessZeroClaim(claims, view, danger, true) ?? this.pickClaim(claims, view) };
       }
     }
 
@@ -631,10 +720,11 @@ export class AiPlayer {
         // 低危险环境整体更敢诈
         bluffAppetite += (0.5 - danger) * 0.15;
       }
+      bluffAppetite += this.advice.dBluffAppetite; // 维度修正（经典=0）：surge/veer 收敛诈牌
       if (this.rand() < clamp(0.35 + bluffAppetite * 0.6) || (!canDraw && !wild)) {
         const dump = this.smartDump(numbers, view);
         this.lastDelay = this.think(880, 1300, 0.65);
-        return { type: 'PlayCard', cardId: dump.id, claim: this.pickClaim(claims, view) };
+        return { type: 'PlayCard', cardId: dump.id, claim: this.blessZeroClaim(claims, view, danger, false) ?? this.pickClaim(claims, view) };
       }
       if (canDraw) {
         this.lastDelay = this.think(560, 600, 0.4);
@@ -642,12 +732,12 @@ export class AiPlayer {
       }
       const dump = this.smartDump(numbers, view);
       this.lastDelay = this.think(880, 1200, 0.65);
-      return { type: 'PlayCard', cardId: dump.id, claim: this.pickClaim(claims, view) };
+      return { type: 'PlayCard', cardId: dump.id, claim: this.blessZeroClaim(claims, view, danger, false) ?? this.pickClaim(claims, view) };
     }
 
     if (wild && claims.length) {
       this.lastDelay = this.think(700, 800, 0.5);
-      return { type: 'PlayCard', cardId: wild.id, claim: this.pickClaim(claims, view) };
+      return { type: 'PlayCard', cardId: wild.id, claim: this.blessZeroClaim(claims, view, danger, true) ?? this.pickClaim(claims, view) };
     }
     this.lastDelay = this.think(520, 600, 0.4);
     return { type: 'Fallback' };

@@ -44,9 +44,10 @@ Lumera/
 │   │   ├── rng.ts       mulberry32 种子 RNG、洗牌、掷骰
 │   │   ├── deck.ts      牌库构造
 │   │   ├── game.ts      状态机核心：apply / viewFor / 合法性 / 推进 / 受罚子流程
-│   │   ├── ai.ts        朴素拟人 AI（只吃 viewFor，看不到底牌）
-│   │   └── sim.ts       无头对抗性验证（1200 局：牌张守恒 / 无泄露 / 必然终局）
-│   ├── src/net/         protocol.ts（前后端共享协议） + client.ts（WS 客户端）
+│   │   ├── ai.ts        拟人 AI（只吃 viewFor，看不到底牌）+ 天气维度建议层
+│   │   ├── sim.ts       无头对抗性验证（1200 局：牌张守恒 / 无泄露 / 必然终局）
+│   │   └── simWeather.ts 混沌天气 DLC 的无头验证 / 调参扫描（1000 局 + 确定性复现）
+│   ├── src/net/         protocol.ts（前后端共享协议）/ client.ts（WS 客户端）/ telemetry.ts（心跳·对局上报）/ history.ts（本地对局历史）
 │   └── src/store/       gameStore.ts（Zustand，local / online 双模，组件层零改动）
 ├── server/              Node + ws 多房间联机后端（复用 ../web 的引擎与协议）
 │   └── src/
@@ -57,7 +58,7 @@ Lumera/
 │       └── stats.ts     在线/对局统计（/stats 暴露）
 ├── scripts/             setup / dev / build / run-local（.bat） + deploy.ps1
 ├── deploy/              systemd 单元 + Caddyfile + 部署指南
-└── docs/                worldview.md / game-rules.md / architecture.md（本文）/ ai-system.md
+└── docs/                worldview.md / game-rules.md（经典）/ weather-mode.md（天气 DLC）/ architecture.md（本文）/ ai-system.md
 ```
 
 核心纪律：所有游戏逻辑只活在 `web/src/engine/` 里，且引擎不依赖 React、不碰 IO、不碰网络。前端 `store`/`components` 与后端 `server/` 都只是它的薄封装——一个把命令从用户操作喂进去，一个把命令从 WebSocket 喂进去。这是「引擎即协议、写一次跑两端」能成立的工程前提，也是必须守住的边界：任何规则判定一旦泄进前端或 `server`，这个架构就破了。
@@ -94,16 +95,16 @@ Setup ── 发牌、定首家 ──┐
         │     │ 功能牌明牌打 (PlayFunctional)；纯功能牌时 Fallback 兜底
         │     ▼
         │   ┌──────────────────┐
-        │   │   respond        │ ← 下一家
+        │   │   respond        │ ← 任一在场非出牌方
         │   └──────────────────┘
         │     ├─ Accept ───────► 出牌成立（手牌空则吞牌堆 + 补牌）→ 下一家 ──┐
         │     └─ Challenge ────► 亮真实牌、逐项比对 → 判输家                  │
         │           ▼                                                         │
         │   ┌──────────────────┐                                            │
-        │   │   penalty        │ ← 输家：选点 (ChooseNumber)、掷骰           │
+        │   │   penalty        │ ← 输家：一次赌 N 个点 (ChooseNumber)、掷一次│
         │   └──────────────────┘                                            │
-        │     ├─ 中 → 一缕念被收回源头（扣凝聚）→（归零? 复归出局；全员? 结束）
-        │     └─ 未中 → 受罚累进 +1                                          │
+        │     ├─ 中（N/6）→ 一缕念被收回源头（扣凝聚）→（归零? 复归出局；全员? 结束）
+        │     └─ 未中 → 受罚累进 +1（下次多赌一个点）                        │
         │         └ 梯子重启、定新首家 ──────────────────────────────────────┤
         └──────────────────────────────────────────────────────────────────┘
 
@@ -122,14 +123,14 @@ type Command =
   | { type: 'Fallback' }                        // 兜底：无数字/万能牌时，亮手 + 弃功能 + 摸一
   | { type: 'Accept' }                          // 放过，不质疑
   | { type: 'Challenge' }                       // 质疑上家这一手
-  | { type: 'ChooseNumber'; n: number };        // 受罚时选定本次要赌的点数 1..6
+  | { type: 'ChooseNumber'; ns: number[] };     // 受罚时一次性赌定 N 个不同点数（N=受罚累进，掷中其一即中枪）
 ```
 
 撒谎就是 `PlayCard` 里 `cardId` 指向的真实牌与 `claim` 不一致。
 
-**事件（引擎 → 参与者，按可见性分发）** 包括：`TurnStarted`、`FunctionalPlayed`、`DirectionReversed`、`CardDrawn`（仅数量公开）、`CardPlayed`（只播宣称、不播真实牌）、`Fallback`、`PlayAccepted`、`Challenged` / `CardRevealed`、`PileTaken`、`TokenAwarded`、`RanOut`、`PenaltyStarted` / `DiceRolled`、`Returned`（对应原「中枪/扣命」）、`Survived`、`PlayerOut`（对应原「死亡」）、`LadderReset`、`GameOver`。
+**事件（引擎 → 参与者，按可见性分发）** 包括：`TurnStarted`、`FunctionalPlayed`、`DirectionReversed`、`CardDrawn`（仅数量公开）、`CardPlayed`（只播宣称、不播真实牌）、`Fallback`、`PlayAccepted`、`Challenged` / `CardRevealed`、`PileTaken`、`TokenAwarded`、`RanOut`、`PenaltyStarted` / `DiceRolled`、`Returned`（对应原「中枪/扣命」）、`Survived`、`PlayerOut`（对应原「死亡」）、`LadderReset`、`GameOver`；混沌天气（DLC）开启时另有 `WeatherChanged`（新梯降天气）/ `WeatherTriggered`（持续天气 ban/veer 触发）/ `WeatherBonus`（恩泽奖励，`kind: 'bold' | 'winner'`），详见 [weather-mode.md](weather-mode.md)。
 
-**网络协议（`web/src/net/protocol.ts`，前后端共享）：** 客户端消息 `ClientMsg` = `join` / `start` / `restart` / `cmd` / `leave` / `ping`；服务器消息 `ServerMsg` = `joined` / `room` / `sync`（带 `PlayerView` + 事件）/ `error` / `pong`。每条消息自带 `roomId` 与玩家身份 `token`——这是横向扩展的接缝（见附录）。
+**网络协议（`web/src/net/protocol.ts`，前后端共享）：** 客户端消息 `ClientMsg` = `join` / `start` / `restart` / `cmd` / `leave` / `pass`（弃权放行）/ `setRoomCfg`（房主在大厅实时改房间设置）/ `ping`；服务器消息 `ServerMsg` = `joined` / `room` / `sync`（带 `PlayerView` + 事件，可含回合截止 `turnDeadline`/`turnDuration`）/ `playerLeft` / `error` / `pong`。房间设置（`weather` / `weatherChance`）随 `join` / `joined` / `room` / `setRoomCfg` 同步全员。每条消息自带 `roomId` 与玩家身份 `token`——这是横向扩展的接缝（见附录）。
 
 ## 六、可调参数
 
@@ -142,13 +143,17 @@ interface GameConfig {
   startingLives: number;         // 初始凝聚度（命数）
   tokenValueOnZero: number;      // 打出 0 领取的计分卡面值
   lifeLossValue: number;         // 每损失 1 命的扣分（复归出局即 3×5）
-  refillTo: number;              // 清空手牌跑成后补牌到几张
+  refillTo: number;              // 跑成成功（收走牌堆）后补牌到几张
+  refillAfterCaughtLast: number; // 撒谎打最后一张被抓（不算跑成）补牌到几张
+  maxFunctionalInOpener: number; // 开局保底：起手手牌里功能牌最多几张
   escalationResetsOnHit: boolean;// 中枪后受罚累进是否重置
+  weather: boolean;              // 混沌天气开关（DLC，可选玩法）
+  weatherChance: number;         // 每开新梯触发天气的概率（0..1）
   seed: number;                  // 种子，决定洗牌与掷骰
 }
 ```
 
-`DEFAULT_CONFIG`（不含 `players` / `seed`）：起手 6 张、3 命、打 0 领 +2、每命 −5、跑成成功补满到 6（`refillTo`）、撒谎打最后一张被抓只补 2（`refillAfterCaughtLast`，与跑成奖励拆开）、开局起手功能牌≤1（`maxFunctionalInOpener`，发牌后超额功能牌与牌库底对调、削开局方差）、中枪后累进重置。这一层存在的全部意义，就是让你反复调奖罚和概率时永远不必动状态机。
+`DEFAULT_CONFIG`（不含 `players` / `seed`）：起手 6 张、3 命、打 0 领 +2、每命 −5、跑成成功补满到 6（`refillTo`）、撒谎打最后一张被抓只补 2（`refillAfterCaughtLast`，与跑成奖励拆开）、开局起手功能牌≤1（`maxFunctionalInOpener`，发牌后超额功能牌与牌库底对调、削开局方差）、中枪后累进重置、**混沌天气默认关闭**（`weather: false`、`weatherChance: 0.28`，DLC 见 [weather-mode.md](weather-mode.md)）。这一层存在的全部意义，就是让你反复调奖罚和概率时永远不必动状态机。
 
 ## 七、联机后端
 

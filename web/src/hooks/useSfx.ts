@@ -39,6 +39,19 @@ export function useSfx() {
       return;
     }
 
+    if (has(events, 'WeatherChanged')) {
+      sfx.weatherChange();
+      return;
+    }
+    if (has(events, 'WeatherBonus')) {
+      sfx.weatherBonus();
+      return;
+    }
+    if (has(events, 'WeatherTriggered')) {
+      sfx.weatherTrigger();
+      // 不 return：触发禁制/转向后同批还有 CardPlayed 等事件，继续匹配
+    }
+
     if (has(events, 'CardRevealed')) {
       sfx.reveal();
       return;

@@ -95,6 +95,25 @@ export const sfx = {
     [523, 659, 784, 1047].forEach((f, i) =>
       setTimeout(() => tone(f, 0.13, 'sine', 0.07), i * 70));
   },
+  weatherChange() {
+    // 天气降临：低沉的风声 + 渐升和弦，营造氛围骤变感
+    noise(0.25, 0.06);
+    tone(220, 0.3, 'sine', 0.06);
+    setTimeout(() => tone(330, 0.25, 'sine', 0.07), 150);
+    setTimeout(() => tone(440, 0.3, 'sine', 0.08), 300);
+    setTimeout(() => noise(0.15, 0.03), 350);
+  },
+  weatherTrigger() {
+    // 持续天气触发（禁制/转向）：短促的低频脉冲
+    tone(300, 0.08, 'square', 0.04);
+    setTimeout(() => tone(260, 0.1, 'square', 0.03), 60);
+  },
+  weatherBonus() {
+    // 恩泽奖励：明亮的上行琶音
+    tone(587, 0.1, 'sine', 0.08);
+    setTimeout(() => tone(740, 0.1, 'sine', 0.07), 80);
+    setTimeout(() => tone(880, 0.14, 'sine', 0.06), 160);
+  },
   gameOver() {
     tone(262, 0.35, 'sine', 0.1);
     setTimeout(() => tone(330, 0.4, 'sine', 0.08), 260);

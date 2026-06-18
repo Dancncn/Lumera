@@ -22,6 +22,8 @@
                                               └──► 思考时长 delayMs()（拟人节奏）
 ```
 
+> 开启**混沌天气（DLC）**时，`decide` 会在上述管线之上再叠一层「维度建议层」对各概率做有界微调（见 §十一）；关闭天气时该层短路，行为与本文逐字节一致。
+
 ---
 
 ## 一、性格档案（Persona）
@@ -38,7 +40,7 @@
 | 上头 | `tilt` | 受挫后情绪波动幅度 |
 | 耐心 | `patience` | 越高思考越久 |
 
-预置 5 种性格（`PROFILES`，[ai.ts:35](../web/src/engine/ai.ts#L35)）：
+预置 5 种性格（`PROFILES`，[ai.ts](../web/src/engine/ai.ts)）：
 
 | 性格 | bluff | challenge | risk | read | rationality | tilt | patience |
 |------|-------|-----------|------|------|-------------|------|----------|
@@ -48,20 +50,20 @@
 | capricious 善变 | 0.55 | 0.60 | 0.65 | 0.35 | 0.35 | 0.80 | 0.35 |
 | cunning 狡黠 | 0.55 | 0.55 | 0.55 | 0.85 | 0.85 | 0.35 | 0.60 |
 
-**性格分配是确定性的**：用 `pickProfile(seed, seat)` 把（局种子, 座位号）经一个 32 位混合散列 `mixHash` 映射到 5 种性格之一（[ai.ts:47](../web/src/engine/ai.ts#L47)）。同一局里座位与性格的对应固定、可复现；换一局种子则重新洗牌。玩家看到的 AI 名字就带上了性格标签（如 `Selvar · 狡黠`）。
+**性格分配是确定性的**：用 `pickProfile(seed, seat)` 把（局种子, 座位号）经一个 32 位混合散列 `mixHash` 映射到 5 种性格之一（[ai.ts](../web/src/engine/ai.ts)）。同一局里座位与性格的对应固定、可复现；换一局种子则重新洗牌。玩家看到的 AI 名字就带上了性格标签（如 `Selvar · 狡黠`）。
 
 ---
 
 ## 二、难度调制（Difficulty）
 
-难度 `easy / normal / hard / master` 不是另一套 AI，而是对性格向量做一次**仿射变换**后再用（`applyDifficulty`，[ai.ts:58](../web/src/engine/ai.ts#L58)）。核心是缩放「理性 / 看人 / 质疑」这三维——它们决定 AI 用不用蒙特卡洛、信不信对手模型、敢不敢抓——同时调味「诈牌 / 上头 / 耐心」塑造手感：
+难度 `easy / normal / hard / master` 不是另一套 AI，而是对性格向量做一次**仿射变换**后再用（`applyDifficulty`，[ai.ts](../web/src/engine/ai.ts)）。核心是缩放「理性 / 看人 / 质疑」这三维——它们决定 AI 用不用蒙特卡洛、信不信对手模型、敢不敢抓——同时调味「诈牌 / 上头 / 耐心」塑造手感：
 
 | 难度 | 变换要点 | 手感 |
 |------|----------|------|
 | **easy** | `rationality ×0.55`、`read ×0.4`、`challenge ×0.75`，但**抬高** `bluff ×1.3`、`tilt ×1.8+0.15` | 莽撞新手：算不清、记不住、爱乱诈、一受挫就上头 |
 | **normal** | `rationality ×1.08+0.06`、`read ×1.1+0.06`、`challenge ×1.06+0.03` | 基线小幅增强，松弛可亲 |
 | **hard** | `rationality` 封顶 `0.86`、`read` 封顶 `0.82`、`challenge ×1.2+0.10`、压 `bluff`、`tilt ×0.4`、抬耐心 | 老练对手：读得准、爱抓、冷静，但**刻意不触顶**（留一线人味） |
-| **master** | 直接重写为近最优基线：`rationality≈0.99`、`read≈0.98`、`challenge≈0.82`、`tilt ×0.02`，原性格仅作约 ±5–10% 的调味噪声 | 最终 boss：**所有性格都解锁全部智能**，几乎不上头、几乎不失误（见 §十） |
+| **master** | 直接重写为近最优基线：`rationality≈0.99`、`read≈0.98`、`challenge≈0.82`、`tilt ×0.02`，原性格仅作约 ±1–5% 的调味噪声 | 最终 boss：**所有性格都解锁全部智能**，几乎不上头、几乎不失误（见 §十） |
 
 所有结果经 `clamp` 收回 `[0,1]`。直觉：难度越高，越多跨过 §四、§五里 `rationality > 0.55 / 0.6 / 0.7` 的门槛，读牌越准、抓得越狠、越不上头；只有 master 把理性/看人推到接近 1，从而无条件启用全部高级特性。
 
@@ -69,7 +71,7 @@
 
 ## 三、信息来源：牌张计数与对手建模
 
-AI 的「记忆」都在 `observe(events, view)` 里随公开事件更新（[ai.ts:301](../web/src/engine/ai.ts#L301)）。
+AI 的「记忆」都在 `observe(events, view)` 里随公开事件更新（[ai.ts](../web/src/engine/ai.ts)）。
 
 ### 3.1 牌张记忆 `seen`
 
@@ -79,7 +81,7 @@ AI 的「记忆」都在 `observe(events, view)` 里随公开事件更新（[ai.
 P(记住一张公开的牌) = 0.3 + 0.7 · read
 ```
 
-由此可估「某张牌还剩几张没出现」（`countRemaining`，[ai.ts:166](../web/src/engine/ai.ts#L166)）：
+由此可估「某张牌还剩几张没出现」（`countRemaining`，[ai.ts](../web/src/engine/ai.ts)）：
 
 ```
 该色该数字总张数 total = (num==0 ? 1 : 2)
@@ -91,19 +93,19 @@ unseenWilds = max(0, 玩家数 − 我手里万能牌 − 已见万能牌)
 
 ### 3.2 对手模型 `opp`
 
-对每个对手座位维护一组计数（`OppStat`，[ai.ts:105](../web/src/engine/ai.ts#L105)）：`claims / lies / truths / challenges / passes`，外加一个最近 8 步的动作环形缓冲 `recentActions`（`'ch'` 质疑 / `'pa'` 放行）。
+对每个对手座位维护一组计数（`OppStat`，[ai.ts](../web/src/engine/ai.ts)）：`claims / lies / truths / challenges / passes`，外加一个最近 8 步的动作环形缓冲 `recentActions`（`'ch'` 质疑 / `'pa'` 放行）。
 
-**「放行」是怎么记的？** 源河的规则是**全场任何人都可质疑**（见 [game-rules.md](game-rules.md)）。所以每当有人出牌（`CardPlayed`），`observe` 先把当时所有「有资格质疑的人」记入 `pendingChallengers`；等到有人真的质疑（`Challenged`）或回合推进（`TurnStarted`）时，把**没出手的那些人**记一次 `passes`（[ai.ts:323](../web/src/engine/ai.ts#L323)、[ai.ts:338](../web/src/engine/ai.ts#L338)）。这让 AI 不只看「谁爱抓」，还能看「谁该抓却一直放」——可趁虚而入。
+**「放行」是怎么记的？** 源河的规则是**全场任何人都可质疑**（见 [game-rules.md](game-rules.md)）。所以每当有人出牌（`CardPlayed`），`observe` 先把当时所有「有资格质疑的人」记入 `pendingChallengers`；等到有人真的质疑（`Challenged`）或回合推进（`TurnStarted`）时，把**没出手的那些人**记一次 `passes`（[ai.ts](../web/src/engine/ai.ts)、[ai.ts](../web/src/engine/ai.ts)）。这让 AI 不只看「谁爱抓」，还能看「谁该抓却一直放」——可趁虚而入。
 
 由这些计数导出几个估计量：
 
 | 估计量 | 公式 | 用途 |
 |--------|------|------|
-| 对手诈牌率 `bluffRate` | `(lies + 0.4·2)/(lies + truths + 2)`，无记录 = 0.4 | 这人一向爱不爱骗（Beta 先验平滑，[ai.ts:356](../web/src/engine/ai.ts#L356)） |
-| 嗜抓度 `trigger` | `challenges/(challenges + 3)`，无记录 = 0.35 | 他多爱质疑（[ai.ts:365](../web/src/engine/ai.ts#L365)） |
-| 全场危险 `aggregateDanger` | `1 − ∏(1 − trigger_i)`（遍历所有在场对手） | 我这一手被**任何人**抓的总概率（[ai.ts:256](../web/src/engine/ai.ts#L256)） |
-| 精细质疑率 `challengeRate` | `(challenges + 0.9)/(challenges + passes + 3)`，样本 <3 或无记录 = 0.3 | **大师独占**：区分「真爱抓」与「只是没机会」（[ai.ts:372](../web/src/engine/ai.ts#L372)） |
-| 近期放行连击 `recentPassStreak` | 末尾连续 `'pa'` 的个数 | **大师独占**：连续放行 = 这人现在很被动（[ai.ts:381](../web/src/engine/ai.ts#L381)） |
+| 对手诈牌率 `bluffRate` | `(lies + 0.4·2)/(lies + truths + 2)`，无记录 = 0.4 | 这人一向爱不爱骗（Beta 先验平滑，[ai.ts](../web/src/engine/ai.ts)） |
+| 嗜抓度 `trigger` | `challenges/(challenges + 3)`，无记录 = 0.35 | 他多爱质疑（[ai.ts](../web/src/engine/ai.ts)） |
+| 全场危险 `aggregateDanger` | `1 − ∏(1 − trigger_i)`（遍历所有在场对手） | 我这一手被**任何人**抓的总概率（[ai.ts](../web/src/engine/ai.ts)） |
+| 精细质疑率 `challengeRate` | `(challenges + 0.9)/(challenges + passes + 3)`，样本 <3 或无记录 = 0.3 | **大师独占**：区分「真爱抓」与「只是没机会」（[ai.ts](../web/src/engine/ai.ts)） |
+| 近期放行连击 `recentPassStreak` | 末尾连续 `'pa'` 的个数 | **大师独占**：连续放行 = 这人现在很被动（[ai.ts](../web/src/engine/ai.ts)） |
 
 注意 `trigger` 与 `aggregateDanger` 是面向「我要不要诈牌」的——全场越嗜抓，我越不敢诈；`challengeRate / recentPassStreak` 则是大师档专用的精细剥削信号。
 
@@ -115,7 +117,7 @@ unseenWilds = max(0, 玩家数 − 我手里万能牌 − 已见万能牌)
 
 ## 四、诈牌概率 `pLie` 的三源估计
 
-轮到 AI 决定**要不要质疑刚出牌的人**时（`decideRespond`，[ai.ts:412](../web/src/engine/ai.ts#L412)），核心是估计这一手宣称为假的概率 `pLie`。
+轮到 AI 决定**要不要质疑刚出牌的人**时（`decideRespond`，[ai.ts](../web/src/engine/ai.ts)），核心是估计这一手宣称为假的概率 `pLie`。
 
 ### 4.0 地板：数学必诈
 
@@ -134,11 +136,11 @@ challenge  if  rand() ≥ missRate
 | 历史 `histLie` | `0.32 + read · (bluffRate(player) − 0.4) · 0.7` | 这人一向爱骗 → 上调；`read` 越高越信对手模型 |
 | 价值偏置 `valueBias` | `(val(num)/10) · 0.12` | 宣称的数字越大越可疑（高位牌稀缺） |
 
-其中 `val(num)` 把 `0` 当作该色最大值 `10`（[game.ts:34](../web/src/engine/game.ts#L34)）。
+其中 `val(num)` 把 `0` 当作该色最大值 `10`（[game.ts](../web/src/engine/game.ts)）。
 
 ### 4.2 蒙特卡洛
 
-`rationality > 0.55` 时额外跑蒙特卡洛 `mcLieProb`（[ai.ts:180](../web/src/engine/ai.ts#L180)）：把所有「未现身的牌」组成牌池，其中能让宣称**成真**的为 `good = 该宣称牌剩余 + 未现身万能牌`，其余为 `other`（含 >2 人时未现身的功能牌）。从池中**无放回**抽 `handSize ≈ 对方手牌数 + 1` 张（`+1` 因为他刚打出一张），重复 `runs` 次，统计「至少抽到一张 good」的频率：
+`rationality > 0.55` 时额外跑蒙特卡洛 `mcLieProb`（[ai.ts](../web/src/engine/ai.ts)）：把所有「未现身的牌」组成牌池，其中能让宣称**成真**的为 `good = 该宣称牌剩余 + 未现身万能牌`，其余为 `other`（含 >2 人时未现身的功能牌）。从池中**无放回**抽 `handSize ≈ 对方手牌数 + 1` 张（`+1` 因为他刚打出一张），重复 `runs` 次，统计「至少抽到一张 good」的频率：
 
 ```
 pLie_MC = 1 − P(handSize 抽样中至少命中一张 good)
@@ -201,8 +203,8 @@ pCh += opponentThreat(view, player) · (0.15 + rationality·0.12)   // 对手越
 pCh = clamp(pCh, 0.03, 0.98)
 ```
 
-- `riskScore`（[ai.ts:236](../web/src/engine/ai.ts#L236)）综合自己的受罚累进、命数脆弱度、手牌领先/落后。
-- `opponentThreat`（[ai.ts:247](../web/src/engine/ai.ts#L247)）综合对手手牌将空（快跑成）与已得分。
+- `riskScore`（[ai.ts](../web/src/engine/ai.ts)）综合自己的受罚累进、命数脆弱度、手牌领先/落后。
+- `opponentThreat`（[ai.ts](../web/src/engine/ai.ts)）综合对手手牌将空（快跑成）与已得分。
 
 （大师档在此之上还有「精准狙杀 + 适应性剥削」，见 §十。）
 
@@ -210,13 +212,13 @@ pCh = clamp(pCh, 0.03, 0.98)
 
 ## 六、出牌与宣称
 
-轮到 AI 出牌（`decidePlay`，[ai.ts:496](../web/src/engine/ai.ts#L496)）：先看有没有可出的数字/万能牌（没有则 `Fallback` 兜底）；非首家时按概率先**明甩功能牌**（用全场危险 `aggregateDanger` 而非只看下家来估收益；嗜抓的下家在场时更想甩 `skip` 跳过他）；随后进入首家或跟牌分支。
+轮到 AI 出牌（`decidePlay`，[ai.ts](../web/src/engine/ai.ts)）：先看有没有可出的数字/万能牌（没有则 `Fallback` 兜底）；非首家时按概率先**明甩功能牌**（用全场危险 `aggregateDanger` 而非只看下家来估收益；嗜抓的下家在场时更想甩 `skip` 跳过他）；随后进入首家或跟牌分支。
 
-### 6.1 首家起手（`firstPlay`，[ai.ts:538](../web/src/engine/ai.ts#L538)）
+### 6.1 首家起手（`firstPlay`，[ai.ts](../web/src/engine/ai.ts)）
 
 首家须宣称某色 `1..3`。手里有真 `1..3` 时**大概率老实打**（诈牌概率随 `bluff` 升高）；没有低牌时盖任意一张、谎称一个低牌。高理性者把宣称颜色**偏向自己手里的优势色**（后续更接得上，圆得回来），弃牌交给 `smartDump`（见 §6.4）。
 
-### 6.2 跟牌（`followPlay`，[ai.ts:566](../web/src/engine/ai.ts#L566)）
+### 6.2 跟牌（`followPlay`，[ai.ts](../web/src/engine/ai.ts)）
 
 优先级大致是：
 
@@ -225,14 +227,14 @@ pCh = clamp(pCh, 0.03, 0.98)
 3. **万能牌**：当脱困王牌，`risk` 高者倾向留着不轻易出。
 4. **诈牌**：`bluffAppetite = clamp(bluff + tilt·0.2 − aggregateDanger·0.5·read)`（上头更敢诈、全场嗜抓则收敛），高理性再减 `riskScore`。无路可退（不能摸、无万能）时被迫诈。
 
-### 6.3 选宣称内容（`pickClaim`，[ai.ts:295](../web/src/engine/ai.ts#L295)）
+### 6.3 选宣称内容（`pickClaim`，[ai.ts](../web/src/engine/ai.ts)）
 
 要诈牌时「喊什么」很关键——目标是**让对方难以证伪**。
 
-- 高理性走 `strategicBluffClaim`（[ai.ts:265](../web/src/engine/ai.ts#L265)）：给每个合法宣称打分，偏好 **`remaining + unseenWilds` 大**（牌源多、不易被算死）、**爬升幅度小**，并按全场危险 `aggregateDanger` 调权重——越危险越要挑「圆得最稳」的牌。
-- 低理性走 `smartBluffClaim`（[ai.ts:223](../web/src/engine/ai.ts#L223)）或直接 `minEscalation` 取最小爬升。
+- 高理性走 `strategicBluffClaim`（[ai.ts](../web/src/engine/ai.ts)）：给每个合法宣称打分，偏好 **`remaining + unseenWilds` 大**（牌源多、不易被算死）、**爬升幅度小**，并按全场危险 `aggregateDanger` 调权重——越危险越要挑「圆得最稳」的牌。
+- 低理性走 `smartBluffClaim`（[ai.ts](../web/src/engine/ai.ts)）或直接 `minEscalation` 取最小爬升。
 
-### 6.4 智能弃牌（`smartDump`，[ai.ts:675](../web/src/engine/ai.ts#L675)）
+### 6.4 智能弃牌（`smartDump`，[ai.ts](../web/src/engine/ai.ts)）
 
 要「丢一张垫场」时，普通档丢**最高值**的垃圾牌（高位牌难接、留着没用）；大师档则丢**最弱颜色**里的高值牌，从而**保留优势色的连续牌**留作后手。
 
@@ -240,13 +242,13 @@ pCh = clamp(pCh, 0.03, 0.98)
 
 ## 七、受罚选点
 
-进入受罚（俄罗斯轮盘）阶段时选定本次要赌的点数 `1..6`——当前实现是**均匀随机**（`ChooseNumber, n = 1 + ⌊rand()·6⌋`，[ai.ts:395](../web/src/engine/ai.ts#L395)）。每个点数命中概率相同，无可优化空间，随机即可。
+进入受罚（俄罗斯轮盘）阶段时，须一次性**赌定 N 个不同点数**（N = 本次受罚累进 `rollsRemaining`，封顶 6），只掷一次骰，掷出的点落在所赌 N 个之内即中枪——中枪率恒为 `N/6`。AI 用 `pickDistinctDice(N)`（[ai.ts](../web/src/engine/ai.ts)）从 `1..6` 里**随机取 N 个不同点**返回 `ChooseNumber{ ns }`。因为中枪率只取决于 N（赌哪几个点都一样），这里没有可优化空间，随机取 N 个不同点即最优。
 
 ---
 
 ## 八、拟人思考节奏
 
-AI 绝不秒回、也不匀速。每次决策算一个停顿 `think(base, span, hardness)`（[ai.ts:698](../web/src/engine/ai.ts#L698)）：
+AI 绝不秒回、也不匀速。每次决策算一个停顿 `think(base, span, hardness)`（[ai.ts](../web/src/engine/ai.ts)）：
 
 ```
 slow = 0.65 + patience·0.8                       // 耐心越高越慢
@@ -261,7 +263,7 @@ ms   = clamp(round(ms), 240, 3200)                // 收进 0.24s–3.2s
 
 ## 九、随机性与可复现
 
-- 每个 AI 持有**自己独立的一条种子化 RNG 流**：构造时 `rng = seed ^ hash(seat)`，推进用 mulberry32（`nextRng`，[rng.ts:5](../web/src/engine/rng.ts#L5)）。
+- 每个 AI 持有**自己独立的一条种子化 RNG 流**：构造时 `rng = seed ^ hash(seat)`，推进用 mulberry32（`nextRng`，[rng.ts](../web/src/engine/rng.ts)）。
 - 因此：**同一局**（同种子）完全可复现，便于调试与回放；**不同局**有变数；**同一局面**因 RNG 已推进，也不总做同一件事（决策处处是 `rand()` 抽样而非硬规则）。
 - 引擎本身的随机（洗牌、掷骰）与 AI 的随机是**两条独立的种子流**，互不污染。
 
@@ -271,7 +273,7 @@ ms   = clamp(round(ms), 240, 3200)                // 收进 0.24s–3.2s
 
 `master` 不是「把旋钮调满」那么简单，而是一套独占的增强逻辑。它先把性格压成近最优基线（§二），再无条件启用普通档需要高理性才触发的全部特性（MC 200 次采样、EV 阈值、风险/威胁修正、战略选宣称），并额外叠加下面几层——既要**算得最优**，又要**针对具体对手剥削**：
 
-### 10.1 终局读心（pLie 上调，[ai.ts:442](../web/src/engine/ai.ts#L442)）
+### 10.1 终局读心（pLie 上调，[ai.ts](../web/src/engine/ai.ts)）
 对手手牌越少，越可能在背水一搏，于是抬高对其宣称的 `pLie` 下限：
 
 ```
@@ -282,13 +284,13 @@ ms   = clamp(round(ms), 240, 3200)                // 收进 0.24s–3.2s
 
 这些只是**抬高估计**，仍要经 §五的 EV 框架过滤，不会变成无脑乱抓。
 
-### 10.2 精准狙杀 + 适应性剥削（pCh 修正，[ai.ts:482](../web/src/engine/ai.ts#L482)）
+### 10.2 精准狙杀 + 适应性剥削（pCh 修正，[ai.ts](../web/src/engine/ai.ts)）
 ```
 对手 lives≤1 且 handCount≤3:  pCh += 0.10        // 残血将跑成 → 优先拦截
 bluffRate(player) > 0.5:       pCh += (bluffRate − 0.5)·0.35   // 惯犯 → 加大打击
 ```
 
-### 10.3 摸牌的期望值（`estimateDrawHit`，[ai.ts:647](../web/src/engine/ai.ts#L647)）
+### 10.3 摸牌的期望值（`estimateDrawHit`，[ai.ts](../web/src/engine/ai.ts)）
 接不上时，先估「摸一张能合法如实出」的概率（牌池里能接当前梯顶的牌占比），据此决定摸还是诈：
 
 ```
@@ -297,7 +299,7 @@ drawHit < 0.12:  pDraw −= 0.20       // 几乎摸不到 → 不如直接诈
 pDraw += challengeRate(下家)·0.15     // 下家越爱抓，诈牌代价越大 → 越倾向摸
 ```
 
-### 10.4 针对性诈牌（`bluffAppetite` 调整，[ai.ts:614](../web/src/engine/ai.ts#L614)）
+### 10.4 针对性诈牌（`bluffAppetite` 调整，[ai.ts](../web/src/engine/ai.ts)）
 用精细信号挑「软柿子」下手：
 
 ```
@@ -306,16 +308,39 @@ recentPassStreak(下家) ≥ 3:  bluffAppetite += 0.15   // 连续放行 → 趁
 bluffAppetite += (0.5 − aggregateDanger)·0.15        // 全场越安静，整体越敢诈
 ```
 
-### 10.5 预判性功能牌（[ai.ts:516](../web/src/engine/ai.ts#L516)）
+### 10.5 预判性功能牌（[ai.ts](../web/src/engine/ai.ts)）
 有对手手牌将空（`handCount ≤ 4`）时，大幅抬高甩功能牌的概率（`pFunc += 0.28`），优先用 `skip` 打断对手的跑成节奏。
 
 > 综合效果：大师档几乎不失误、记得清、算得准（MC 200 次），并且会**针对每个对手的历史行为**调整诈牌与质疑——面对爱抓的人收敛、面对爱放的人加压、对残血对手精准补刀。它是为「打得过普通档之后还想被虐」准备的。
 
 ---
 
-## 十一、类与接口（技术实现）
+## 十一、混沌天气的维度建议层（DLC）
 
-核心是一个有状态的类 `AiPlayer`（[ai.ts:124](../web/src/engine/ai.ts#L124)）：
+当混沌天气（见 [weather-mode.md](weather-mode.md)）开启时，AI 不重写任何决策逻辑，而是在 `decide` 开头算一个**维度建议包 `DimAdvice`**（`dimAdvice(view)`，[ai.ts](../web/src/engine/ai.ts)），对前面各节算出的决策标量做**有界微调**：加项中性元 = 0、乘子中性元 = 1。
+
+**经典模式逐字节不变**：`view.weather === null` 时 `dimAdvice` 硬短路返回冻结的 `NEUTRAL_ADVICE`（全 +0/×1）——不读 `traits`、不进分支、不消费 RNG、不分配对象。所以关掉天气时，AI 行为与本文前十节描述的完全一致。
+
+**难度门控**：调整强度统一乘 `gate = clamp((rationality − 0.45) / 0.5)`——easy≈0、normal≈0.5、hard≈0.8、master≈1。即**大师把天气读得最透，新手几乎无视天气**，与 §二的难度梯度一致。
+
+七个建议字段与各天气的微调：
+
+| 天气 | 调整（×gate） | 意图 |
+|------|--------------|------|
+| **源涌** surge | `honestBluffMul = 1 − 0.5·rationality`；`dBluffAppetite −= (esc−1)/6 ·0.35·rationality` | 累进高了撒谎被抓更痛 → 收敛诈牌（质疑侧 escRisk 已被 EV 框架捕捉，故 `dpCh` 恒 0） |
+| **恩泽** bless | `zeroBias = 0.5 + 0.4·risk`；`dpDraw −= 0.14`；`dpCh += 0.05` | 打 0/跑成/赢家都加分（分即排名）→ 抢着打或诈 0、少摸快清手、更敢质疑 |
+| **丰沛** bounty | `dpDraw −= 0.08`；`dpCh −= 0.04` | 全场手牌变厚 → 少摸；`handCount` 信号噪声变大 → 质疑略保守 |
+| **禁制** ban | `skipMul = 1 − 0.4·read` | 本梯有免费 `skip` → 自家主动甩 `skip` 贬值（只贬 skip） |
+| **乱向** veer | `reverseMul = 1 − 0.6·read`；`dBluffAppetite −= 0.06` | 本梯有免费 `reverse` → 自家 `reverse` 贬值更狠；方向不定 → 定点诈牌略保守 |
+| **乱流** shuffle | 恒等（无调整） | 手牌数不变、不翻牌、`seen` 仍有效 → 无需动 |
+
+这些字段在各决策点被消费：`dpCh` 加到 §五末的 `pCh`，`dpDraw / dBluffAppetite / honestBluffMul` 进 §六的 `followPlay`，`skipMul / reverseMul` 进功能牌段，`zeroBias` 驱动恩泽下「优先如实/诈出 0」。**扩展新模式**只需：给 `DimAdvice` 加字段（带中性默认）+ 在 `dimAdvice` 加一个 `case` + 在对应 hook 加一行 `+=`/`*=`，经典路径不受任何影响。
+
+---
+
+## 十二、类与接口（技术实现）
+
+核心是一个有状态的类 `AiPlayer`（[ai.ts](../web/src/engine/ai.ts)）：
 
 ```ts
 class AiPlayer {
@@ -327,14 +352,14 @@ class AiPlayer {
 }
 ```
 
-- **内部状态**：`traits`（已按难度调制）、`rng`（独立流）、`opp`（对手模型 Map，含放行记录）、`seen`（牌张记忆 Map）、`tilt`、`lastDelay`、`pendingChallengers`。
+- **内部状态**：`traits`（已按难度调制）、`rng`（独立流）、`opp`（对手模型 Map，含放行记录）、`seen`（牌张记忆 Map）、`tilt`、`lastDelay`、`pendingChallengers`、`advice`（当前天气的维度建议包，见 §十一；经典模式为冻结的 `NEUTRAL_ADVICE`）。
 - **`decide` 按 `view.prompt.kind` 分派**：`penalty → ChooseNumber`、`respond → decideRespond`、`play → decidePlay`、其它（不是你行动）→ `Accept`。
 - **唯一输入是 `PlayerView`**——这就是「结构上不可作弊」的实现层保证。
-- 文件末尾另有无状态便捷函数 `chooseCommand(view)`（[ai.ts:708](../web/src/engine/ai.ts#L708)），用临时 AI 池决策、**无对手记忆**，仅供测试/兜底；真正对局一律由驱动层持久的 `AiPlayer` 实例驱动。
+- 文件末尾另有无状态便捷函数 `chooseCommand(view)`（[ai.ts](../web/src/engine/ai.ts)），用临时 AI 池决策、**无对手记忆**，仅供测试/兜底；真正对局一律由驱动层持久的 `AiPlayer` 实例驱动。
 
 ---
 
-## 十二、驱动层接入（单机 / 联机）
+## 十三、驱动层接入（单机 / 联机）
 
 两端复用**同一个 `AiPlayer`**，模式一致：建局时给每个 AI 座位 `new AiPlayer({ seat, seed, profile: pickProfile(seed, seat), difficulty })`，每次 `apply` 之后对所有 AI 调一遍 `observe`，轮到 AI 行动时 `decide` + 延时 `setTimeout` 再把命令喂回 `apply`。
 
@@ -351,7 +376,7 @@ class AiPlayer {
 
 ---
 
-## 十三、验证（无头模拟）
+## 十四、验证（无头模拟）
 
 AI 既是对手，也是引擎的**对抗性压力测试器**。`npm run sim`（[sim.ts](../web/src/engine/sim.ts)）让 AI 自我对弈跑 **1200 场**（2/3/4 人各 400 场、种子遍历，难度按 `seed % 4` 在四档间轮替），每局逐步断言：
 
