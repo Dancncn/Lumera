@@ -287,13 +287,26 @@ export function TutorialStages({ onDone, onSkip }: { onDone: () => void; onSkip:
     );
   }
 
-  // ---- play phase: floating guide ----
+  // ---- play phase: floating guide (collapsible) ----
+  const [guideCollapsed, setGuideCollapsed] = useState(false);
+
+  if (guideCollapsed) {
+    return (
+      <button className="stage-guide-pill" type="button" onClick={() => setGuideCollapsed(false)}>
+        {t('关卡')} {idx + 1} · {t(stage.tag)} ▾
+      </button>
+    );
+  }
+
   return (
     <div className="stage-guide">
       <div className="stage-guide-bubble">
-        <span className="stage-guide-tag">
-          {t('关卡')} {idx + 1} · {t(stage.tag)}
-        </span>
+        <div className="stage-guide-head">
+          <span className="stage-guide-tag">
+            {t('关卡')} {idx + 1} · {t(stage.tag)}
+          </span>
+          <button className="stage-guide-min" type="button" onClick={() => setGuideCollapsed(true)} title={t('收起')}>▴</button>
+        </div>
         <p className="stage-guide-text">{t(stage.guide)}</p>
       </div>
     </div>

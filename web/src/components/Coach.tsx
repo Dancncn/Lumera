@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PlayerView } from '../engine/types';
 import { useT } from '../i18n';
 import { useGame } from '../store/gameStore';
@@ -19,6 +19,8 @@ export function Coach({ view }: { view: PlayerView }) {
   const [phase, setPhase] = useState<CoachPhase>('lesson');
   const [shown, setShown] = useState<Set<string>>(() => new Set());
   const [current, setCurrent] = useState<Step | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const prevKey = useRef<string | null>(null);
 
   function enterFreePlay() {
     // 关卡结束后进入自由练习局
@@ -85,6 +87,12 @@ export function Coach({ view }: { view: PlayerView }) {
     );
   }
 
+  // auto-expand when a new tip arrives
+  if (current && current.key !== prevKey.current) {
+    prevKey.current = current.key;
+    if (collapsed) setCollapsed(false);
+  }
+
   if (!current) {
     return (
       <div className="coach-tabs">
@@ -98,10 +106,21 @@ export function Coach({ view }: { view: PlayerView }) {
     );
   }
 
+  if (collapsed) {
+    return (
+      <button className="coach-pill" type="button" onClick={() => setCollapsed(false)}>
+        {t('新手引导')} ▾
+      </button>
+    );
+  }
+
   return (
     <div className="coach">
       <div className="coach-bubble">
-        <span className="coach-tag">{t('新手引导')}</span>
+        <div className="coach-head">
+          <span className="coach-tag">{t('新手引导')}</span>
+          <button className="coach-min" type="button" onClick={() => setCollapsed(true)} title={t('收起')}>▴</button>
+        </div>
         <p className="coach-text">{t(current.text)}</p>
         <div className="coach-btns">
           <button className="coach-skip" type="button" onClick={endTutorial}>

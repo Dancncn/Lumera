@@ -2166,11 +2166,11 @@ kbd {
 .coach-enter {
   margin-top: 10px;
 }
-/* 实战气泡：贴左下角、窄、文字版——不挡顶部对手、不挡桌心 */
+/* 实战气泡：贴左上角——不挡底部手牌和操作栏 */
 .coach {
   position: fixed;
   left: 16px;
-  bottom: 126px;
+  top: 48px;
   width: min(300px, calc(100vw - 32px));
   z-index: 24;
   pointer-events: none;
@@ -2180,20 +2180,56 @@ kbd {
   background: linear-gradient(180deg, #fffdf8, #f4ecd9);
   border: 1px solid var(--gold);
   border-radius: 14px;
-  padding: 12px 16px 11px;
+  padding: 10px 14px 10px;
   box-shadow: 0 14px 34px rgba(80, 66, 40, 0.22);
   animation: bubble-in 0.22s var(--ease);
+}
+.coach-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .coach-tag {
   font-size: 11px;
   letter-spacing: 3px;
   color: var(--gold-muted);
 }
+.coach-min {
+  border: none;
+  background: transparent;
+  color: var(--gold-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.coach-min:hover { color: var(--gold-dark); }
 .coach-text {
-  margin: 6px 0 11px;
-  font-size: 14.5px;
-  line-height: 1.75;
+  margin: 5px 0 10px;
+  font-size: 14px;
+  line-height: 1.7;
   color: var(--ink);
+}
+/* collapsed pill */
+.coach-pill {
+  position: fixed;
+  left: 16px;
+  top: 48px;
+  z-index: 24;
+  border: 1px solid var(--gold);
+  background: rgba(250, 248, 243, 0.95);
+  color: var(--gold-dark);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(80, 66, 40, 0.16);
+  cursor: pointer;
+  animation: bubble-in 0.18s var(--ease);
+}
+.coach-pill:hover {
+  background: rgba(250, 248, 243, 1);
+  border-color: var(--gold-dark);
 }
 .coach-btns {
   display: flex;
@@ -2227,7 +2263,7 @@ kbd {
 .coach-tabs {
   position: fixed;
   left: 16px;
-  bottom: 126px;
+  top: 48px;
   z-index: 24;
   display: flex;
   gap: 8px;
@@ -2386,10 +2422,13 @@ kbd {
     right: 8px;
   }
   .coach {
-    bottom: 84px;
+    top: 40px;
+  }
+  .coach-pill {
+    top: 40px;
   }
   .coach-tabs {
-    bottom: 84px;
+    top: 40px;
   }
   /* 主页横屏：标题与留白收紧 */
   .start {
@@ -2947,10 +2986,10 @@ kbd {
 .stage-result {
   border-color: var(--gold-dark);
 }
-/* floating guide during play */
+/* floating guide during play — pinned to top so it never covers hand/actions */
 .stage-guide {
   position: fixed;
-  bottom: 200px;
+  top: 48px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 35;
@@ -2961,24 +3000,60 @@ kbd {
   background: linear-gradient(180deg, #fffdf8, #f6efe0);
   border: 1px solid var(--gold);
   border-radius: 14px;
-  padding: 14px 20px;
+  padding: 10px 16px 10px;
   box-shadow: 0 8px 28px rgba(60, 48, 28, 0.26);
   max-width: min(440px, 88vw);
   text-align: center;
   pointer-events: auto;
 }
+.stage-guide-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
 .stage-guide-tag {
-  display: block;
   font-size: 10px;
   letter-spacing: 2px;
   color: var(--gold-muted);
-  margin-bottom: 6px;
 }
-.stage-guide-text {
+.stage-guide-min {
+  border: none;
+  background: transparent;
+  color: var(--gold-muted);
   font-size: 14px;
-  line-height: 1.7;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.stage-guide-min:hover { color: var(--gold-dark); }
+.stage-guide-text {
+  font-size: 13.5px;
+  line-height: 1.6;
   color: var(--ink);
-  margin: 0;
+  margin: 5px 0 0;
+}
+/* collapsed pill */
+.stage-guide-pill {
+  position: fixed;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 35;
+  border: 1px solid var(--gold);
+  background: rgba(250, 248, 243, 0.95);
+  color: var(--gold-dark);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  padding: 5px 16px;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(80, 66, 40, 0.16);
+  cursor: pointer;
+  animation: bubble-in 0.18s var(--ease);
+}
+.stage-guide-pill:hover {
+  background: rgba(250, 248, 243, 1);
+  border-color: var(--gold-dark);
 }
 
 /* ============================================================
@@ -3315,13 +3390,13 @@ kbd {
   color: #3f6b3a;
 }
 
-/* 窄屏：实战气泡塞进「计分牌与手牌之间」的空带，既不挡顶部对手、桌心，也不压住手牌 */
+/* 窄屏：教程气泡贴顶部、全宽 */
 @media (max-width: 760px) {
   .coach {
     left: 8px;
     right: 8px;
     width: auto;
-    bottom: 198px;
+    top: 40px;
   }
   .coach-bubble {
     padding: 9px 13px;
@@ -3333,9 +3408,13 @@ kbd {
     line-height: 1.6;
     margin: 5px 0 9px;
   }
+  .coach-pill {
+    left: 8px;
+    top: 40px;
+  }
   .coach-tabs {
     left: 8px;
-    bottom: 198px;
+    top: 40px;
   }
   .lesson-title {
     font-size: 19px;
