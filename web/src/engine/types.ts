@@ -39,7 +39,7 @@ export const WEATHER_META: Record<WeatherKind, { name: string; desc: string }> =
   surge: { name: '源涌', desc: '全场受罚累进 +1~2' },
   ban: { name: '禁制', desc: '本梯：出牌后 40% 触发「禁止」' },
   veer: { name: '乱向', desc: '本梯：出牌后 60% 触发「转向」' },
-  bless: { name: '恩泽', desc: '本梯：打出 0 或跑成者额外得分' },
+  bless: { name: '恩泽', desc: '本梯：终结这一梯者额外得分' },
 };
 
 /** 一张牌。number：0..9，其中 0 视为该色最大（=10）。 */
@@ -86,7 +86,7 @@ export type GameEvent =
   | { type: 'LadderReset'; leader: number } // 新梯，由 leader 起手
   | { type: 'WeatherChanged'; kind: WeatherKind; seat: number } // 新梯降下一种天气（seat=首家）
   | { type: 'WeatherTriggered'; kind: 'ban' | 'veer'; seat: number } // 持续天气在某次出牌后触发（禁止/转向）
-  | { type: 'WeatherBonus'; seat: number; value: number } // 恩泽·勇者奖励：打 0/跑成额外加分
+  | { type: 'WeatherBonus'; seat: number; value: number; kind: 'bold' | 'winner' } // 恩泽奖励：bold=打0/跑成的勇者，winner=截牌收场的赢家（保底）
   | { type: 'GameOver'; ranking: RankEntry[] };
 
 /** 结构化日志条目：tpl 是中文模板（同时作为 i18n key），p 是命名参数。 */

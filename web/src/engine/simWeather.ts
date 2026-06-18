@@ -1,7 +1,7 @@
 // 混沌天气验证：开启天气跑 1000 场，断言引擎仍不崩 / 牌张守恒 / 必然终局 / 无信息泄露，
 // 并测量天气频率·分布、对局长度与血量蒸发（对比经典模式）、以及确定性复现。
 // 运行：npm run sim:weather
-import { apply, createGame, respondState, viewFor } from './game';
+import { apply, createGame, respondState, viewFor, WEATHER_BLESS } from './game';
 import { AiPlayer, Difficulty } from './ai';
 import { buildDeck } from './deck';
 import { GameConfig, GameState, GameEvent, DEFAULT_CONFIG, WeatherKind, WEATHER_KINDS } from './types';
@@ -43,6 +43,8 @@ interface GameResult {
   ladders: number;
   livesLost: number;
   blessBonusCount: number;
+  blessBonusPts: number;
+  blessBoldCount: number;
 }
 
 function runGame(players: number, seed: number, weatherOn: boolean, checkLeak: boolean, chance?: number): GameResult {
@@ -58,13 +60,13 @@ function runGame(players: number, seed: number, weatherOn: boolean, checkLeak: b
   observeAll(events, state);
 
   const byKind: Record<WeatherKind, number> = { bounty: 0, shuffle: 0, surge: 0, ban: 0, veer: 0, bless: 0 };
-  let weatherCount = 0, triggered = 0, ladders = 0, blessBonusCount = 0;
+  let weatherCount = 0, triggered = 0, ladders = 0, blessBonusCount = 0, blessBonusPts = 0, blessBoldCount = 0;
   const tally = (evs: GameEvent[]) => {
     for (const e of evs) {
       if (e.type === 'TurnStarted' && e.isFirst) ladders++;
       if (e.type === 'WeatherChanged') { weatherCount++; byKind[e.kind]++; }
       if (e.type === 'WeatherTriggered') triggered++;
-      if (e.type === 'WeatherBonus') blessBonusCount++;
+      if (e.type === 'WeatherBonus') { blessBonusCount++; blessBonusPts += e.value; if (e.kind === 'bold') blessBoldCount++; }
     }
   };
   tally(events);
@@ -110,7 +112,7 @@ function runGame(players: number, seed: number, weatherOn: boolean, checkLeak: b
   }
 
   const livesLost = state.players.reduce((n, p) => n + (config.startingLives - p.lives), 0);
-  return { steps, winner: state.ranking![0].seat, weatherCount, triggered, byKind, ladders, livesLost, blessBonusCount };
+  return { steps, winner: state.ranking![0].seat, weatherCount, triggered, byKind, ladders, livesLost, blessBonusCount, blessBonusPts, blessBoldCount };
 }
 
 const mean = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length;
@@ -132,7 +134,7 @@ function main(): void {
   console.log(detOk ? '✓ 确定性复现：24 组同种子两跑结果完全一致（随机全走 s.rng）' : '✗ 确定性复现失败');
 
   // —— 1000 场天气局：断言不变量 + 收集统计 ——
-  const wSteps: number[] = [], wLives: number[] = [], wWeather: number[] = [], wTrig: number[] = [], wLadders: number[] = [], wBonus: number[] = [];
+  const wSteps: number[] = [], wLives: number[] = [], wWeather: number[] = [], wTrig: number[] = [], wLadders: number[] = [], wBonus: number[] = [], wBold: number[] = [], wPts: number[] = [];
   const winBySeat: Record<number, number[]> = { 2: [0, 0], 3: [0, 0, 0], 4: [0, 0, 0, 0] };
   const kindTotal: Record<WeatherKind, number> = { bounty: 0, shuffle: 0, surge: 0, ban: 0, veer: 0, bless: 0 };
   let games = 0;
@@ -144,7 +146,7 @@ function main(): void {
     for (let k = 1; k <= N; k++) {
       const seed = k * 1000 + players;
       const r = runGame(players, seed, true, k <= 40); // 前 40 场抽查信息泄露
-      wSteps.push(r.steps); wLives.push(r.livesLost); wWeather.push(r.weatherCount); wTrig.push(r.triggered); wLadders.push(r.ladders); wBonus.push(r.blessBonusCount);
+      wSteps.push(r.steps); wLives.push(r.livesLost); wWeather.push(r.weatherCount); wTrig.push(r.triggered); wLadders.push(r.ladders); wBonus.push(r.blessBonusCount); wBold.push(r.blessBoldCount); wPts.push(r.blessBonusPts);
       winBySeat[players][r.winner]++;
       for (const kd of WEATHER_KINDS) kindTotal[kd] += r.byKind[kd];
       games++;
@@ -168,11 +170,13 @@ function main(): void {
   const totalKinds = Object.values(kindTotal).reduce((s, x) => s + x, 0);
   for (const kd of WEATHER_KINDS) console.log(`  ${labels[kd].padEnd(12, ' ')} ${kindTotal[kd]}  (${((kindTotal[kd] / totalKinds) * 100).toFixed(1)}%)`);
 
-  // 恩泽（指向性·勇者）兑现率：勇者奖励事件数 / 恩泽天气次数（其余为「本梯无人打 0/跑成」的空梯）
-  const totalBonus = wBonus.reduce((s, x) => s + x, 0);
+  // 恩泽兑现情况（默认方案）：兑现率 = 奖励事件数 / 恩泽天气次数；区分勇者(打0/跑成) 与 赢家保底(截牌收场)
+  const sum = (a: number[]) => a.reduce((s, x) => s + x, 0);
+  const totalBonus = sum(wBonus), totalBold = sum(wBold), totalPts = sum(wPts);
   const blessLadders = kindTotal.bless;
-  console.log(`\n—— 恩泽·勇者奖励 ——`);
-  console.log(`恩泽降临 ${blessLadders} 次 → 兑现（有人打 0/跑成）${totalBonus} 次，兑现率 ${blessLadders ? ((totalBonus / blessLadders) * 100).toFixed(0) : 0}%（其余为本梯以受罚收场的空梯）`);
+  console.log(`\n—— 恩泽兑现（默认方案 min ${WEATHER_BLESS.min} / max ${WEATHER_BLESS.max} / 赢家保底 ${WEATHER_BLESS.fallback ? '开' : '关'}）——`);
+  console.log(`恩泽降临 ${blessLadders} 次 → 兑现 ${totalBonus} 次（兑现率 ${blessLadders ? ((totalBonus / blessLadders) * 100).toFixed(0) : 0}%）：勇者 ${totalBold} + 赢家保底 ${totalBonus - totalBold}`);
+  console.log(`恩泽加分合计 ${totalPts} 分 / ${games} 局 = 均 ${(totalPts / games).toFixed(2)} 分/局（占比微小，不主导名次）`);
 
   console.log(`\n—— 对局长度 / 血量蒸发（天气 vs 经典，同种子）——`);
   console.log(`步数/局   天气 均 ${mean(wSteps).toFixed(0)} 中位 ${median(wSteps)}  |  经典 均 ${mean(bSteps).toFixed(0)} 中位 ${median(bSteps)}  (${((mean(wSteps) / mean(bSteps) - 1) * 100).toFixed(0)}%)`);
@@ -193,6 +197,27 @@ function main(): void {
     const tag = chance === 0.15 ? '稀有' : chance === 0.28 ? '适中' : '频繁';
     console.log(`  ${tag} weatherChance ${chance.toFixed(2)} → 天气事件/局 均 ${mean(ev).toFixed(1)}  中位 ${median(ev)}`);
   }
+
+  // —— 恩泽方案扫描：500 局/方案，找兑现率高且加分不喧宾夺主的最优 ——
+  console.log(`\n—— 恩泽方案扫描（各 500 场，2/3/4 人混合）——`);
+  const variants = [
+    { name: '当前 2~4·无保底', min: 2, max: 4, fallback: false },
+    { name: '大额 4~6·无保底', min: 4, max: 6, fallback: false },
+    { name: '保底 2~4·赢家保底', min: 2, max: 4, fallback: true },
+    { name: '保底 3~5·赢家保底', min: 3, max: 5, fallback: true },
+  ];
+  const saved = { ...WEATHER_BLESS };
+  for (const v of variants) {
+    WEATHER_BLESS.min = v.min; WEATHER_BLESS.max = v.max; WEATHER_BLESS.fallback = v.fallback;
+    let bless = 0, bonus = 0, bold = 0, pts = 0, gms = 0;
+    for (let k = 1; k <= 500; k++) {
+      const r = runGame(2 + (k % 3), k * 17 + 3, true, false);
+      bless += r.byKind.bless; bonus += r.blessBonusCount; bold += r.blessBoldCount; pts += r.blessBonusPts; gms++;
+    }
+    const rate = bless ? ((bonus / bless) * 100).toFixed(0) : '0';
+    console.log(`  ${v.name.padEnd(20, ' ')} 兑现率 ${String(rate).padStart(3)}%  勇者/赢家 ${bold}/${bonus - bold}  加分 ${(pts / gms).toFixed(2)} 分/局`);
+  }
+  Object.assign(WEATHER_BLESS, saved);
 }
 
 main();

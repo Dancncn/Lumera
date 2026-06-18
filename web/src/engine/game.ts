@@ -156,7 +156,9 @@ function logLine(s: GameState, ev: GameEvent): LogEntry | null {
         ? { tpl: '〔乱向〕{name} 出牌触发转向，方向反转', p: { name: nm(ev.seat) } }
         : { tpl: '〔禁制〕{name} 出牌触发禁止，跳过一名应对者', p: { name: nm(ev.seat) } };
     case 'WeatherBonus':
-      return { tpl: '〔恩泽〕{name} 勇者之姿，额外 +{v} 分', p: { name: nm(ev.seat), v: String(ev.value) } };
+      return ev.kind === 'bold'
+        ? { tpl: '〔恩泽〕{name} 勇者之姿，额外 +{v} 分', p: { name: nm(ev.seat), v: String(ev.value) } }
+        : { tpl: '〔恩泽〕{name} 截下本梯，赢家额外 +{v} 分', p: { name: nm(ev.seat), v: String(ev.value) } };
     case 'GameOver':
       return { tpl: '—— 本局终了，诸念归源结算 ——' };
     default:
@@ -212,8 +214,9 @@ const WEATHER_SURGE_MIN = 1; // ③ 源涌：受罚累进 +[min..max]
 const WEATHER_SURGE_MAX = 2;
 const WEATHER_BAN_CHANCE = 0.4; // ④ 禁制：本梯出牌后触发「禁止」概率
 const WEATHER_VEER_CHANCE = 0.6; // ⑤ 乱向：本梯出牌后触发「转向」概率
-const WEATHER_BLESS_MIN = 2; // ⑥ 恩泽：全场各 +[min..max] 分
-const WEATHER_BLESS_MAX = 4;
+// ⑥ 恩泽奖励调参（可调；sim 扫描用，最终值即默认）：min/max 奖励分；
+// fallback=本梯若以「截牌收场」（无人打 0/跑成）则改奖励收走牌堆的赢家，大幅提高兑现率。
+export const WEATHER_BLESS = { min: 3, max: 5, fallback: true };
 const ESCALATION_CAP = 6; // 受罚赌点封顶（与 startPenalty 的 Math.min 一致）
 
 // 浮动日志模板（自包含整句，作为 i18n key；避免参数子串拼接导致漏译）。
@@ -223,7 +226,7 @@ const WEATHER_LOG: Record<WeatherKind, string> = {
   surge: '【天气 · 源涌】全场受罚累进 +1~2',
   ban: '【天气 · 禁制】本梯出牌后 40% 触发「禁止」',
   veer: '【天气 · 乱向】本梯出牌后 60% 触发「转向」',
-  bless: '【天气 · 恩泽】本梯：打出 0 或跑成者额外 +2~4 分',
+  bless: '【天气 · 恩泽】本梯打 0/跑成者 +3~5 分；以截牌收场则赢家 +2~4 分',
 };
 
 /** 推进一次引擎 RNG，返回 [0,1)（保持确定性：天气随机一律走 s.rng，绝不用 Math.random）。 */
@@ -276,12 +279,15 @@ function applyWeatherEffect(s: GameState, events: GameEvent[], kind: WeatherKind
   }
 }
 
-/** 恩泽·勇者奖励：本梯天气为 bless 时，对「打出 0 / 跑成」的勇者额外加分（指向性鼓励杠杆）。 */
-function blessBonus(s: GameState, events: GameEvent[], seat: number): void {
+/** 恩泽奖励：本梯天气为 bless 时额外加分。kind=bold 奖励打 0/跑成的勇者（招牌，min~max）；
+ *  kind=winner 为截牌收场时的赢家保底（略低一档 min-1~max-1，仍尊重「勇者优先」）。 */
+function blessReward(s: GameState, events: GameEvent[], seat: number, kind: 'bold' | 'winner'): void {
   if (s.weather !== 'bless') return;
-  const v = rngInt(s, WEATHER_BLESS_MIN, WEATHER_BLESS_MAX);
+  const lo = kind === 'bold' ? WEATHER_BLESS.min : WEATHER_BLESS.min - 1;
+  const hi = kind === 'bold' ? WEATHER_BLESS.max : WEATHER_BLESS.max - 1;
+  const v = rngInt(s, lo, hi);
   s.players[seat].tokens += v;
-  emit(s, events, { type: 'WeatherBonus', seat, value: v });
+  emit(s, events, { type: 'WeatherBonus', seat, value: v, kind });
 }
 
 /** 新梯开局：按概率降天气（开局首梯由 opening 豁免，触发后冷却隔梯）。 */
@@ -594,7 +600,7 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
         // 打 0：终结本梯、领计分卡、牌堆不清空
         s.players[player].tokens += s.config.tokenValueOnZero;
         emit(s, events, { type: 'TokenAwarded', seat: player, value: s.config.tokenValueOnZero });
-        blessBonus(s, events, player); // 恩泽·勇者：打出 0（顶格）即奖励，跑成与否都算一次（须在 startPlayTurn 清天气前）
+        blessReward(s, events, player, 'bold'); // 恩泽·勇者：打出 0（顶格）即奖励，跑成与否都算一次（须在 startPlayTurn 清天气前）
         if (ranOut) {
           // 用最后一张牌宣称 0 且被放过：跑成了 → 收走牌堆 + 补满（§十一），与非 0 跑成一致
           takePile(s, events, player);
@@ -609,7 +615,7 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
         takePile(s, events, player);
         emit(s, events, { type: 'RanOut', seat: player });
         drawCards(s, events, player, s.config.refillTo);
-        blessBonus(s, events, player); // 恩泽·勇者：跑成即奖励（须在 startPlayTurn 清天气前）
+        blessReward(s, events, player, 'bold'); // 恩泽·勇者：跑成即奖励（须在 startPlayTurn 清天气前）
         s.ladderTop = null;
         const leader = advance(s, player, s.direction, 0);
         startPlayTurn(s, events, leader, true);
@@ -638,7 +644,9 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
       if (playerRanOut) {
         emit(s, events, { type: 'RanOut', seat: player });
         drawCards(s, events, player, s.config.refillTo);
-        blessBonus(s, events, player); // 恩泽·勇者：被质疑翻真仍跑成，额外奖励（startPenalty 不清天气，安全）
+        blessReward(s, events, player, 'bold'); // 恩泽·勇者：被质疑翻真仍跑成，额外奖励（startPenalty 不清天气，安全）
+      } else if (WEATHER_BLESS.fallback) {
+        blessReward(s, events, winner, 'winner'); // 恩泽·保底：本梯以截牌收场，奖励收走牌堆的赢家（blessReward 内部已判 bless）
       }
       startPenalty(s, events, punished);
       s.seq++;

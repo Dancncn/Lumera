@@ -142,7 +142,7 @@ const WEATHER_SECTIONS: Section[] = [
     lines: [
       '禁制（Interdict）：本梯每次出牌后 40% 概率触发「禁止」效果——跳过下一位应对者。被跳过的人无法截牌，让诈牌更容易得逞。',
       '乱向（Veer）：本梯每次出牌后 60% 概率触发「转向」——方向反转。出牌顺序不再可预期，计划好的连环打被打乱。',
-      '恩泽（Blessing）：本梯打出 0 或跑成者额外 +2~4 分。鼓励冒险打 0 止损和清手牌跑成。',
+      '恩泽（Blessing）：本梯打出 0 或跑成的勇者额外 +3~5 分；若本梯以截牌收场，则改奖收走牌堆的赢家 +2~4 分——几乎每梯必有人受益，鼓励主动终结这一梯。',
     ],
   },
   {
@@ -152,19 +152,35 @@ const WEATHER_SECTIONS: Section[] = [
       '源涌肆虐？保守为上，别连环诈牌——受罚累进额外加码，一旦被抓后果很严重。',
       '禁制笼罩？40% 跳过应对者，诈牌被放行的概率大增——但对手也知道这一点，截牌决心可能更强。',
       '乱向横行？别指望出牌顺序了，随时可能反转到你面前——保持灵活应变。',
-      '恩泽时期？抢打 0 和跑成能赚额外分——这时候冒险的回报更高。',
+      '恩泽时期？抢着打 0、跑成、或干脆截穿对手收下牌堆——主动终结这一梯就能多赚分。',
     ],
   },
 ];
 
-const WEATHER_ICONS: Record<string, string> = {
-  bounty: '🌊',
-  shuffle: '🌀',
-  surge: '⚡',
-  ban: '🚫',
-  veer: '🔄',
-  bless: '✨',
-};
+function WeatherIcon({ kind }: { kind: string }) {
+  const s = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  switch (kind) {
+    case 'bounty': return (
+      <svg {...s}><path d="M3 15c2.5-3 5-3 7.5 0s5 3 7.5 0" /><path d="M3 10c2.5-3 5-3 7.5 0s5 3 7.5 0" /><path d="M3 20c2.5-3 5-3 7.5 0s5 3 7.5 0" /></svg>
+    );
+    case 'shuffle': return (
+      <svg {...s}><path d="M12 3a9 9 0 0 1 6.36 2.64" /><path d="M21 3v4h-4" /><path d="M12 21a9 9 0 0 1-6.36-2.64" /><path d="M3 21v-4h4" /><circle cx="12" cy="12" r="2.5" /></svg>
+    );
+    case 'surge': return (
+      <svg {...s}><path d="M13 2L4.5 13H12l-1 9 8.5-11H12l1-9z" /></svg>
+    );
+    case 'ban': return (
+      <svg {...s}><circle cx="12" cy="12" r="9" /><path d="M5.7 5.7l12.6 12.6" /></svg>
+    );
+    case 'veer': return (
+      <svg {...s}><path d="M4 7h10l4-4" /><path d="M18 3v4" /><path d="M20 17H10l-4 4" /><path d="M6 21v-4" /></svg>
+    );
+    case 'bless': return (
+      <svg {...s}><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /><path d="M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /><circle cx="12" cy="12" r="3" /></svg>
+    );
+    default: return null;
+  }
+}
 
 function WeatherGuide() {
   const { t } = useT();
@@ -175,7 +191,7 @@ function WeatherGuide() {
         const isInstant = k === 'bounty' || k === 'shuffle' || k === 'surge';
         return (
           <div key={k} className="weather-card" style={{ animationDelay: `${i * 0.08}s` }}>
-            <span className="weather-card-icon">{WEATHER_ICONS[k]}</span>
+            <span className="weather-card-icon"><WeatherIcon kind={k} /></span>
             <div className="weather-card-body">
               <span className="weather-card-name">{t(m.name)}</span>
               <span className={`weather-card-tag ${isInstant ? 'instant' : 'persist'}`}>
