@@ -148,7 +148,7 @@ interface GameConfig {
 }
 ```
 
-`DEFAULT_CONFIG`（不含 `players` / `seed`）：起手 6 张、3 命、打 0 领 +2、每命 −5、跑成补满到 6、中枪后累进重置。这一层存在的全部意义，就是让你反复调奖罚和概率时永远不必动状态机。
+`DEFAULT_CONFIG`（不含 `players` / `seed`）：起手 6 张、3 命、打 0 领 +2、每命 −5、跑成成功补满到 6（`refillTo`）、撒谎打最后一张被抓只补 2（`refillAfterCaughtLast`，与跑成奖励拆开）、中枪后累进重置。这一层存在的全部意义，就是让你反复调奖罚和概率时永远不必动状态机。
 
 ## 七、联机后端
 

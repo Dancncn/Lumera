@@ -198,7 +198,8 @@ function startPlayTurn(s: GameState, events: GameEvent[], current: number, isFir
   if (aliveCount(s) <= 1) return endGame(s, events); // 仅剩一缕
   if (s.deck.length === 0) return endGame(s, events); // 牌库摸空（主终局条件）
   if (s.players[current].hand.length === 0) {
-    drawCards(s, events, current, s.config.refillTo); // 防止「最后一张被抓」后空手死锁
+    // 走到这里且空手，必然是「撒谎打最后一张被抓」（跑成各路径都已显式补满到 refillTo）。
+    drawCards(s, events, current, s.config.refillAfterCaughtLast);
     if (s.deck.length === 0) return endGame(s, events);
   }
   s.lastReveal = undefined;

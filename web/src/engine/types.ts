@@ -92,7 +92,8 @@ export interface GameConfig {
   startingLives: number; // 初始凝聚度（命数）
   tokenValueOnZero: number; // 打出 0 领取的计分卡面值
   lifeLossValue: number; // 每损失 1 命的扣分（复归出局的 −15 即 3×5，无需额外负债字段）
-  refillTo: number; // 清空手牌跑成后补牌到几张
+  refillTo: number; // 跑成成功（收走牌堆）后补牌到几张
+  refillAfterCaughtLast: number; // 撒谎打最后一张被抓（不算跑成、受罚后）补牌到几张
   escalationResetsOnHit: boolean; // 中枪后受罚累进是否重置
   seed: number;
 }
@@ -103,6 +104,7 @@ export const DEFAULT_CONFIG: Omit<GameConfig, 'players' | 'seed'> = {
   tokenValueOnZero: 2,
   lifeLossValue: 5,
   refillTo: 6,
+  refillAfterCaughtLast: 2,
   escalationResetsOnHit: true,
 };
 
