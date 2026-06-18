@@ -340,6 +340,171 @@ button {
   color: var(--gold);
 }
 
+/* --- 规则弹窗 · 标签切换 --- */
+.rules-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 0 22px;
+}
+.rules-tab {
+  position: relative;
+  border: none;
+  background: none;
+  padding: 10px 18px;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.rules-tab:hover {
+  color: var(--gold-dark);
+}
+.rules-tab-on {
+  color: var(--gold-deep);
+  font-weight: 600;
+}
+.rules-tab-on::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--gold);
+  border-radius: 2px;
+  animation: tab-line-in 0.25s var(--ease);
+}
+@keyframes tab-line-in {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* --- 天气指南卡片 --- */
+.weather-guide {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.weather-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 253, 248, 0.8), rgba(246, 239, 224, 0.6));
+  animation: weather-card-in 0.35s var(--ease) both;
+}
+@keyframes weather-card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.weather-card-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.weather-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.weather-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gold-deep);
+  letter-spacing: 1.5px;
+}
+.weather-card-tag {
+  display: inline-block;
+  width: fit-content;
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+}
+.weather-card-tag.instant {
+  background: rgba(212, 175, 55, 0.15);
+  color: var(--gold-dark);
+}
+.weather-card-tag.persist {
+  background: rgba(100, 140, 180, 0.15);
+  color: #5a7d9a;
+}
+.weather-card-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* --- 混沌天气问号提示 --- */
+.weather-info-wrap {
+  position: relative;
+  display: inline-block;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+.weather-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-muted);
+  font-size: 10px;
+  color: var(--gold-muted);
+  cursor: help;
+  transition: border-color 0.2s, color 0.2s;
+}
+.weather-info-icon:hover,
+.weather-info-icon:focus {
+  border-color: var(--gold-dark);
+  color: var(--gold-dark);
+}
+.weather-info-tip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: 230px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--gold);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(60, 48, 28, 0.18);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  text-align: left;
+  pointer-events: none;
+  z-index: 10;
+  animation: tip-in 0.18s var(--ease);
+}
+.weather-info-tip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--gold);
+}
+.weather-info-icon:hover + .weather-info-tip,
+.weather-info-icon:focus + .weather-info-tip {
+  display: block;
+}
+@keyframes tip-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 /* ---------------- 桌面整体 ---------------- */
 .table {
   height: 100%;

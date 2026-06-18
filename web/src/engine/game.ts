@@ -155,6 +155,8 @@ function logLine(s: GameState, ev: GameEvent): LogEntry | null {
       return ev.kind === 'veer'
         ? { tpl: '〔乱向〕{name} 出牌触发转向，方向反转', p: { name: nm(ev.seat) } }
         : { tpl: '〔禁制〕{name} 出牌触发禁止，跳过一名应对者', p: { name: nm(ev.seat) } };
+    case 'WeatherBonus':
+      return { tpl: '〔恩泽〕{name} 勇者之姿，额外 +{v} 分', p: { name: nm(ev.seat), v: String(ev.value) } };
     case 'GameOver':
       return { tpl: '—— 本局终了，诸念归源结算 ——' };
     default:
@@ -221,7 +223,7 @@ const WEATHER_LOG: Record<WeatherKind, string> = {
   surge: '【天气 · 源涌】全场受罚累进 +1~2',
   ban: '【天气 · 禁制】本梯出牌后 40% 触发「禁止」',
   veer: '【天气 · 乱向】本梯出牌后 60% 触发「转向」',
-  bless: '【天气 · 恩泽】全场各得 2~4 分',
+  bless: '【天气 · 恩泽】本梯：打出 0 或跑成者额外 +2~4 分',
 };
 
 /** 推进一次引擎 RNG，返回 [0,1)（保持确定性：天气随机一律走 s.rng，绝不用 Math.random）。 */
@@ -240,7 +242,7 @@ function eligibleWeathers(players: number): WeatherKind[] {
   return players > 2 ? WEATHER_KINDS : WEATHER_KINDS.filter((k) => k !== 'veer' && k !== 'ban');
 }
 
-/** 一次性天气结算（bounty/shuffle/surge/bless 立即生效；ban/veer 仅登记，待出牌时读）。 */
+/** 一次性天气结算（bounty/shuffle/surge 立即生效；ban/veer/bless 仅登记，整梯持续，出牌/结算时读）。 */
 function applyWeatherEffect(s: GameState, events: GameEvent[], kind: WeatherKind): void {
   const alive = s.players.filter((p) => !p.out);
   switch (kind) {
@@ -267,13 +269,19 @@ function applyWeatherEffect(s: GameState, events: GameEvent[], kind: WeatherKind
       for (const p of alive) p.escalation = Math.min(ESCALATION_CAP, p.escalation + delta);
       break;
     }
-    case 'bless':
-      for (const p of alive) p.tokens += rngInt(s, WEATHER_BLESS_MIN, WEATHER_BLESS_MAX);
-      break;
     case 'ban':
     case 'veer':
-      break; // 持续整梯，登记在 s.weather，出牌时消费
+    case 'bless':
+      break; // 持续整梯，登记在 s.weather；ban/veer 出牌时读，bless 在打 0/跑成结算时读
   }
+}
+
+/** 恩泽·勇者奖励：本梯天气为 bless 时，对「打出 0 / 跑成」的勇者额外加分（指向性鼓励杠杆）。 */
+function blessBonus(s: GameState, events: GameEvent[], seat: number): void {
+  if (s.weather !== 'bless') return;
+  const v = rngInt(s, WEATHER_BLESS_MIN, WEATHER_BLESS_MAX);
+  s.players[seat].tokens += v;
+  emit(s, events, { type: 'WeatherBonus', seat, value: v });
 }
 
 /** 新梯开局：按概率降天气（开局首梯由 opening 豁免，触发后冷却隔梯）。 */
@@ -586,6 +594,7 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
         // 打 0：终结本梯、领计分卡、牌堆不清空
         s.players[player].tokens += s.config.tokenValueOnZero;
         emit(s, events, { type: 'TokenAwarded', seat: player, value: s.config.tokenValueOnZero });
+        blessBonus(s, events, player); // 恩泽·勇者：打出 0（顶格）即奖励，跑成与否都算一次（须在 startPlayTurn 清天气前）
         if (ranOut) {
           // 用最后一张牌宣称 0 且被放过：跑成了 → 收走牌堆 + 补满（§十一），与非 0 跑成一致
           takePile(s, events, player);
@@ -600,6 +609,7 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
         takePile(s, events, player);
         emit(s, events, { type: 'RanOut', seat: player });
         drawCards(s, events, player, s.config.refillTo);
+        blessBonus(s, events, player); // 恩泽·勇者：跑成即奖励（须在 startPlayTurn 清天气前）
         s.ladderTop = null;
         const leader = advance(s, player, s.direction, 0);
         startPlayTurn(s, events, leader, true);
@@ -628,6 +638,7 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
       if (playerRanOut) {
         emit(s, events, { type: 'RanOut', seat: player });
         drawCards(s, events, player, s.config.refillTo);
+        blessBonus(s, events, player); // 恩泽·勇者：被质疑翻真仍跑成，额外奖励（startPenalty 不清天气，安全）
       }
       startPenalty(s, events, punished);
       s.seq++;

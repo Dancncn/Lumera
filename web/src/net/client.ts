@@ -18,6 +18,7 @@ export interface JoinParams {
   name: string;
   players: number;
   weather: boolean;
+  weatherChance: number;
 }
 
 function wsUrl(): string {
@@ -65,7 +66,7 @@ export class NetClient {
     ws.onopen = () => {
       this.retry = 0;
       const p = this.params!;
-      this.raw({ t: 'join', roomId: p.roomId, token: p.token, name: p.name, players: p.players, weather: p.weather });
+      this.raw({ t: 'join', roomId: p.roomId, token: p.token, name: p.name, players: p.players, weather: p.weather, weatherChance: p.weatherChance });
       this.handlers.onStatus('open');
     };
 
@@ -133,9 +134,9 @@ export class NetClient {
     this.raw({ t: 'pass', roomId: this.params.roomId, token: this.params.token });
   }
 
-  setWeather(weather: boolean): void {
+  setRoomCfg(cfg: { weather?: boolean; weatherChance?: number }): void {
     if (!this.params) return;
-    this.raw({ t: 'setWeather', roomId: this.params.roomId, token: this.params.token, weather });
+    this.raw({ t: 'setRoomCfg', roomId: this.params.roomId, token: this.params.token, ...cfg });
   }
 
   start(): void {

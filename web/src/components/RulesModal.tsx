@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react';
+import { WEATHER_META, WEATHER_KINDS } from '../engine/types';
 import { useT } from '../i18n';
 import { CardGallery } from './CardGallery';
 import { PersonaGuide } from './PersonaGuide';
 import { ChallengeDemo, LadderDemo } from './RuleDemos';
 
-const SECTIONS: { h: string; lines: string[]; demo?: 'ladder' | 'challenge' | 'cards' | 'persona' }[] = [
+type RulesTab = 'classic' | 'weather';
+
+interface Section {
+  h: string;
+  lines: string[];
+  demo?: 'ladder' | 'challenge' | 'cards' | 'persona' | 'weather';
+}
+
+const CLASSIC_SECTIONS: Section[] = [
   {
     h: '一句话',
     lines: [
@@ -98,9 +107,113 @@ const SECTIONS: { h: string; lines: string[]; demo?: 'ladder' | 'challenge' | 'c
   },
 ];
 
-export function RulesButton() {
+const WEATHER_SECTIONS: Section[] = [
+  {
+    h: '混沌天气是什么',
+    lines: [
+      '混沌天气是一个可选的休闲玩法模块。开启后，每开一条新梯时有 28% 的几率降下一种随机天气。',
+      '天气分两类：一次性结算（开梯即生效、牌堆开始叠）和持续整梯（直到本梯结束持续影响每次出牌）。',
+      '天气不改变核心出牌、截牌、受罚规则——所有经典规则仍然有效，天气只是额外附加的调味。',
+    ],
+  },
+  {
+    h: '触发时机',
+    lines: [
+      '首家宣称起头后，系统掷骰决定是否触发天气（概率 28%）。触发时，所有人会看到天气横幅和效果动画。',
+      '每条梯只降一种天气，梯子结束后天气自动解除。',
+      '天气完全随机，不偏向任何一方——既可能帮你，也可能坑你。',
+    ],
+  },
+  {
+    h: '六种天气一览',
+    lines: [],
+    demo: 'weather',
+  },
+  {
+    h: '一次性天气详解',
+    lines: [
+      '丰沛（Bounty）：开梯瞬间全场各摸 2 张手牌。手牌变多、选择变多，利好「跑成流」。',
+      '乱流（Turbulence）：全场各随机抽走 2 张手牌，混在一起洗匀后重新分发。可能分到宝牌、也可能失去王牌——纯粹的混沌。',
+      '源涌（Surge）：全场所有人的受罚累进额外 +1~2——本来赌 1 个点变成赌 2~3 个。使截牌更致命，不敢轻易截、也不敢连续诈。',
+    ],
+  },
+  {
+    h: '持续天气详解',
+    lines: [
+      '禁制（Interdict）：本梯每次出牌后 40% 概率触发「禁止」效果——跳过下一位应对者。被跳过的人无法截牌，让诈牌更容易得逞。',
+      '乱向（Veer）：本梯每次出牌后 60% 概率触发「转向」——方向反转。出牌顺序不再可预期，计划好的连环打被打乱。',
+      '恩泽（Blessing）：本梯打出 0 或跑成者额外 +2~4 分。鼓励冒险打 0 止损和清手牌跑成。',
+    ],
+  },
+  {
+    h: '天气下的战术调整',
+    lines: [
+      '丰沛降临？手牌变多，试试大胆跑成，一波清空赚大的。',
+      '源涌肆虐？保守为上，别连环诈牌——受罚累进额外加码，一旦被抓后果很严重。',
+      '禁制笼罩？40% 跳过应对者，诈牌被放行的概率大增——但对手也知道这一点，截牌决心可能更强。',
+      '乱向横行？别指望出牌顺序了，随时可能反转到你面前——保持灵活应变。',
+      '恩泽时期？抢打 0 和跑成能赚额外分——这时候冒险的回报更高。',
+    ],
+  },
+];
+
+const WEATHER_ICONS: Record<string, string> = {
+  bounty: '🌊',
+  shuffle: '🌀',
+  surge: '⚡',
+  ban: '🚫',
+  veer: '🔄',
+  bless: '✨',
+};
+
+function WeatherGuide() {
+  const { t } = useT();
+  return (
+    <div className="weather-guide">
+      {WEATHER_KINDS.map((k, i) => {
+        const m = WEATHER_META[k];
+        const isInstant = k === 'bounty' || k === 'shuffle' || k === 'surge';
+        return (
+          <div key={k} className="weather-card" style={{ animationDelay: `${i * 0.08}s` }}>
+            <span className="weather-card-icon">{WEATHER_ICONS[k]}</span>
+            <div className="weather-card-body">
+              <span className="weather-card-name">{t(m.name)}</span>
+              <span className={`weather-card-tag ${isInstant ? 'instant' : 'persist'}`}>
+                {isInstant ? t('一次性') : t('持续整梯')}
+              </span>
+              <p className="weather-card-desc">{t(m.desc)}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function renderSections(sections: Section[], t: (k: string) => string) {
+  return sections.map((s) => (
+    <section key={s.h} className="rules-sec">
+      <h3>{t(s.h)}</h3>
+      {s.lines.length > 0 && (
+        <ul>
+          {s.lines.map((l, i) => (
+            <li key={i}>{t(l)}</li>
+          ))}
+        </ul>
+      )}
+      {s.demo === 'cards' && <CardGallery />}
+      {s.demo === 'ladder' && <LadderDemo />}
+      {s.demo === 'challenge' && <ChallengeDemo />}
+      {s.demo === 'persona' && <PersonaGuide />}
+      {s.demo === 'weather' && <WeatherGuide />}
+    </section>
+  ));
+}
+
+export function RulesButton({ initialTab }: { initialTab?: RulesTab } = {}) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<RulesTab>(initialTab ?? 'classic');
 
   useEffect(() => {
     if (!open) return;
@@ -109,9 +222,14 @@ export function RulesButton() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
+  function openTab(which: RulesTab) {
+    setTab(which);
+    setOpen(true);
+  }
+
   return (
     <>
-      <button className="rules-icon" type="button" onClick={() => setOpen(true)} title={t('规则说明')} aria-label={t('规则说明')}>
+      <button className="rules-icon" type="button" onClick={() => openTab(initialTab ?? 'classic')} title={t('规则说明')} aria-label={t('规则说明')}>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="9" />
           <path d="M9.2 9.2a2.8 2.8 0 1 1 3.6 2.7c-.7.3-1.3.9-1.3 1.8" />
@@ -128,21 +246,26 @@ export function RulesButton() {
                 ✕
               </button>
             </div>
+            <div className="rules-tabs">
+              <button
+                className={`rules-tab ${tab === 'classic' ? 'rules-tab-on' : ''}`}
+                type="button"
+                onClick={() => setTab('classic')}
+              >
+                {t('经典规则')}
+              </button>
+              <button
+                className={`rules-tab ${tab === 'weather' ? 'rules-tab-on' : ''}`}
+                type="button"
+                onClick={() => setTab('weather')}
+              >
+                {t('混沌天气')}
+              </button>
+            </div>
             <div className="rules-body">
-              {SECTIONS.map((s) => (
-                <section key={s.h} className="rules-sec">
-                  <h3>{t(s.h)}</h3>
-                  <ul>
-                    {s.lines.map((l, i) => (
-                      <li key={i}>{t(l)}</li>
-                    ))}
-                  </ul>
-                  {s.demo === 'cards' && <CardGallery />}
-                  {s.demo === 'ladder' && <LadderDemo />}
-                  {s.demo === 'challenge' && <ChallengeDemo />}
-                  {s.demo === 'persona' && <PersonaGuide />}
-                </section>
-              ))}
+              {tab === 'classic'
+                ? renderSections(CLASSIC_SECTIONS, t)
+                : renderSections(WEATHER_SECTIONS, t)}
             </div>
           </div>
         </div>

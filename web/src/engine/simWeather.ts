@@ -42,10 +42,11 @@ interface GameResult {
   byKind: Record<WeatherKind, number>;
   ladders: number;
   livesLost: number;
+  blessBonusCount: number;
 }
 
-function runGame(players: number, seed: number, weatherOn: boolean, checkLeak: boolean): GameResult {
-  const config: GameConfig = { ...DEFAULT_CONFIG, players, seed, weather: weatherOn };
+function runGame(players: number, seed: number, weatherOn: boolean, checkLeak: boolean, chance?: number): GameResult {
+  const config: GameConfig = { ...DEFAULT_CONFIG, players, seed, weather: weatherOn, weatherChance: chance ?? DEFAULT_CONFIG.weatherChance };
   let { state, events } = createGame(config);
   const initialTotal = totalCards(state);
   const expectDeck = buildDeck(players).length;
@@ -57,12 +58,13 @@ function runGame(players: number, seed: number, weatherOn: boolean, checkLeak: b
   observeAll(events, state);
 
   const byKind: Record<WeatherKind, number> = { bounty: 0, shuffle: 0, surge: 0, ban: 0, veer: 0, bless: 0 };
-  let weatherCount = 0, triggered = 0, ladders = 0;
+  let weatherCount = 0, triggered = 0, ladders = 0, blessBonusCount = 0;
   const tally = (evs: GameEvent[]) => {
     for (const e of evs) {
       if (e.type === 'TurnStarted' && e.isFirst) ladders++;
       if (e.type === 'WeatherChanged') { weatherCount++; byKind[e.kind]++; }
       if (e.type === 'WeatherTriggered') triggered++;
+      if (e.type === 'WeatherBonus') blessBonusCount++;
     }
   };
   tally(events);
@@ -108,7 +110,7 @@ function runGame(players: number, seed: number, weatherOn: boolean, checkLeak: b
   }
 
   const livesLost = state.players.reduce((n, p) => n + (config.startingLives - p.lives), 0);
-  return { steps, winner: state.ranking![0].seat, weatherCount, triggered, byKind, ladders, livesLost };
+  return { steps, winner: state.ranking![0].seat, weatherCount, triggered, byKind, ladders, livesLost, blessBonusCount };
 }
 
 const mean = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length;
@@ -130,7 +132,7 @@ function main(): void {
   console.log(detOk ? '✓ 确定性复现：24 组同种子两跑结果完全一致（随机全走 s.rng）' : '✗ 确定性复现失败');
 
   // —— 1000 场天气局：断言不变量 + 收集统计 ——
-  const wSteps: number[] = [], wLives: number[] = [], wWeather: number[] = [], wTrig: number[] = [], wLadders: number[] = [];
+  const wSteps: number[] = [], wLives: number[] = [], wWeather: number[] = [], wTrig: number[] = [], wLadders: number[] = [], wBonus: number[] = [];
   const winBySeat: Record<number, number[]> = { 2: [0, 0], 3: [0, 0, 0], 4: [0, 0, 0, 0] };
   const kindTotal: Record<WeatherKind, number> = { bounty: 0, shuffle: 0, surge: 0, ban: 0, veer: 0, bless: 0 };
   let games = 0;
@@ -142,7 +144,7 @@ function main(): void {
     for (let k = 1; k <= N; k++) {
       const seed = k * 1000 + players;
       const r = runGame(players, seed, true, k <= 40); // 前 40 场抽查信息泄露
-      wSteps.push(r.steps); wLives.push(r.livesLost); wWeather.push(r.weatherCount); wTrig.push(r.triggered); wLadders.push(r.ladders);
+      wSteps.push(r.steps); wLives.push(r.livesLost); wWeather.push(r.weatherCount); wTrig.push(r.triggered); wLadders.push(r.ladders); wBonus.push(r.blessBonusCount);
       winBySeat[players][r.winner]++;
       for (const kd of WEATHER_KINDS) kindTotal[kd] += r.byKind[kd];
       games++;
@@ -166,6 +168,12 @@ function main(): void {
   const totalKinds = Object.values(kindTotal).reduce((s, x) => s + x, 0);
   for (const kd of WEATHER_KINDS) console.log(`  ${labels[kd].padEnd(12, ' ')} ${kindTotal[kd]}  (${((kindTotal[kd] / totalKinds) * 100).toFixed(1)}%)`);
 
+  // 恩泽（指向性·勇者）兑现率：勇者奖励事件数 / 恩泽天气次数（其余为「本梯无人打 0/跑成」的空梯）
+  const totalBonus = wBonus.reduce((s, x) => s + x, 0);
+  const blessLadders = kindTotal.bless;
+  console.log(`\n—— 恩泽·勇者奖励 ——`);
+  console.log(`恩泽降临 ${blessLadders} 次 → 兑现（有人打 0/跑成）${totalBonus} 次，兑现率 ${blessLadders ? ((totalBonus / blessLadders) * 100).toFixed(0) : 0}%（其余为本梯以受罚收场的空梯）`);
+
   console.log(`\n—— 对局长度 / 血量蒸发（天气 vs 经典，同种子）——`);
   console.log(`步数/局   天气 均 ${mean(wSteps).toFixed(0)} 中位 ${median(wSteps)}  |  经典 均 ${mean(bSteps).toFixed(0)} 中位 ${median(bSteps)}  (${((mean(wSteps) / mean(bSteps) - 1) * 100).toFixed(0)}%)`);
   console.log(`总掉命/局 天气 均 ${mean(wLives).toFixed(2)}  |  经典 均 ${mean(bLives).toFixed(2)}  (${((mean(wLives) / mean(bLives) - 1) * 100).toFixed(0)}%)`);
@@ -175,6 +183,15 @@ function main(): void {
     const tot = winBySeat[players].reduce((s, x) => s + x, 0);
     const pcts = winBySeat[players].map((w) => `${((w / tot) * 100).toFixed(0)}%`).join(' / ');
     console.log(`  ${players} 人局（${tot} 场）座位胜率 ${pcts}（理想 ${(100 / players).toFixed(0)}%）`);
+  }
+
+  // —— 频率档位扫描：验证 weatherChance 旋钮（更高概率 → 每局更多天气）——
+  console.log(`\n—— 频率档位扫描（各 240 场，3/4 人混合）——`);
+  for (const chance of [0.15, 0.28, 0.45]) {
+    const ev: number[] = [];
+    for (let k = 1; k <= 240; k++) ev.push(runGame(3 + (k % 2), k * 31 + 7, true, false, chance).weatherCount);
+    const tag = chance === 0.15 ? '稀有' : chance === 0.28 ? '适中' : '频繁';
+    console.log(`  ${tag} weatherChance ${chance.toFixed(2)} → 天气事件/局 均 ${mean(ev).toFixed(1)}  中位 ${median(ev)}`);
   }
 }
 

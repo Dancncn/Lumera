@@ -28,6 +28,12 @@ function clampPlayers(n: number | undefined): number {
   return v;
 }
 
+function clampChance(n: number | undefined): number {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 0.28;
+  return Math.min(1, Math.max(0, v));
+}
+
 const GRACE_MS = Number(process.env.YUANHE_ROOM_GRACE_MS ?? 180000);
 
 function cleanName(raw: string | undefined, fallback: string): string {
@@ -74,12 +80,14 @@ export class Room {
   private ais = new Map<number, AiPlayer>();
   private profileSeed = 0;
   private weather: boolean;
+  private weatherChance: number;
   private readonly onEmpty: (id: string) => void;
 
-  constructor(id: string, players: number | undefined, weather: boolean, onEmpty: (id: string) => void) {
+  constructor(id: string, players: number | undefined, weather: boolean, weatherChance: number, onEmpty: (id: string) => void) {
     this.id = id;
     this.capacity = clampPlayers(players);
     this.weather = weather;
+    this.weatherChance = clampChance(weatherChance);
     this.onEmpty = onEmpty;
     this.seats = Array.from({ length: this.capacity }, (_, i) => ({
       seat: i,
@@ -159,6 +167,7 @@ export class Room {
       hostSeat: this.hostSeatIndex(),
       seats: this.seatInfos(),
       weather: this.weather,
+      weatherChance: this.weatherChance,
     };
     for (const s of this.seats) if (s.conn) s.conn.send(msg);
   }
@@ -190,6 +199,7 @@ export class Room {
         started: this.started,
         seats: this.seatInfos(),
         weather: this.weather,
+        weatherChance: this.weatherChance,
       });
       if (this.state) this.syncSeat(existing);
       this.broadcastRoom();
@@ -217,6 +227,7 @@ export class Room {
           started: true,
           seats: this.seatInfos(),
           weather: this.weather,
+          weatherChance: this.weatherChance,
         });
         if (this.state) this.syncSeat(nameMatch);
         this.broadcastRoom();
@@ -247,16 +258,27 @@ export class Room {
       started: false,
       seats: this.seatInfos(),
       weather: this.weather,
+      weatherChance: this.weatherChance,
     });
     this.broadcastRoom();
   }
 
-  // 房主在大厅实时切换天气：仅校验房主；改的是房间「下一次建局」的设置（不影响进行中的对局），广播给全员。
-  setWeather(token: string, weather: boolean): void {
+  // 房主在大厅实时调房间设置：仅校验房主；按字段部分更新「下一次建局」的设置（不影响进行中的对局），广播给全员。
+  setRoomCfg(token: string, cfg: { weather?: boolean; weatherChance?: number }): void {
     if (this.hostToken !== token) return;
-    if (this.weather === weather) return;
-    this.weather = weather;
-    this.broadcastRoom();
+    let changed = false;
+    if (cfg.weather !== undefined && cfg.weather !== this.weather) {
+      this.weather = cfg.weather;
+      changed = true;
+    }
+    if (cfg.weatherChance !== undefined) {
+      const c = clampChance(cfg.weatherChance);
+      if (c !== this.weatherChance) {
+        this.weatherChance = c;
+        changed = true;
+      }
+    }
+    if (changed) this.broadcastRoom();
   }
 
   start(token: string): void {
@@ -283,7 +305,7 @@ export class Room {
       const base = s.human ? s.name : AI_NAMES[s.seat % AI_NAMES.length];
       return { name: `${base} · ${PERSONA_LABEL[profile]}`, isAI };
     });
-    const { state, events } = createGame({ ...DEFAULT_CONFIG, players: this.capacity, seed, weather: this.weather }, seatInits);
+    const { state, events } = createGame({ ...DEFAULT_CONFIG, players: this.capacity, seed, weather: this.weather, weatherChance: this.weatherChance }, seatInits);
     this.state = state;
     this.lastEvents = events;
     countGame();

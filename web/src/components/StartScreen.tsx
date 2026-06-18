@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useGame } from '../store/gameStore';
+import { useGame, WEATHER_CHANCE_PRESETS, DEFAULT_WEATHER_CHANCE } from '../store/gameStore';
 import { Difficulty } from '../engine/ai';
 import { useT } from '../i18n';
 import { AboutButton } from './AboutModal';
@@ -32,11 +32,12 @@ export function StartScreen() {
   const [roomId, setRoomId] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [weather, setWeather] = useState(false);
+  const [weatherChance, setWeatherChance] = useState(DEFAULT_WEATHER_CHANCE);
 
   function enterOnline() {
     const room = roomId.trim() || randomRoom();
     setRoomId(room);
-    joinRoom(room, name.trim() || t('玩家'), players, weather);
+    joinRoom(room, name.trim() || t('玩家'), players, weather, weatherChance);
   }
 
   return (
@@ -87,7 +88,13 @@ export function StartScreen() {
         </div>
 
         <div className="start-players">
-          <span className="start-label">{t('混沌天气')}</span>
+          <span className="start-label">
+            {t('混沌天气')}
+            <span className="weather-info-wrap">
+              <span className="weather-info-icon" tabIndex={0} aria-label={t('混沌天气说明')}>?</span>
+              <span className="weather-info-tip">{t('开启后每条新梯有机会降下随机天气，详见右上角规则说明中的「混沌天气」标签。')}</span>
+            </span>
+          </span>
           <div className="seg">
             <button className={`seg-btn ${!weather ? 'seg-on' : ''}`} onClick={() => setWeather(false)} type="button">
               {t('关')}
@@ -100,6 +107,20 @@ export function StartScreen() {
             {weather ? t('每开新梯有几率降下随机事件，为战局加噪（休闲向，平衡会变松）') : t('经典规则，无随机事件')}
           </span>
         </div>
+
+        {weather && (
+          <div className="start-players">
+            <span className="start-label">{t('天气频率')}</span>
+            <div className="seg">
+              {WEATHER_CHANCE_PRESETS.map((p) => (
+                <button key={p.key} className={`seg-btn ${weatherChance === p.value ? 'seg-on' : ''}`} onClick={() => setWeatherChance(p.value)} type="button">
+                  {t(p.label)}
+                </button>
+              ))}
+            </div>
+            <span className="start-hint">{t('每开新梯 {p}% 触发 · 推荐「适中」', { p: Math.round(weatherChance * 100) })}</span>
+          </div>
+        )}
 
         {tab === 'solo' ? (
           <div className="online-entry">
@@ -114,7 +135,7 @@ export function StartScreen() {
               </div>
               <span className="start-hint">{t(DIFFS.find((d) => d.key === difficulty)?.hint ?? '')}</span>
             </div>
-            <button className="start-go" onClick={() => newGame(players, difficulty, undefined, undefined, weather)} type="button">
+            <button className="start-go" onClick={() => newGame(players, difficulty, undefined, undefined, weather, weatherChance)} type="button">
               {t('涌出 · 入局')}
             </button>
             <button className="btn coach-enter" onClick={() => startTutorial()} type="button">

@@ -14,6 +14,7 @@ export interface JoinMsg {
   name?: string;
   players?: number;
   weather?: boolean; // 建房者选择是否开混沌天气（仅建房时生效，与 players 同套路）
+  weatherChance?: number; // 建房者选择的天气触发频率（0..1）
 }
 
 export interface StartMsg {
@@ -47,18 +48,19 @@ export interface PassMsg {
   token: string;
 }
 
-export interface SetWeatherMsg {
-  t: 'setWeather';
+export interface SetRoomCfgMsg {
+  t: 'setRoomCfg';
   roomId: string;
   token: string;
-  weather: boolean; // 房主在大厅里实时切换混沌天气（仅未开局前由 UI 暴露；服务端仅校验房主）
+  weather?: boolean; // 房主在大厅实时调房间设置（仅校验房主）；按字段部分更新
+  weatherChance?: number; // 天气触发频率（0..1）
 }
 
 export interface PingMsg {
   t: 'ping';
 }
 
-export type ClientMsg = JoinMsg | StartMsg | RestartMsg | CmdMsg | LeaveMsg | PassMsg | SetWeatherMsg | PingMsg;
+export type ClientMsg = JoinMsg | StartMsg | RestartMsg | CmdMsg | LeaveMsg | PassMsg | SetRoomCfgMsg | PingMsg;
 
 export interface JoinedMsg {
   t: 'joined';
@@ -69,6 +71,7 @@ export interface JoinedMsg {
   started: boolean;
   seats: SeatInfo[];
   weather: boolean;
+  weatherChance: number;
 }
 
 export interface RoomMsg {
@@ -79,6 +82,7 @@ export interface RoomMsg {
   hostSeat: number | null;
   seats: SeatInfo[];
   weather: boolean;
+  weatherChance: number;
 }
 
 export interface SyncMsg {

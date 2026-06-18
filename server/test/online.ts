@@ -28,6 +28,7 @@ class TestClient {
   ranking = false;
   leaked = false;
   weatherSetting = false; // 从 joined/room 下发读到的房间天气设置
+  weatherChanceSetting = 0; // 房间天气频率设置
   sawWeatherEvent = false; // 对局内是否实际降下过天气
   myCards = new Set<number>();
   private name: string;
@@ -55,8 +56,10 @@ class TestClient {
       this.seat = msg.you;
       this.host = msg.host;
       this.weatherSetting = msg.weather;
+      this.weatherChanceSetting = msg.weatherChance;
     } else if (msg.t === 'room') {
       this.weatherSetting = msg.weather;
+      this.weatherChanceSetting = msg.weatherChance;
     } else if (msg.t === 'sync') {
       const v = msg.view;
       if (v.you !== this.seat) fail(`座位 ${this.seat} 收到的视图 you=${v.you} 不一致`);
@@ -78,8 +81,8 @@ class TestClient {
     this.send({ t: 'start', roomId: this.roomId, token: this.token });
   }
 
-  setWeather(w: boolean) {
-    this.send({ t: 'setWeather', roomId: this.roomId, token: this.token, weather: w });
+  setRoomCfg(cfg: { weather?: boolean; weatherChance?: number }) {
+    this.send({ t: 'setRoomCfg', roomId: this.roomId, token: this.token, ...cfg });
   }
 
   close() {
@@ -103,10 +106,13 @@ async function playRoom(roomId: string, players: number, weather = false, toggle
   const host = a.host ? a : b.host ? b : null;
   if (!host) fail('没有房主');
   if (toggleTo !== undefined) {
-    // 大厅实时切换：先确认建房初值已下发全员，再由房主切换并确认广播回正
+    // 大厅实时切换：先确认建房初值已下发全员，再由房主切换天气+频率并确认广播回正
     await waitFor(() => a.weatherSetting === weather && b.weatherSetting === weather, 3000, `${roomId} 建房天气初值下发`);
-    host.setWeather(toggleTo);
-    await waitFor(() => a.weatherSetting === toggleTo && b.weatherSetting === toggleTo, 3000, `${roomId} 房主切换天气广播全员`);
+    host.setRoomCfg({ weather: toggleTo, weatherChance: 0.45 });
+    const ok = () =>
+      a.weatherSetting === toggleTo && b.weatherSetting === toggleTo &&
+      Math.abs(a.weatherChanceSetting - 0.45) < 1e-9 && Math.abs(b.weatherChanceSetting - 0.45) < 1e-9;
+    await waitFor(ok, 3000, `${roomId} 房主切换天气+频率广播全员`);
   }
   host.start();
   await waitFor(() => a.done && b.done, 30000, `${roomId} 对局终局`);
@@ -146,7 +152,7 @@ async function main() {
     console.log('✓ 三房间（alpha 3人 / beta 4人 / gamma 4人）各自独立跑完整局');
     console.log('✓ 每个座位只见到自己的视图（you 一致、手牌无重叠）');
     console.log('✓ 终局排名完整下发');
-    console.log('✓ 房主在大厅实时切换天气：建房初值与切换后值均正确广播全员');
+    console.log('✓ 房主在大厅实时切换天气+频率：建房初值与切换后值均正确广播全员');
     console.log(`✓ 切换为开后开局，deal 采用最新设置；本局${sawWeather ? '观测到天气降下' : '未碰巧降下天气（概率事件）'}`);
     console.log('\n联机端到端测试通过。');
     server.kill();

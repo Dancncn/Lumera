@@ -8,6 +8,14 @@ import { JoinedMsg, PlayerLeftMsg, RoomMsg, SeatInfo, SyncMsg } from '../net/pro
 
 const AI_NAMES = ['Aurel', 'Selvar', 'Verda', 'Thalos'];
 
+// 天气触发频率档位（每开新梯的概率）；「适中」为推荐默认。
+export const WEATHER_CHANCE_PRESETS: { key: string; label: string; value: number }[] = [
+  { key: 'rare', label: '稀有', value: 0.15 },
+  { key: 'mid', label: '适中', value: 0.28 },
+  { key: 'often', label: '频繁', value: 0.45 },
+];
+export const DEFAULT_WEATHER_CHANCE = 0.28;
+
 interface DieFlash {
   seat: number;
   chosen: number[];
@@ -25,6 +33,7 @@ export interface Lobby {
   started: boolean;
   seats: SeatInfo[];
   weather: boolean;
+  weatherChance: number;
 }
 
 interface Store {
@@ -44,16 +53,17 @@ interface Store {
   notice: string | null;
   difficulty: Difficulty;
   players: number;
-  newGame: (players: number, difficulty?: Difficulty, firstSeat?: number, deck?: Card[], weather?: boolean) => void;
+  newGame: (players: number, difficulty?: Difficulty, firstSeat?: number, deck?: Card[], weather?: boolean, weatherChance?: number) => void;
   startTutorial: () => void;
   stageGame: (firstSeat: number, deck: Card[]) => void;
   stageCmd: (seat: number, cmd: Command) => void;
   quitToMenu: () => void;
   human: (cmd: Command) => void;
   pass: () => void;
-  joinRoom: (roomId: string, name: string, players: number, weather?: boolean) => void;
+  joinRoom: (roomId: string, name: string, players: number, weather?: boolean, weatherChance?: number) => void;
   startRoom: () => void;
   setRoomWeather: (weather: boolean) => void;
+  setRoomChance: (weatherChance: number) => void;
   leaveRoom: () => void;
 }
 
@@ -64,6 +74,7 @@ let net: NetClient | null = null;
 let ais = new Map<number, AiPlayer>();
 let difficulty: Difficulty = 'normal';
 let weatherOn = false; // 记住天气开关，使「再来一局」沿用上次选择（教程显式关闭）
+let weatherChanceVal = DEFAULT_WEATHER_CHANCE; // 记住天气频率，「再来一局」沿用
 
 // 质疑窗口：出牌后留给全场 8 秒反应（先喊先得）。纯 AI 收得更快。
 const RESPOND_WINDOW_HUMAN = 8000;
@@ -260,7 +271,7 @@ export const useGame = create<Store>((set, get) => {
     difficulty: 'normal',
     players: 3,
 
-    newGame: (players: number, diff?: Difficulty, firstSeat?: number, deck?: Card[], weather?: boolean) => {
+    newGame: (players: number, diff?: Difficulty, firstSeat?: number, deck?: Card[], weather?: boolean, weatherChance?: number) => {
       if (get().mode === 'online') {
         net?.restart();
         return;
@@ -268,6 +279,7 @@ export const useGame = create<Store>((set, get) => {
       teardownLocal();
       if (diff) difficulty = diff;
       if (weather !== undefined) weatherOn = weather;
+      if (weatherChance !== undefined) weatherChanceVal = weatherChance;
       const seed = ((Date.now() & 0x7fffffff) ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0;
       ais = new Map();
       const seats = Array.from({ length: players }, (_, i) => {
@@ -276,7 +288,7 @@ export const useGame = create<Store>((set, get) => {
         ais.set(i, new AiPlayer({ seat: i, seed, profile, difficulty }));
         return { name: `${AI_NAMES[i % AI_NAMES.length]} · ${PERSONA_LABEL[profile]}`, isAI: true };
       });
-      const { state, events } = createGame({ ...DEFAULT_CONFIG, players, seed, weather: weatherOn }, seats, firstSeat, deck);
+      const { state, events } = createGame({ ...DEFAULT_CONFIG, players, seed, weather: weatherOn, weatherChance: weatherChanceVal }, seats, firstSeat, deck);
       observeAll(events, state);
       set({ state, lastEvents: events, lastDie: null, penaltySeat: null, thinking: null, tutorial: false, difficulty, players });
       reportLocalGame(); // 单机局也计入「对局」统计
@@ -372,7 +384,7 @@ export const useGame = create<Store>((set, get) => {
       }
     },
 
-    joinRoom: (roomId: string, name: string, players: number, weather = false) => {
+    joinRoom: (roomId: string, name: string, players: number, weather = false, weatherChance = DEFAULT_WEATHER_CHANCE) => {
       teardownLocal();
       teardownNet();
       set({
@@ -414,6 +426,7 @@ export const useGame = create<Store>((set, get) => {
               started: msg.started,
               seats: msg.seats,
               weather: msg.weather,
+              weatherChance: msg.weatherChance,
             },
             netError: null,
           });
@@ -430,6 +443,7 @@ export const useGame = create<Store>((set, get) => {
               seats: msg.seats,
               host: msg.hostSeat === prev.you,
               weather: msg.weather,
+              weatherChance: msg.weatherChance,
             },
           });
         },
@@ -446,7 +460,7 @@ export const useGame = create<Store>((set, get) => {
         },
       });
       net = client;
-      client.connect({ roomId, token: loadToken(), name, players, weather });
+      client.connect({ roomId, token: loadToken(), name, players, weather, weatherChance });
     },
 
     startRoom: () => {
@@ -455,9 +469,15 @@ export const useGame = create<Store>((set, get) => {
 
     setRoomWeather: (weather: boolean) => {
       // 房主切换：发给服务端，并乐观更新本地大厅（服务端会广播 RoomMsg 回正）
-      net?.setWeather(weather);
+      net?.setRoomCfg({ weather });
       const lb = get().lobby;
       if (lb) set({ lobby: { ...lb, weather } });
+    },
+
+    setRoomChance: (weatherChance: number) => {
+      net?.setRoomCfg({ weatherChance });
+      const lb = get().lobby;
+      if (lb) set({ lobby: { ...lb, weatherChance } });
     },
 
     leaveRoom: () => {

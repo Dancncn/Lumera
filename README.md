@@ -18,7 +18,8 @@
 | 文档 | 内容 |
 |------|------|
 | [docs/worldview.md](docs/worldview.md) | 世界观与背景故事——源、四力、回流；「皮西骨东」的命名与叙事 |
-| [docs/game-rules.md](docs/game-rules.md) | 规则定稿——牌库构成、数字梯子、质疑摊牌、轮盘受罚、三条得分路线、计分 |
+| [docs/game-rules.md](docs/game-rules.md) | 规则定稿（**经典模式**）——牌库构成、数字梯子、质疑摊牌、轮盘受罚、三条得分路线、计分 |
+| [docs/weather-mode.md](docs/weather-mode.md) | 混沌天气（**DLC**）规则——叠加在经典之上的可选玩法：六种天气、触发与冷却、与经典的衔接 |
 | [docs/architecture.md](docs/architecture.md) | 技术架构——权威状态机、引擎即协议、单机/联机两端、状态机与协议、可调参数 |
 | [docs/ai-system.md](docs/ai-system.md) | 人机系统的数学模型与技术实现——性格档案、难度调制、诈牌/质疑概率、拟人节奏 |
 

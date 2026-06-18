@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useT } from '../i18n';
-import { useGame } from '../store/gameStore';
+import { useGame, WEATHER_CHANCE_PRESETS } from '../store/gameStore';
 import { SideRivers } from './MeteorShower';
 
 const CONN_TEXT: Record<string, string> = {
@@ -16,6 +16,7 @@ export function Lobby() {
   const netError = useGame((s) => s.netError);
   const startRoom = useGame((s) => s.startRoom);
   const setRoomWeather = useGame((s) => s.setRoomWeather);
+  const setRoomChance = useGame((s) => s.setRoomChance);
   const leaveRoom = useGame((s) => s.leaveRoom);
   const { t, tn } = useT();
   const [copied, setCopied] = useState(false);
@@ -53,20 +54,36 @@ export function Lobby() {
             </div>
 
             {lobby.host && !lobby.started ? (
-              <div className="lobby-room">
-                <span className="lobby-room-label">{t('混沌天气')}</span>
-                <div className="seg">
-                  <button className={`seg-btn ${!lobby.weather ? 'seg-on' : ''}`} type="button" onClick={() => setRoomWeather(false)}>
-                    {t('关')}
-                  </button>
-                  <button className={`seg-btn ${lobby.weather ? 'seg-on' : ''}`} type="button" onClick={() => setRoomWeather(true)}>
-                    {t('开')}
-                  </button>
+              <>
+                <div className="lobby-room">
+                  <span className="lobby-room-label">{t('混沌天气')}</span>
+                  <div className="seg">
+                    <button className={`seg-btn ${!lobby.weather ? 'seg-on' : ''}`} type="button" onClick={() => setRoomWeather(false)}>
+                      {t('关')}
+                    </button>
+                    <button className={`seg-btn ${lobby.weather ? 'seg-on' : ''}`} type="button" onClick={() => setRoomWeather(true)}>
+                      {t('开')}
+                    </button>
+                  </div>
+                  <span className="lobby-conn">{t('仅房主可调 · 即时同步全场')}</span>
                 </div>
-                <span className="lobby-conn">{t('仅房主可调 · 即时同步全场')}</span>
-              </div>
+                {lobby.weather && (
+                  <div className="lobby-room">
+                    <span className="lobby-room-label">{t('天气频率')}</span>
+                    <div className="seg">
+                      {WEATHER_CHANCE_PRESETS.map((p) => (
+                        <button key={p.key} className={`seg-btn ${lobby.weatherChance === p.value ? 'seg-on' : ''}`} type="button" onClick={() => setRoomChance(p.value)}>
+                          {t(p.label)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
-              <p className="lobby-hint">{t('混沌天气')}：{lobby.weather ? t('开') : t('关')}</p>
+              <p className="lobby-hint">
+                {t('混沌天气')}：{lobby.weather ? `${t('开')} · ${Math.round(lobby.weatherChance * 100)}%` : t('关')}
+              </p>
             )}
 
             <div className="lobby-seats">
