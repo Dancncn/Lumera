@@ -52,6 +52,7 @@ export function Table({ view }: { view: PlayerView }) {
   useSfx();
   const newGame = useGame((s) => s.newGame);
   const quitToMenu = useGame((s) => s.quitToMenu);
+  const mode = useGame((s) => s.mode);
   const tutorial = useGame((s) => s.tutorial);
   const notice = useGame((s) => s.notice);
   const { t } = useT();
@@ -78,13 +79,15 @@ export function Table({ view }: { view: PlayerView }) {
           <SfxToggle />
           <LangSwitch />
           <RulesButton />
-          <button className="btn btn-ghost btn-icon" type="button" onClick={() => newGame(view.players.length)} title={t('重开')}>
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 11.5a8 8 0 1 0-2 5" />
-              <path d="M20 5.5v5h-5" />
-            </svg>
-            <span className="btn-label">{t('重开')}</span>
-          </button>
+          {mode !== 'online' && (
+            <button className="btn btn-ghost btn-icon" type="button" onClick={() => newGame(view.players.length)} title={t('重开')}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 11.5a8 8 0 1 0-2 5" />
+                <path d="M20 5.5v5h-5" />
+              </svg>
+              <span className="btn-label">{t('重开')}</span>
+            </button>
+          )}
           {confirmQuit ? (
             <span className="quit-confirm">
               <span className="quit-ask">{t('退出本局？')}</span>

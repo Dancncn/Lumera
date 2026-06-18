@@ -91,7 +91,8 @@ function makeStages(): Stage[] {
         const check = () => {
           const s = useGame.getState().state;
           if (s && s.phase.kind === 'penalty' && s.players[s.phase.roller].isAI) {
-            setTimeout(() => useGame.getState().stageCmd(1, { type: 'ChooseNumber', n: 3 }), 1000);
+            const ns = [3, 1, 2, 4, 5, 6].slice(0, s.phase.rollsRemaining);
+            setTimeout(() => useGame.getState().stageCmd(1, { type: 'ChooseNumber', ns }), 1000);
           }
         };
         setTimeout(check, 300);
@@ -136,7 +137,7 @@ function makeStages(): Stage[] {
       title: '源涌轮盘 · 赌运气',
       desc: '你的诈牌被对手拆穿了！翻牌对不上，你要掷骰受罚。选一个点数赌运气吧。',
       guide: '选一个你觉得不会掷中的点数——掷中就掉 1 点凝聚度。祝你好运！',
-      result: '这就是受罚的感觉！连续受罚次数越多，掷骰次数越多，命中率越高——所以尽量别连输。',
+      result: '这就是受罚的感觉！连续受罚次数越多，要赌的点数越多，掷中率越高——所以尽量别连输。',
       setup() {
         resetIds();
         const humanThalos2 = nc('thalos', 2);
@@ -153,7 +154,6 @@ function makeStages(): Stage[] {
         const s = useGame.getState().state;
         if (!s) return false;
         if (s.phase.kind === 'play' || s.phase.kind === 'respond') return true;
-        if (s.phase.kind === 'penalty' && s.phase.roller === 0 && s.phase.rollsRemaining === 0) return true;
         return false;
       },
     },

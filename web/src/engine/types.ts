@@ -45,7 +45,7 @@ export type Command =
   | { type: 'Fallback' } // 兜底：无数字/万能牌时，亮手 + 弃功能 + 摸一
   | { type: 'Accept' } // 放过，不质疑
   | { type: 'Challenge' } // 质疑上家这一手
-  | { type: 'ChooseNumber'; n: number }; // 受罚时选定本次要赌的点数 1..6
+  | { type: 'ChooseNumber'; ns: number[] }; // 受罚时一次性赌定 N 个不同点数（N=本次受罚累进数，掷中其一即中枪）
 
 // ---------------- 事件（引擎 → 参与者，按世界观换皮命名） ----------------
 export type GameEvent =
@@ -62,7 +62,7 @@ export type GameEvent =
   | { type: 'TokenAwarded'; seat: number; value: number } // 计分卡（打 0 的勇气奖励）
   | { type: 'RanOut'; seat: number } // 清空手牌「跑成了」
   | { type: 'PenaltyStarted'; seat: number; rolls: number }
-  | { type: 'DiceRolled'; seat: number; chosen: number; rolled: number; hit: boolean }
+  | { type: 'DiceRolled'; seat: number; chosen: number[]; rolled: number; hit: boolean }
   | { type: 'Returned'; seat: number; livesLeft: number } // 中枪：一缕念被收回源头（扣凝聚）
   | { type: 'Survived'; seat: number } // 未中
   | { type: 'PlayerOut'; seat: number } // 复归出局

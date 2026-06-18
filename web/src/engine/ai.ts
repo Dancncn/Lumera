@@ -389,12 +389,22 @@ export class AiPlayer {
     return streak;
   }
 
+  // 受罚时随机赌定 count 个不同点数（AI 无任何信息优势，纯随机洗牌取前 count 个）。
+  private pickDistinctDice(count: number): number[] {
+    const dice = [1, 2, 3, 4, 5, 6];
+    for (let i = dice.length - 1; i > 0; i--) {
+      const j = Math.floor(this.rand() * (i + 1));
+      [dice[i], dice[j]] = [dice[j], dice[i]];
+    }
+    return dice.slice(0, Math.max(1, Math.min(count, 6))).sort((a, b) => a - b);
+  }
+
   decide(view: PlayerView): Command {
     const p = view.prompt;
     switch (p.kind) {
       case 'penalty':
         this.lastDelay = this.think(420, 700, 0.2);
-        return { type: 'ChooseNumber', n: 1 + Math.floor(this.rand() * 6) };
+        return { type: 'ChooseNumber', ns: this.pickDistinctDice(p.rollsRemaining) };
       case 'respond':
         return this.decideRespond(view, p.claim, p.player);
       case 'play':

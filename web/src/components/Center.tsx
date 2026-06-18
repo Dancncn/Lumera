@@ -149,7 +149,7 @@ export function Center({ view }: { view: PlayerView }) {
           <span className="dice-info">
             {rollFace
               ? t('源涌轮盘 · 掷骰中…')
-              : t('赌 {c} · 掷 {r} · {res}', { c: lastDie.chosen, r: lastDie.rolled, res: lastDie.hit ? t('被淹没') : t('险过') })}
+              : t('赌 {c} · 掷 {r} · {res}', { c: lastDie.chosen.join('、'), r: lastDie.rolled, res: lastDie.hit ? t('被淹没') : t('险过') })}
           </span>
         </div>
       )}

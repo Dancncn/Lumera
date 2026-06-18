@@ -40,7 +40,8 @@ export function isLegalClaim(ladderTop: Claim | null, claim: Claim, isFirst: boo
   if (isFirst || ladderTop === null) {
     return claim.num >= 1 && claim.num <= 3; // 首家：盖牌宣称某色 1..3
   }
-  if (claim.color === ladderTop.color && val(claim.num) > val(ladderTop.num)) return true; // 同色更大
+  // 同色：更大，或与梯顶「相同」也可接（0 除外——0 是顶格，不参与「出相同」）。
+  if (claim.color === ladderTop.color && (val(claim.num) > val(ladderTop.num) || (claim.num === ladderTop.num && claim.num !== 0))) return true;
   if (claim.num === ladderTop.num && claim.color !== ladderTop.color) return true; // 同数字换色
   return false;
 }
@@ -54,7 +55,7 @@ export function legalClaims(ladderTop: Claim | null, isFirst: boolean): Claim[] 
   }
   for (let num = 0; num <= 9; num++) {
     const c: Claim = { color: ladderTop.color, num };
-    if (val(num) > val(ladderTop.num)) out.push(c); // 同色更大（含 0=10 顶格）
+    if (val(num) > val(ladderTop.num) || (num === ladderTop.num && num !== 0)) out.push(c); // 同色更大或相同（0 除外）
   }
   for (const color of COLORS) {
     if (color !== ladderTop.color) out.push({ color, num: ladderTop.num }); // 同数字换色
@@ -136,9 +137,9 @@ function logLine(s: GameState, ev: GameEvent): LogEntry | null {
     case 'RanOut':
       return { tpl: '{name} 清空手牌「跑成了」，补满手牌继续', p: { name: nm(ev.seat) } };
     case 'PenaltyStarted':
-      return { tpl: '{name} 受罚：源涌起，本轮投 {n} 次', p: { name: nm(ev.seat), n: String(ev.rolls) } };
+      return { tpl: '{name} 受罚：源涌起，本轮赌 {n} 个点', p: { name: nm(ev.seat), n: String(ev.rolls) } };
     case 'DiceRolled':
-      return { tpl: '{name} 赌 {c} 点，掷出 {r} —— {result}', p: { name: nm(ev.seat), c: String(ev.chosen), r: String(ev.rolled), result: ev.hit ? '被淹没（中）' : '险过' } };
+      return { tpl: '{name} 赌 {c} 点，掷出 {r} —— {result}', p: { name: nm(ev.seat), c: ev.chosen.join('、'), r: String(ev.rolled), result: ev.hit ? '被淹没（中）' : '险过' } };
     case 'Returned':
       return { tpl: '{name} 一缕念被收回源头，凝聚度 {n}', p: { name: nm(ev.seat), n: String(ev.livesLeft) } };
     case 'Survived':
@@ -217,7 +218,8 @@ function takePile(s: GameState, events: GameEvent[], winner: number): void {
 function startPenalty(s: GameState, events: GameEvent[], roller: number): void {
   s.ladderTop = null;
   s.pendingSkip = 0;
-  const rolls = s.players[roller].escalation;
+  // 第 N 次受罚 → 赌定 N 个不同点数（封顶 6：到 6 即赌满全部点数，必中枪）。
+  const rolls = Math.min(s.players[roller].escalation, 6);
   s.phase = { kind: 'penalty', roller, rollsRemaining: rolls };
   emit(s, events, { type: 'PenaltyStarted', seat: roller, rolls });
 }
@@ -392,7 +394,6 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
     }
 
     if (cmd.type === 'Draw') {
-      if (ph.isFirst) illegal('首家无摸牌选项');
       if (ph.hasDrawn) illegal('本回合已摸过牌');
       if (s.deck.length === 0) illegal('牌库已空');
       drawCards(s, events, seat, 1);
@@ -510,12 +511,16 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
   if (ph.kind === 'penalty') {
     if (seat !== ph.roller) illegal('只有受罚方能掷骰');
     if (cmd.type !== 'ChooseNumber') illegal('受罚阶段只能选点掷骰');
-    if (cmd.n < 1 || cmd.n > 6) illegal('点数须在 1..6');
+    const ns = cmd.ns;
+    if (!Array.isArray(ns) || ns.length !== ph.rollsRemaining) illegal(`须赌定 ${ph.rollsRemaining} 个点数`);
+    if (ns.some((n) => n < 1 || n > 6)) illegal('点数须在 1..6');
+    if (new Set(ns).size !== ns.length) illegal('赌定的点数不能重复');
 
+    // 一次性掷一次骰：掷出的点落在所赌 N 个点之内即「中枪」（中枪率 N/6）。
     const r = rollDie(s.rng);
     s.rng = r.state;
-    const hit = r.rolled === cmd.n;
-    emit(s, events, { type: 'DiceRolled', seat, chosen: cmd.n, rolled: r.rolled, hit });
+    const hit = ns.includes(r.rolled);
+    emit(s, events, { type: 'DiceRolled', seat, chosen: [...ns], rolled: r.rolled, hit });
 
     if (hit) {
       const p = s.players[seat];
@@ -530,15 +535,10 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
       const leader = advance(s, seat, s.direction, 0);
       startPlayTurn(s, events, leader, true);
     } else {
-      const rem = ph.rollsRemaining - 1;
-      if (rem <= 0) {
-        // 本轮全数险过：未损命，但下次受罚累进 +1
-        emit(s, events, { type: 'Survived', seat });
-        s.players[seat].escalation += 1;
-        startPlayTurn(s, events, seat, true); // 未中者自己当首家
-      } else {
-        s.phase = { kind: 'penalty', roller: seat, rollsRemaining: rem };
-      }
+      // 险过：未损命，但下次受罚累进 +1（多赌一个点）。
+      emit(s, events, { type: 'Survived', seat });
+      s.players[seat].escalation += 1;
+      startPlayTurn(s, events, seat, true); // 未中者自己当首家
     }
     s.seq++;
     return { state: s, events };
@@ -574,7 +574,7 @@ function computePrompt(s: GameState, seat: number): ViewPrompt {
       return {
         kind: 'play',
         isFirst: s.phase.isFirst,
-        canDraw: !s.phase.isFirst && !s.phase.hasDrawn && s.deck.length > 0,
+        canDraw: !s.phase.hasDrawn && s.deck.length > 0,
         canFallback: onlyFunctional,
       };
     }

@@ -41,7 +41,7 @@ export function Coach({ view }: { view: PlayerView }) {
           key: 'play',
           text: p.isFirst
             ? '轮到你起头：点高亮的手牌选中，再点下方「宣称」（报某色 1–3，可诈）。'
-            : '轮到你出牌：点一张手牌，再选宣称（同色更大 / 同数字换色）。',
+            : '轮到你出牌：点一张手牌，再选宣称（同色更大或相同 / 同数字换色）。',
         };
       } else if (hand.some((c) => c.kind === 'number' && c.num === 0) && !shown.has('zero')) {
         step = { key: 'zero', text: '你有一张 0：打出能终结本梯、领 1 张计分卡。被高压逼急时用它止损。' };
@@ -53,7 +53,7 @@ export function Coach({ view }: { view: PlayerView }) {
     } else if (p.kind === 'respond' && !shown.has('respond')) {
       step = { key: 'respond', text: '有人出牌了——信他点「放行」，疑他点「截牌」当场翻牌对质。任何在场玩家都能截。' };
     } else if (p.kind === 'penalty' && !shown.has('penalty')) {
-      step = { key: 'penalty', text: '你受罚了——不是卡住了！点下方高亮的任意一个骰子＝赌那个点数并掷出，掷中就掉 1 命。连环受罚越来越险。' };
+      step = { key: 'penalty', text: '你受罚了——不是卡住了！按提示选定要赌的点数，再掷骰决定命运，掷中就掉 1 命。连环受罚越来越险。' };
     }
     if (step) setCurrent(step);
   }, [view, current, shown, phase]);

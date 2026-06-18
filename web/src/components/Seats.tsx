@@ -112,7 +112,7 @@ function Seat({
           {t('计分区')} <b key={p.scoredCount} className="score-bump">{p.scoredCount}</b>
         </span>
         <span className="stat" title={t('打 0 领取的计分卡面值')}>{t('计分卡')} {p.tokenValue}</span>
-        {p.escalation > 1 && <span className="stat stat-warn" title={t('下次受罚投骰次数')}>{t('受罚')}×{p.escalation}</span>}
+        {p.escalation > 1 && <span className="stat stat-warn" title={t('下次受罚要赌的点数')}>{t('受罚')}×{p.escalation}</span>}
       </div>
       {p.out && <span className="seat-out-tag">{t('复归')}</span>}
       {isJudging && <span className="seat-judging-tag">{t('待裁断')}</span>}
@@ -176,7 +176,7 @@ export function SelfPlate({ view }: { view: PlayerView }) {
           {t('计分区')} <b key={me.scoredCount} className="score-bump">{me.scoredCount}</b>
         </span>
         <span className="stat" title={t('打 0 领取的计分卡面值')}>{t('计分卡')} {me.tokenValue}</span>
-        {me.escalation > 1 && <span className="stat stat-warn" title={t('下次受罚投骰次数')}>{t('受罚')}×{me.escalation}</span>}
+        {me.escalation > 1 && <span className="stat stat-warn" title={t('下次受罚要赌的点数')}>{t('受罚')}×{me.escalation}</span>}
       </span>
     </div>
   );

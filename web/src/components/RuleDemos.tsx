@@ -4,7 +4,7 @@ import { CardBack, CardFace } from './Card';
 
 const card = (color: Color, num: number): Card => ({ id: -1, kind: 'number', color, num });
 
-/** 接牌演示：梯顶 Aurel 3，循环展示两种合法接法（同色更大 / 同数字换色）。 */
+/** 接牌演示：梯顶 Aurel 3，循环展示三种合法接法（同色更大 / 同数字换色 / 同色相同）。 */
 export function LadderDemo() {
   const { t } = useT();
   return (
@@ -22,6 +22,10 @@ export function LadderDemo() {
         <div className="rd-opt rd-opt-b">
           <CardFace small card={card('thalos', 3)} />
           <span className="rd-cap rd-ok">{t('同数字换色')}</span>
+        </div>
+        <div className="rd-opt rd-opt-c">
+          <CardFace small card={card('aurel', 3)} />
+          <span className="rd-cap rd-ok">{t('同色相同')}</span>
         </div>
       </div>
     </div>

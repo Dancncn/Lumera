@@ -10,7 +10,7 @@ const AI_NAMES = ['Aurel', 'Selvar', 'Verda', 'Thalos'];
 
 interface DieFlash {
   seat: number;
-  chosen: number;
+  chosen: number[];
   rolled: number;
   hit: boolean;
 }

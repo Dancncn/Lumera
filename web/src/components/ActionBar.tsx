@@ -99,13 +99,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
         e.preventDefault();
         return;
       }
-      if (p.kind === 'penalty') {
-        if (digit >= 1 && digit <= 6) {
-          human({ type: 'ChooseNumber', n: digit });
-          e.preventDefault();
-        }
-        return;
-      }
+      if (p.kind === 'penalty') return; // 受罚多选交由 PenaltyPick 自管键盘
       if (p.kind === 'play') {
         if (selCard) {
           if (k === 'escape') setSelId(null);
@@ -136,7 +130,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
       {myTurnPlay && (
         <div className="play-controls">
           <span className="ctrl-tip">
-            {p.isFirst ? t('首家：盖一张牌，宣称某色 1–3（可撒谎）') : t('接牌：同色更大 / 同数字换色（可撒谎）')}
+            {p.isFirst ? t('首家：盖一张牌，宣称某色 1–3（可撒谎）') : t('接牌：同色更大或相同 / 同数字换色（可撒谎）')}
           </span>
           {(p.canDraw || p.canFallback) && (
             <span className="ctrl-mini">
@@ -224,6 +218,79 @@ function HandSummary({ hand }: { hand: Card[] }) {
   );
 }
 
+function PenaltyPick({ need }: { need: number }) {
+  const human = useGame((s) => s.human);
+  const { t } = useT();
+  const [picked, setPicked] = useState<number[]>([]);
+
+  useEffect(() => {
+    setPicked([]); // 受罚累进数变化（新一轮受罚）即清空已选
+  }, [need]);
+
+  const full = picked.length >= need;
+  const left = need - picked.length;
+
+  function toggle(n: number) {
+    setPicked((cur) => {
+      if (cur.includes(n)) return cur.filter((x) => x !== n);
+      if (cur.length >= need) return cur; // 已选满：需先取消一个再换
+      return [...cur, n].sort((a, b) => a - b);
+    });
+  }
+
+  function roll() {
+    if (picked.length !== need) return;
+    human({ type: 'ChooseNumber', ns: picked });
+    setPicked([]);
+  }
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (document.querySelector('.overlay')) return;
+      const k = e.key.toLowerCase();
+      const digit = e.key >= '0' && e.key <= '9' ? Number(e.key) : -1;
+      if (digit >= 1 && digit <= 6) {
+        toggle(digit);
+        e.preventDefault();
+      } else if ((k === 'enter' || k === ' ') && picked.length === need) {
+        roll();
+        e.preventDefault();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [picked, need]);
+
+  return (
+    <div className="prompt prompt-penalty">
+      <span className="penalty-tip">
+        {t('你受罚了！本轮赌定 {n} 个点数，只掷一次骰；掷中其一就掉 1 命、轮盘重置。', { n: need })}
+      </span>
+      <div className="dice-pick-hint">
+        {full ? t('↓ 已选满，掷骰决定命运') : t('已选 {a}/{n}，再选 {b} 个', { a: picked.length, n: need, b: left })}
+      </div>
+      <div className="dice-pick dice-pick-live">
+        {[1, 2, 3, 4, 5, 6].map((n) => (
+          <button
+            key={n}
+            className={`die-btn ${picked.includes(n) ? 'die-on' : ''}`}
+            type="button"
+            onClick={() => toggle(n)}
+            title={t('赌 {n} 点', { n })}
+          >
+            {['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][n]}
+            <span className="die-n">{n}</span>
+          </button>
+        ))}
+      </div>
+      <button className="btn btn-challenge penalty-roll" type="button" disabled={!full} onClick={roll}>
+        {full ? t('掷骰！') : t('再选 {b} 个', { b: left })}
+      </button>
+    </div>
+  );
+}
+
 function Prompt({ view }: { view: PlayerView }) {
   const human = useGame((s) => s.human);
   const pass = useGame((s) => s.pass);
@@ -264,22 +331,7 @@ function Prompt({ view }: { view: PlayerView }) {
     );
   }
   if (p.kind === 'penalty') {
-    return (
-      <div className="prompt prompt-penalty">
-        <span className="penalty-tip">
-          {t('你受罚了！点下面任意一个骰子 = 赌它的点数并掷出；掷中就掉 1 命。还要投 {n} 次。', { n: p.rollsRemaining })}
-        </span>
-        <div className="dice-pick-hint">{t('↓ 点一个骰子掷出')}</div>
-        <div className="dice-pick dice-pick-live">
-          {[1, 2, 3, 4, 5, 6].map((n) => (
-            <button key={n} className="die-btn" type="button" onClick={() => human({ type: 'ChooseNumber', n })} title={t('赌 {n} 点', { n })}>
-              {['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][n]}
-              <span className="die-n">{n}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
+    return <PenaltyPick need={p.rollsRemaining} />;
   }
   if (p.kind === 'play') {
     return (
