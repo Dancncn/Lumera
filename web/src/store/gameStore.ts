@@ -72,17 +72,20 @@ let diceAnimTimer: ReturnType<typeof setTimeout> | null = null;
 const DICE_ANIM_MS = 3900;
 let respondTimers: ReturnType<typeof setTimeout>[] = [];
 let respondPending = new Set<number>(); // 本轮还未表态（既没质疑也没放行）的可质疑座位
+let respondReleaseAis: (() => void) | null = null; // 真人在场时，提前解锁 AI 截牌的回调（真人放行即触发）
 let net: NetClient | null = null;
 let ais = new Map<number, AiPlayer>();
 let difficulty: Difficulty = 'normal';
 let weatherOn = false; // 记住天气开关，使「再来一局」沿用上次选择（教程显式关闭）
 let weatherChanceVal = DEFAULT_WEATHER_CHANCE; // 记住天气频率，「再来一局」沿用
 
-// 质疑窗口：出牌后留给全场 8 秒反应（先喊先得）。纯 AI 收得更快。
-const RESPOND_WINDOW_HUMAN = 8000;
+// 质疑窗口：真人在场时，AI 先静默 REACTION_WINDOW 毫秒（反应窗口），把「首次截牌」的机会留给真人；
+// 真人一旦放行就立刻解锁 AI 表态。单人局不再自动放行（截牌不限时、不显示倒计时）。
+// 纯 AI 局：各自拟人错峰表态 + 硬上限收窗，收得更快。
+const REACTION_WINDOW = 3000;
 const RESPOND_WINDOW_AI = 2400;
-function challengeDelay(humanEligible: boolean): number {
-  return humanEligible ? 1400 + Math.random() * 1800 : 700 + Math.random() * 1200;
+function challengeDelay(): number {
+  return 700 + Math.random() * 1200;
 }
 
 function trackPenalty(events: GameEvent[], prev: number | null): number | null {
@@ -137,6 +140,7 @@ export const useGame = create<Store>((set, get) => {
     for (const t of respondTimers) clearTimeout(t);
     respondTimers = [];
     respondPending = new Set();
+    respondReleaseAis = null;
   }
 
   // 所有可质疑者都表态（放行/AI判完不质疑）→ 下家自动放行、继续。任一质疑则即时摊牌。
@@ -183,41 +187,72 @@ export const useGame = create<Store>((set, get) => {
     if (!info) return;
     respondPending = new Set(info.challengers);
     const humanEligible = info.challengers.some((seat) => !s.players[seat].isAI);
-    set({ thinking: null, turnDeadline: humanEligible ? Date.now() + RESPOND_WINDOW_HUMAN : null });
-    // 每个在场 AI 到点表态：质疑即摊牌，否则从待表态集合移除；真人由「放行/质疑」表态。
-    for (const seat of info.challengers) {
-      if (!s.players[seat].isAI) continue;
-      const ai = ais.get(seat);
-      if (!ai) {
+    set({ thinking: null, turnDeadline: null });
+
+    // 解锁全场仍待表态的 AI：逐个评估，第一个质疑即摊牌；都不质疑则移出待定、再看是否收窗。
+    let released = false;
+    const releaseAis = (): void => {
+      if (released) return;
+      released = true;
+      respondReleaseAis = null;
+      for (const seat of info.challengers) {
+        if (!s.players[seat].isAI || !respondPending.has(seat)) continue;
+        const cur = get().state;
+        if (!cur || cur.phase.kind !== 'respond') return;
+        const ai = ais.get(seat);
+        if (!ai || cur.phase.player === seat || cur.players[seat].out) {
+          respondPending.delete(seat);
+          continue;
+        }
+        if (ai.decide(viewFor(cur, seat)).type === 'Challenge') {
+          applyLocal(seat, { type: 'Challenge' });
+          return;
+        }
         respondPending.delete(seat);
-        continue;
+      }
+      checkRespondProceed();
+    };
+
+    if (humanEligible) {
+      // 真人在场：AI 先静默 3 秒反应窗口，把首次截牌机会留给真人；真人放行立刻解锁（见 pass）。
+      // 单人局不设自动放行硬上限——截牌想多久都行、也不显示倒计时（turnDeadline 已置空）。
+      respondReleaseAis = releaseAis;
+      respondTimers.push(setTimeout(releaseAis, REACTION_WINDOW));
+    } else {
+      // 纯 AI 局：各 AI 拟人错峰表态 + 硬上限兜底（无真人、收得更快）。
+      for (const seat of info.challengers) {
+        if (!s.players[seat].isAI) continue;
+        const ai = ais.get(seat);
+        if (!ai) {
+          respondPending.delete(seat);
+          continue;
+        }
+        respondTimers.push(
+          setTimeout(() => {
+            const cur = get().state;
+            if (!cur || cur.phase.kind !== 'respond') return;
+            if (cur.phase.player === seat || cur.players[seat].out) {
+              respondPending.delete(seat);
+              checkRespondProceed();
+              return;
+            }
+            if (ai.decide(viewFor(cur, seat)).type === 'Challenge') {
+              applyLocal(seat, { type: 'Challenge' });
+              return;
+            }
+            respondPending.delete(seat);
+            checkRespondProceed();
+          }, challengeDelay()),
+        );
       }
       respondTimers.push(
         setTimeout(() => {
           const cur = get().state;
           if (!cur || cur.phase.kind !== 'respond') return;
-          if (cur.phase.player === seat || cur.players[seat].out) {
-            respondPending.delete(seat);
-            checkRespondProceed();
-            return;
-          }
-          if (ai.decide(viewFor(cur, seat)).type === 'Challenge') {
-            applyLocal(seat, { type: 'Challenge' });
-            return;
-          }
-          respondPending.delete(seat);
-          checkRespondProceed();
-        }, challengeDelay(humanEligible)),
+          applyLocal(cur.phase.responder, { type: 'Accept' });
+        }, RESPOND_WINDOW_AI),
       );
     }
-    // 兜底硬上限：真人一直不表态也不会卡死。
-    respondTimers.push(
-      setTimeout(() => {
-        const cur = get().state;
-        if (!cur || cur.phase.kind !== 'respond') return;
-        applyLocal(cur.phase.responder, { type: 'Accept' });
-      }, humanEligible ? RESPOND_WINDOW_HUMAN : RESPOND_WINDOW_AI),
-    );
     checkRespondProceed();
   }
 
@@ -402,7 +437,9 @@ export const useGame = create<Store>((set, get) => {
       if (!s || s.phase.kind !== 'respond') return;
       if (respondPending.has(0)) {
         respondPending.delete(0);
-        checkRespondProceed();
+        // 真人放行：立刻解锁 AI 表态（不必等满 3 秒反应窗口）；无 AI 待解锁则照常收窗。
+        if (respondReleaseAis) respondReleaseAis();
+        else checkRespondProceed();
       }
     },
 
