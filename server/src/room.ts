@@ -44,11 +44,13 @@ function cleanName(raw: string | undefined, fallback: string): string {
 const TURN_TIMEOUT_MS = Number(process.env.YUANHE_TURN_TIMEOUT_MS ?? 20000);
 const DELAY_SCALE = Number(process.env.YUANHE_DELAY_SCALE ?? 1);
 
-// 质疑窗口：出牌后留给全场 8 秒反应（先喊先得）。纯 AI 收得更快。
+// 质疑窗口：真人在场时，AI 先静默 REACTION_WINDOW 毫秒（反应窗口），把「首次截牌」机会留给真人；
+// 在场真人都放行即提前解锁 AI。联机保留 8 秒自动放行硬上限 + 倒计时（不能让一个真人无限拖住整桌）。纯 AI 收得更快。
+const REACTION_WINDOW = 3000;
 const RESPOND_WINDOW_HUMAN = 8000;
 const RESPOND_WINDOW_AI = 2400;
-function challengeDelay(humanEligible: boolean): number {
-  return humanEligible ? 1400 + Math.random() * 1900 : 700 + Math.random() * 1200;
+function challengeDelay(): number {
+  return 700 + Math.random() * 1200;
 }
 
 function delayFor(events: GameEvent[]): number {
@@ -73,6 +75,7 @@ export class Room {
   private aiTimer: ReturnType<typeof setTimeout> | null = null;
   private respondTimers: ReturnType<typeof setTimeout>[] = [];
   private respondPending = new Set<number>();
+  private respondReleaseAis: (() => void) | null = null; // 在场真人都放行时，提前解锁 AI 截牌
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   private turnDeadline: number | null = null;
   private graceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -374,6 +377,7 @@ export class Room {
     for (const t of this.respondTimers) clearTimeout(t);
     this.respondTimers = [];
     this.respondPending = new Set();
+    this.respondReleaseAis = null;
   }
 
   // 全场可质疑者都表态（放行 / AI 判完不质疑）→ 下家自动放行、继续。任一质疑则即时摊牌。
@@ -392,36 +396,73 @@ export class Room {
     if (!info) return;
     this.respondPending = new Set(info.challengers);
     const humanEligible = info.challengers.some((seat) => !s.players[seat].isAI && this.seats[seat].conn !== null);
-    for (const seat of info.challengers) {
-      if (!s.players[seat].isAI) continue;
-      const ai = this.aiFor(seat);
+
+    // 解锁所有仍待表态的 AI：逐个评估，第一个质疑即摊牌；都不质疑则移出待表态、再看是否收窗。
+    let released = false;
+    const releaseAis = (): void => {
+      if (released) return;
+      released = true;
+      this.respondReleaseAis = null;
+      for (const seat of info.challengers) {
+        if (!s.players[seat].isAI || !this.respondPending.has(seat)) continue;
+        if (!this.state || this.state.phase.kind !== 'respond') return;
+        if (this.state.phase.player === seat || this.state.players[seat].out) {
+          this.respondPending.delete(seat);
+          continue;
+        }
+        const ai = this.aiFor(seat);
+        if (ai.decide(viewFor(this.state, seat)).type === 'Challenge') {
+          this.applyCommand(seat, { type: 'Challenge' }, null);
+          return;
+        }
+        this.respondPending.delete(seat);
+      }
+      this.checkRespondProceed();
+    };
+
+    if (humanEligible) {
+      // 真人在场：AI 先静默 3 秒反应窗口，把首次截牌机会留给真人；在场真人都放行则提前解锁（见 pass）。
+      // 保留 8 秒自动放行硬上限 + 倒计时：联机不能让一个真人无限拖住整桌。
+      this.respondReleaseAis = releaseAis;
+      this.respondTimers.push(setTimeout(releaseAis, REACTION_WINDOW * DELAY_SCALE));
+      const windowMs = RESPOND_WINDOW_HUMAN * DELAY_SCALE;
       this.respondTimers.push(
         setTimeout(() => {
           if (!this.state || this.state.phase.kind !== 'respond') return;
-          if (this.state.phase.player === seat || this.state.players[seat].out) {
-            this.respondPending.delete(seat);
-            this.checkRespondProceed();
-            return;
-          }
-          if (ai.decide(viewFor(this.state, seat)).type === 'Challenge') {
-            this.applyCommand(seat, { type: 'Challenge' }, null);
-            return;
-          }
-          this.respondPending.delete(seat);
-          this.checkRespondProceed();
-        }, challengeDelay(humanEligible) * DELAY_SCALE),
+          this.applyCommand(this.state.phase.responder, { type: 'Accept' }, null);
+        }, windowMs),
       );
-    }
-    const windowMs = (humanEligible ? RESPOND_WINDOW_HUMAN : RESPOND_WINDOW_AI) * DELAY_SCALE;
-    this.respondTimers.push(
-      setTimeout(() => {
-        if (!this.state || this.state.phase.kind !== 'respond') return;
-        this.applyCommand(this.state.phase.responder, { type: 'Accept' }, null);
-      }, windowMs),
-    );
-    if (humanEligible) {
       this.turnDeadline = Date.now() + windowMs;
       this.broadcastSync();
+    } else {
+      // 纯 AI（或真人全离线由 AI 补位）：各 AI 错峰表态 + 硬上限收窗。
+      for (const seat of info.challengers) {
+        if (!s.players[seat].isAI) continue;
+        const ai = this.aiFor(seat);
+        this.respondTimers.push(
+          setTimeout(() => {
+            if (!this.state || this.state.phase.kind !== 'respond') return;
+            if (this.state.phase.player === seat || this.state.players[seat].out) {
+              this.respondPending.delete(seat);
+              this.checkRespondProceed();
+              return;
+            }
+            if (ai.decide(viewFor(this.state, seat)).type === 'Challenge') {
+              this.applyCommand(seat, { type: 'Challenge' }, null);
+              return;
+            }
+            this.respondPending.delete(seat);
+            this.checkRespondProceed();
+          }, challengeDelay() * DELAY_SCALE),
+        );
+      }
+      const windowMs = RESPOND_WINDOW_AI * DELAY_SCALE;
+      this.respondTimers.push(
+        setTimeout(() => {
+          if (!this.state || this.state.phase.kind !== 'respond') return;
+          this.applyCommand(this.state.phase.responder, { type: 'Accept' }, null);
+        }, windowMs),
+      );
     }
     this.checkRespondProceed();
   }
@@ -431,7 +472,11 @@ export class Room {
     const seat = this.seats.find((s) => s.token === token);
     if (!seat || !this.respondPending.has(seat.seat)) return;
     this.respondPending.delete(seat.seat);
-    this.checkRespondProceed();
+    // 在场真人都已放行 → 提前解锁 AI 表态（不必等满 3 秒反应窗口）；否则照常收窗。
+    const st = this.state;
+    const humanLeft = [...this.respondPending].some((sd) => !st.players[sd].isAI && this.seats[sd].conn !== null);
+    if (!humanLeft && this.respondReleaseAis) this.respondReleaseAis();
+    else this.checkRespondProceed();
   }
 
   private drive(): void {
