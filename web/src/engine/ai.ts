@@ -610,12 +610,20 @@ export class AiPlayer {
     const numbers = hand.filter((c): c is NumCard => c.kind === 'number');
     const wild = hand.find((c) => c.kind === 'wild');
 
-    if (isFirst) return this.firstPlay(numbers, playable, view);
+    if (isFirst) return this.firstPlay(numbers, playable, view, canDraw);
     return this.followPlay(view, numbers, wild, canDraw);
   }
 
-  private firstPlay(numbers: NumCard[], playable: Card[], view: PlayerView): Command {
+  private firstPlay(numbers: NumCard[], playable: Card[], view: PlayerView, canDraw: boolean): Command {
     const low = numbers.filter((c) => c.num >= 1 && c.num <= 3).sort((a, b) => a.num - b.num);
+    // 大师首家保底：手里没有真 1-3 时，先摸一张去找真低牌（而非硬诈、被精算对手 100% 抓）。
+    // 既避开「连环枪」、又把牌库往见底推（让对局靠摸空正常收场，而不是囤牌耗死）。牌库快空了就别摸、直接诈、让它收场。
+    if (canDraw && low.length === 0 && this.difficulty === 'master' && view.deckCount > 3) {
+      if (this.rand() < 0.9) {
+        this.lastDelay = this.think(620, 720, 0.4);
+        return { type: 'Draw' };
+      }
+    }
     const bluffChance = this.traits.bluff * 0.35 * (low.length ? 1 : 4);
     if (low.length && this.rand() > bluffChance) {
       if (this.traits.rationality > 0.7 && low.length > 1) {

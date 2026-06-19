@@ -115,6 +115,7 @@ export interface GameConfig {
   refillTo: number; // 跑成成功（收走牌堆）后补牌到几张
   refillAfterCaughtLast: number; // 撒谎打最后一张被抓（不算跑成、受罚后）补牌到几张
   maxFunctionalInOpener: number; // 开局保底：起手手牌里功能牌最多几张（削弱开局方差，防被功能牌堵手）
+  drawOnSurvive: number; // 受罚「险过」（未掉命）时补摸几张牌：补充缩水手牌 + 加速牌库消耗，破「囤牌抓 1-3」僵局
   escalationResetsOnHit: boolean; // 中枪后受罚累进是否重置
   weather: boolean; // 混沌天气开关（可选玩法）
   weatherChance: number; // 每开新梯触发天气的概率（0..1）；开局首梯豁免、触发后隔梯冷却
@@ -129,6 +130,7 @@ export const DEFAULT_CONFIG: Omit<GameConfig, 'players' | 'seed'> = {
   refillTo: 6,
   refillAfterCaughtLast: 2,
   maxFunctionalInOpener: 1,
+  drawOnSurvive: 3,
   escalationResetsOnHit: true,
   weather: false,
   weatherChance: 0.28,

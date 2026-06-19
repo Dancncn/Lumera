@@ -694,6 +694,7 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
       // 险过：未损命，但下次受罚累进 +1（多赌一个点）。
       emit(s, events, { type: 'Survived', seat });
       s.players[seat].escalation += 1;
+      if (s.config.drawOnSurvive > 0) drawCards(s, events, seat, s.config.drawOnSurvive); // 险过补牌：解缩水手牌 + 耗牌库
       startPlayTurn(s, events, seat, true); // 未中者自己当首家
     }
     s.seq++;
