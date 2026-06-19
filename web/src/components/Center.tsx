@@ -5,36 +5,14 @@ import { playerColor } from '../playerColors';
 import { useGame } from '../store/gameStore';
 import { CardBack, CardFace } from './Card';
 
-const DICE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-
 type LastAction =
   | { kind: 'card'; id: number; seat: number; claim: Claim }
   | { kind: 'func'; id: number; seat: number; func: FunctionalKind };
 
 export function Center({ view }: { view: PlayerView }) {
   const { t, tn } = useT();
-  const lastDie = useGame((s) => s.lastDie);
   const events = useGame((s) => s.lastEvents);
-  const inPenalty = view.prompt.kind === 'penalty' || (view.current >= 0 && view.lastReveal !== undefined);
   const pileShown = Math.min(view.pileCount, 6);
-
-  // 掷骰滚动
-  const [rollFace, setRollFace] = useState<number | null>(null);
-  useEffect(() => {
-    if (!lastDie) return;
-    let n = 0;
-    setRollFace(1 + Math.floor(Math.random() * 6));
-    const iv = setInterval(() => {
-      n++;
-      if (n >= 7) {
-        clearInterval(iv);
-        setRollFace(null);
-        return;
-      }
-      setRollFace(1 + Math.floor(Math.random() * 6));
-    }, 60);
-    return () => clearInterval(iv);
-  }, [lastDie]);
 
   // 最近操作：谁出了牌 / 甩了功能牌 —— 持续显示直到下一个动作替换
   const [lastAction, setLastAction] = useState<LastAction | null>(null);
@@ -143,16 +121,6 @@ export function Center({ view }: { view: PlayerView }) {
         </>
       )}
 
-      {inPenalty && lastDie && (
-        <div className={`dice ${rollFace ? 'dice-rolling' : lastDie.hit ? 'dice-hit' : 'dice-miss'}`}>
-          <span className="dice-face">{DICE[rollFace ?? lastDie.rolled]}</span>
-          <span className="dice-info">
-            {rollFace
-              ? t('源涌轮盘 · 掷骰中…')
-              : t('赌 {c} · 掷 {r} · {res}', { c: lastDie.chosen.join('、'), r: lastDie.rolled, res: lastDie.hit ? t('被淹没') : t('险过') })}
-          </span>
-        </div>
-      )}
     </div>
   );
 }

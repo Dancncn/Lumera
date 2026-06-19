@@ -68,6 +68,8 @@ interface Store {
 }
 
 let aiTimer: ReturnType<typeof setTimeout> | null = null;
+let diceAnimTimer: ReturnType<typeof setTimeout> | null = null;
+const DICE_ANIM_MS = 3900;
 let respondTimers: ReturnType<typeof setTimeout>[] = [];
 let respondPending = new Set<number>(); // 本轮还未表态（既没质疑也没放行）的可质疑座位
 let net: NetClient | null = null;
@@ -128,6 +130,10 @@ export const useGame = create<Store>((set, get) => {
       clearTimeout(aiTimer);
       aiTimer = null;
     }
+    if (diceAnimTimer) {
+      clearTimeout(diceAnimTimer);
+      diceAnimTimer = null;
+    }
     for (const t of respondTimers) clearTimeout(t);
     respondTimers = [];
     respondPending = new Set();
@@ -146,6 +152,21 @@ export const useGame = create<Store>((set, get) => {
     if (!cur || cur.phase.kind === 'over') return;
     try {
       const res = apply(cur, seat, cmd);
+      const die = extractDie(res.events);
+      if (die) {
+        set({ lastDie: die, lastEvents: res.events.filter((e) => e.type === 'DiceRolled') });
+        diceAnimTimer = setTimeout(() => {
+          diceAnimTimer = null;
+          observeAll(res.events, res.state);
+          set({
+            state: res.state,
+            lastEvents: res.events.filter((e) => e.type !== 'DiceRolled'),
+            penaltySeat: trackPenalty(res.events, get().penaltySeat),
+          });
+          loop();
+        }, DICE_ANIM_MS);
+        return;
+      }
       observeAll(res.events, res.state);
       set({ state: res.state, lastEvents: res.events, lastDie: nextDie(res.events, get().lastDie), penaltySeat: trackPenalty(res.events, get().penaltySeat) });
     } catch (err) {
@@ -357,6 +378,7 @@ export const useGame = create<Store>((set, get) => {
         net?.command(cmd);
         return;
       }
+      if (diceAnimTimer) return;
       const s = get().state;
       if (!s || s.phase.kind === 'over') return;
       // 应对阶段：真人（座位 0）随时可质疑，不必是下家。其余命令仍须轮到自己。
@@ -449,6 +471,22 @@ export const useGame = create<Store>((set, get) => {
         },
         onSync: (msg: SyncMsg) => {
           if (net !== client) return;
+          const die = extractDie(msg.events);
+          if (die) {
+            set({ lastDie: die, lastEvents: msg.events.filter((e) => e.type === 'DiceRolled') });
+            if (diceAnimTimer) clearTimeout(diceAnimTimer);
+            diceAnimTimer = setTimeout(() => {
+              diceAnimTimer = null;
+              set((st) => ({
+                onlineView: msg.view,
+                lastEvents: msg.events.filter((e) => e.type !== 'DiceRolled'),
+                penaltySeat: trackPenalty(msg.events, st.penaltySeat),
+                thinking: msg.view.players[msg.view.current]?.isAI ? msg.view.current : null,
+                turnDeadline: msg.turnDeadline ?? null,
+              }));
+            }, DICE_ANIM_MS);
+            return;
+          }
           set((st) => ({
             onlineView: msg.view,
             lastEvents: msg.events,

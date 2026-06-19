@@ -62,8 +62,8 @@ export const sfx = {
     tone(660, 0.14, 'sine', 0.06);
   },
   diceRoll() {
-    for (let i = 0; i < 5; i++)
-      setTimeout(() => tone(280 + Math.random() * 360, 0.035, 'square', 0.035), i * 45);
+    for (let i = 0; i < 14; i++)
+      setTimeout(() => tone(280 + Math.random() * 360, 0.04, 'square', Math.max(0.01, 0.035 - i * 0.002)), i * 120);
   },
   diceHit() {
     tone(130, 0.35, 'sine', 0.18);

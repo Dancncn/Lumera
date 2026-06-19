@@ -20,6 +20,7 @@ export function Coach({ view }: { view: PlayerView }) {
   const [shown, setShown] = useState<Set<string>>(() => new Set());
   const [current, setCurrent] = useState<Step | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const prevKey = useRef<string | null>(null);
 
   function enterFreePlay() {
@@ -95,13 +96,20 @@ export function Coach({ view }: { view: PlayerView }) {
 
   if (!current) {
     return (
-      <div className="coach-tabs">
-        <button className="coach-tab" type="button" onClick={() => setPhase('lesson')} title={t('重看教学')}>
-          {t('重看教学')}
+      <div className={`coach-drawer ${drawerOpen ? 'open' : ''}`}>
+        <button className="coach-drawer-toggle" type="button" onClick={() => setDrawerOpen((v) => !v)} title={t('教学菜单')}>
+          {drawerOpen ? '✕' : '📖'}
         </button>
-        <button className="coach-tab" type="button" onClick={endTutorial} title={t('结束引导')}>
-          {t('结束引导')}
-        </button>
+        {drawerOpen && (
+          <div className="coach-drawer-menu">
+            <button className="coach-drawer-item" type="button" onClick={() => { setDrawerOpen(false); setPhase('lesson'); }}>
+              {t('重看教学')}
+            </button>
+            <button className="coach-drawer-item coach-drawer-end" type="button" onClick={() => { setDrawerOpen(false); endTutorial(); }}>
+              {t('结束引导')}
+            </button>
+          </div>
+        )}
       </div>
     );
   }

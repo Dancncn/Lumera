@@ -5,6 +5,7 @@ import { useT } from '../i18n';
 import { useGame, Mode } from '../store/gameStore';
 import { CardFace, ClaimChip } from './Card';
 import { ClaimPicker } from './ClaimPicker';
+import { DiceFace } from './DiceFace';
 
 const TURN_SECS = 20;
 const CHALLENGE_SECS = 8;
@@ -267,8 +268,17 @@ function PenaltyPick({ need }: { need: number }) {
       <span className="penalty-tip">
         {t('你受罚了！本轮赌定 {n} 个点数，只掷一次骰；掷中其一就掉 1 命、轮盘重置。', { n: need })}
       </span>
+      <div className="penalty-steps">
+        <span className={`penalty-step ${!full ? 'penalty-step-active' : 'penalty-step-done'}`}>
+          {!full ? `(1) ${t('选择 {n} 个点数', { n: need })}` : t('已选定')}
+        </span>
+        <span className="penalty-step-arrow">&rarr;</span>
+        <span className={`penalty-step ${full ? 'penalty-step-active' : ''}`}>
+          (2) {t('掷骰')}
+        </span>
+      </div>
       <div className="dice-pick-hint">
-        {full ? t('↓ 已选满，掷骰决定命运') : t('已选 {a}/{n}，再选 {b} 个', { a: picked.length, n: need, b: left })}
+        {full ? `↓ ${t('已选满，点击掷骰决定命运')}` : `↓ ${t('点击下方骰子选择 {b} 个点数', { b: left })}`}
       </div>
       <div className="dice-pick dice-pick-live">
         {[1, 2, 3, 4, 5, 6].map((n) => (
@@ -279,12 +289,12 @@ function PenaltyPick({ need }: { need: number }) {
             onClick={() => toggle(n)}
             title={t('赌 {n} 点', { n })}
           >
-            {['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][n]}
+            <DiceFace value={n} size={28} />
             <span className="die-n">{n}</span>
           </button>
         ))}
       </div>
-      <button className="btn btn-challenge penalty-roll" type="button" disabled={!full} onClick={roll}>
+      <button className={`btn btn-challenge penalty-roll ${full ? 'penalty-roll-ready' : ''}`} type="button" disabled={!full} onClick={roll}>
         {full ? t('掷骰！') : t('再选 {b} 个', { b: left })}
       </button>
     </div>

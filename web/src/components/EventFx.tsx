@@ -1,7 +1,8 @@
 import { CSSProperties, useEffect, useRef, useState } from 'react';
-import { PlayerView, WEATHER_META } from '../engine/types';
+import { PlayerView, WEATHER_META, WeatherKind } from '../engine/types';
 import { useT } from '../i18n';
 import { useGame } from '../store/gameStore';
+import { WeatherIcon } from './WeatherIcon';
 
 type FxKind = 'out' | 'lifeloss' | 'runout' | 'ladder' | 'weather';
 interface Fx {
@@ -10,9 +11,10 @@ interface Fx {
   title: string;
   sub: string;
   you: boolean;
+  weatherKind?: WeatherKind;
 }
 
-const DUR: Record<FxKind, number> = { out: 1700, lifeloss: 1400, runout: 1700, ladder: 1000, weather: 1900 };
+const DUR: Record<FxKind, number> = { out: 1700, lifeloss: 1400, runout: 1700, ladder: 1000, weather: 3000 };
 
 // 大事件的瞬时特效层：掉命 / 出局（红闪 + 震屏）、跑成（金色祝贺 + 火花）、新梯（光扫）。
 export function EventFx({ view }: { view: PlayerView }) {
@@ -36,11 +38,10 @@ export function EventFx({ view }: { view: PlayerView }) {
     if (!pick) for (const e of events) if (e.type === 'Returned') { pick = mk('lifeloss', t('源涌淹没'), t('{name} −1 凝聚 · 剩 {n}', { name: nameOf(e.seat), n: e.livesLeft }), e.seat); break; }
     if (!pick) for (const e of events) if (e.type === 'RanOut') { pick = mk('runout', t('跑成！'), t('{name} 打空手牌 · 独吞整摞牌堆', { name: nameOf(e.seat) }), e.seat); break; }
     // 天气优先于「新梯」横幅：同批事件里若降了天气，展示天气而非普通新梯
-    if (!pick) for (const e of events) if (e.type === 'WeatherChanged') { pick = mk('weather', t('天气 · {name}', { name: t(WEATHER_META[e.kind].name) }), t(WEATHER_META[e.kind].desc), -1); break; }
+    if (!pick) for (const e of events) if (e.type === 'WeatherChanged') { pick = { ...mk('weather', t(WEATHER_META[e.kind].name), t(WEATHER_META[e.kind].desc), -1), weatherKind: e.kind }; break; }
     // 新梯：引擎用 TurnStarted{isFirst} 标记新梯首家（无单独 LadderReset 事件）
     if (!pick) for (const e of events) if (e.type === 'TurnStarted' && e.isFirst) { pick = mk('ladder', t('新梯开启'), t('{name} 起手重启', { name: nameOf(e.seat) }), e.seat); break; }
     if (!pick) return;
-
     setFx(pick);
     const id = pick.id;
     const timer = setTimeout(() => setFx((cur) => (cur && cur.id === id ? null : cur)), DUR[pick.kind]);
@@ -61,6 +62,22 @@ export function EventFx({ view }: { view: PlayerView }) {
   }, [fx]);
 
   if (!fx) return null;
+
+  if (fx.kind === 'weather' && fx.weatherKind) {
+    return (
+      <div className="eventfx eventfx-weather" key={fx.id} aria-hidden>
+        <div className="weather-spotlight-dim" />
+        <div className="weather-spotlight">
+          <div className="weather-spotlight-icon">
+            <WeatherIcon kind={fx.weatherKind} size={48} />
+          </div>
+          <div className="weather-spotlight-title">{fx.title}</div>
+          <div className="weather-spotlight-desc">{fx.sub}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`eventfx eventfx-${fx.kind}${fx.you ? ' eventfx-you' : ''}`} key={fx.id} aria-hidden>
       <div className="eventfx-veil" />

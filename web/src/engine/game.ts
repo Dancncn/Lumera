@@ -523,7 +523,14 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
         s.pendingSkip += 1;
         emit(s, events, { type: 'FunctionalPlayed', seat, func: 'skip' });
       }
-      // 功能牌是附加动作：本回合仍须再出一张数字牌，停在原阶段。
+      // 功能牌是附加动作：本回合仍须再出一张数字牌。
+      // 但如果甩完功能牌后手牌清空，自动兜底（摸 1 张 + 结束回合），避免卡死。
+      if (me.hand.length === 0) {
+        drawCards(s, events, seat, 1);
+        const next = advance(s, seat, s.direction, s.pendingSkip);
+        s.pendingSkip = 0;
+        startPlayTurn(s, events, next, ph.isFirst);
+      }
       s.seq++;
       return { state: s, events };
     }
@@ -724,7 +731,7 @@ function computePrompt(s: GameState, seat: number): ViewPrompt {
         kind: 'play',
         isFirst: s.phase.isFirst,
         canDraw: !s.phase.hasDrawn && s.deck.length > 0,
-        canFallback: onlyFunctional,
+        canFallback: onlyFunctional || me.hand.length === 0,
       };
     }
     case 'respond':

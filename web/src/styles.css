@@ -317,14 +317,14 @@ button {
 }
 .rules-body {
   overflow-y: auto;
-  padding: 8px 24px 20px;
+  padding: 10px 24px 22px;
 }
 .rules-sec {
-  margin-top: 16px;
+  margin-top: 18px;
 }
 .rules-sec h3 {
-  margin: 0 0 6px;
-  font-size: 13px;
+  margin: 0 0 8px;
+  font-size: 14.5px;
   letter-spacing: 3px;
   font-weight: 600;
   color: var(--gold-deep);
@@ -333,8 +333,8 @@ button {
   margin: 0;
   padding-left: 18px;
   color: var(--ink-soft);
-  line-height: 1.85;
-  font-size: 14px;
+  line-height: 1.9;
+  font-size: 15px;
 }
 .rules-sec li::marker {
   color: var(--gold);
@@ -352,7 +352,7 @@ button {
   border: none;
   background: none;
   padding: 10px 18px;
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 2px;
   color: var(--ink-soft);
   cursor: pointer;
@@ -416,7 +416,7 @@ button {
   min-width: 0;
 }
 .weather-card-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--gold-deep);
   letter-spacing: 1.5px;
@@ -424,8 +424,8 @@ button {
 .weather-card-tag {
   display: inline-block;
   width: fit-content;
-  font-size: 10px;
-  padding: 1px 7px;
+  font-size: 11px;
+  padding: 2px 7px;
   border-radius: 6px;
   letter-spacing: 1px;
 }
@@ -439,8 +439,8 @@ button {
 }
 .weather-card-desc {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.55;
   color: var(--ink-soft);
 }
 
@@ -653,6 +653,7 @@ button {
 
 /* ---------------- 中央：几何纹样桌布 ---------------- */
 .table-center {
+  position: relative;
   flex: 1;
   display: flex;
   align-items: center;
@@ -851,8 +852,7 @@ button {
   font-size: 12px;
   padding-top: 36px;
 }
-.reveal,
-.dice {
+.reveal {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
@@ -867,12 +867,7 @@ button {
   box-shadow: var(--shadow);
   animation: popin 0.25s ease-out;
   z-index: 4;
-}
-.reveal {
   bottom: calc(100% + 16px);
-}
-.dice {
-  top: calc(100% + 16px);
 }
 @keyframes popin {
   from { transform: translateX(-50%) scale(0.85); opacity: 0; }
@@ -898,20 +893,6 @@ button {
 }
 .reveal-lie .reveal-verdict {
   color: #8a322b;
-}
-.dice-face {
-  font-size: 46px;
-  line-height: 1;
-}
-.dice-info {
-  font-size: 12.5px;
-  color: var(--ink-soft);
-}
-.dice-hit .dice-face {
-  color: #8a322b;
-}
-.dice-miss .dice-face {
-  color: var(--verda);
 }
 
 /* ---------------- 卡牌（平面 2D · 每力专属底色字色 · 线条勾勒） ---------------- */
@@ -1189,7 +1170,6 @@ button.claim-chip:hover {
 .die-btn {
   width: 52px;
   height: 52px;
-  font-size: 28px;
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -1457,7 +1437,7 @@ button.claim-chip:hover {
 /* ---------------- 注意提示横幅 ---------------- */
 .play-toast {
   position: fixed;
-  top: 56px;
+  top: 170px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 22;
@@ -1853,15 +1833,6 @@ kbd {
     box-shadow 0.2s var(--ease), transform 0.2s var(--ease);
 }
 
-/* 掷骰滚动 */
-.dice-rolling .dice-face {
-  color: var(--gold-deep);
-  animation: dice-shake 0.12s linear infinite;
-}
-@keyframes dice-shake {
-  0%, 100% { transform: translateY(0) rotate(-5deg); }
-  50% { transform: translateY(-2px) rotate(5deg); }
-}
 
 /* 计分区数字跳动（数值变化时） */
 .score-bump {
@@ -2035,8 +2006,6 @@ kbd {
 /* 数字/牌面值走干净的衬线，杜绝书法体糊数字（牌面大数字改用 Cinzel 古典刻字，见 .card-num） */
 .card-pip,
 .go-score,
-.dice-face,
-.die-btn,
 .seat-stats,
 .self-stats,
 .hot,
@@ -2163,7 +2132,7 @@ kbd {
   /* 顶栏：紧凑、不换行、不溢出 */
   .topbar {
     padding: 9px 10px;
-    overflow: hidden;
+    overflow: visible;
   }
   .brand-emblem {
     width: 26px;
@@ -2265,7 +2234,6 @@ kbd {
   .die-btn {
     width: 46px;
     height: 46px;
-    font-size: 24px;
   }
   .hand-cards {
     gap: 7px;
@@ -2282,12 +2250,15 @@ kbd {
     border-radius: 16px;
   }
   .log-tab {
-    top: auto;
-    bottom: 90px;
+    position: absolute;
+    top: -2px;
+    right: 6px;
+    bottom: auto;
   }
 
   /* 注意横幅自适应换行 */
   .play-toast {
+    top: 150px;
     max-width: 92vw;
     white-space: normal;
     text-align: center;
@@ -2331,6 +2302,19 @@ kbd {
   .rules-modal {
     width: 94vw;
     max-height: 88vh;
+  }
+  .rules-body {
+    padding: 8px 16px 20px;
+  }
+  .rules-sec h3 {
+    font-size: 14px;
+  }
+  .rules-sec ul {
+    font-size: 14.5px;
+    padding-left: 16px;
+  }
+  .weather-guide {
+    grid-template-columns: 1fr;
   }
   .gameover {
     width: 94vw;
@@ -2444,28 +2428,63 @@ kbd {
 .coach-ok:hover {
   background: rgba(180, 126, 36, 0.18);
 }
-.coach-tabs {
+.coach-drawer {
   position: fixed;
   left: 16px;
   top: 48px;
   z-index: 24;
-  display: flex;
-  gap: 8px;
 }
-.coach-tab {
+.coach-drawer-toggle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
   border: 1px solid var(--line);
   background: rgba(250, 248, 243, 0.95);
   color: var(--gold-muted);
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(80, 66, 40, 0.12);
+  transition: border-color 0.2s, color 0.2s, transform 0.2s;
+}
+.coach-drawer-toggle:hover {
+  border-color: var(--gold);
+  color: var(--gold-dark);
+}
+.coach-drawer.open .coach-drawer-toggle {
+  transform: rotate(90deg);
+}
+.coach-drawer-menu {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: tip-in 0.15s var(--ease);
+}
+.coach-drawer-item {
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  background: rgba(250, 248, 243, 0.97);
+  color: var(--gold-muted);
   font-size: 12px;
   letter-spacing: 2px;
-  padding: 5px 14px;
+  padding: 6px 16px;
   border-radius: 999px;
-  box-shadow: 0 6px 16px rgba(80, 66, 40, 0.14);
+  box-shadow: 0 4px 14px rgba(80, 66, 40, 0.13);
   cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
 }
-.coach-tab:hover {
+.coach-drawer-item:hover {
   color: var(--gold-dark);
   border-color: var(--gold);
+}
+.coach-drawer-end {
+  color: #b4453a;
+  border-color: rgba(180, 69, 58, 0.3);
+}
+.coach-drawer-end:hover {
+  border-color: #b4453a;
 }
 
 /* ============================================================
@@ -2611,7 +2630,7 @@ kbd {
   .coach-pill {
     top: 40px;
   }
-  .coach-tabs {
+  .coach-drawer {
     top: 40px;
   }
   /* 主页横屏：标题与留白收紧 */
@@ -3173,9 +3192,8 @@ kbd {
 /* floating guide during play — pinned to top so it never covers hand/actions */
 .stage-guide {
   position: fixed;
-  top: 48px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 270px;
+  left: 12px;
   z-index: 35;
   pointer-events: none;
   animation: bubble-in 0.22s var(--ease);
@@ -3220,19 +3238,22 @@ kbd {
 /* collapsed pill */
 .stage-guide-pill {
   position: fixed;
-  top: 48px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 12px;
+  bottom: 270px;
   z-index: 35;
+  width: 32px;
+  height: 32px;
   border: 1px solid var(--gold);
   background: rgba(250, 248, 243, 0.95);
   color: var(--gold-dark);
-  font-size: 11px;
-  letter-spacing: 1.5px;
-  padding: 5px 16px;
-  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 8px;
   box-shadow: 0 4px 14px rgba(80, 66, 40, 0.16);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   animation: bubble-in 0.18s var(--ease);
 }
 .stage-guide-pill:hover {
@@ -3316,15 +3337,34 @@ kbd {
 /* ============================================================
    退出本局（两步确认）
    ============================================================ */
-.quit-confirm {
-  display: inline-flex;
+.quit-wrap {
+  position: relative;
+}
+.quit-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: rgba(250, 248, 243, 0.98);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(80, 66, 40, 0.18);
+  padding: 12px 16px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--ink-soft);
+  gap: 10px;
+  animation: tip-in 0.15s var(--ease);
+  white-space: nowrap;
 }
 .quit-ask {
+  font-size: 13px;
   letter-spacing: 1px;
+  color: var(--ink-soft);
+}
+.quit-dropdown-btns {
+  display: flex;
+  gap: 8px;
 }
 .btn-danger {
   border-color: #b4453a;
@@ -3511,20 +3551,62 @@ kbd {
 .eventfx-ladder .eventfx-sub {
   font-size: 12px;
 }
-.eventfx-weather .eventfx-veil {
-  background: radial-gradient(circle at center, rgba(46, 138, 208, 0.18) 0%, rgba(84, 172, 79, 0.12) 45%, transparent 70%);
-  animation: fx-flash 1.6s ease-out both;
+/* 天气聚光灯弹窗 */
+.weather-spotlight-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.52);
+  animation: ws-dim 3s ease-out both;
 }
-.eventfx-weather .eventfx-title {
-  font-size: 30px;
-  background: linear-gradient(100deg, #2e8ad0, #54ac4f, #e0a92e);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 2px 20px rgba(46, 138, 208, 0.35);
+@keyframes ws-dim {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
 }
-.eventfx-weather .eventfx-sub {
-  font-size: 13px;
+.weather-spotlight {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 40px 24px;
+  background: radial-gradient(ellipse at center, rgba(252, 248, 235, 0.97) 0%, rgba(245, 236, 212, 0.95) 100%);
+  border: 1.5px solid var(--gold);
+  border-radius: 16px;
+  box-shadow: 0 0 60px rgba(201, 162, 63, 0.35), 0 0 120px rgba(201, 162, 63, 0.18), inset 0 1px 2px rgba(255, 255, 255, 0.6);
+  animation: ws-card 3s var(--ease) both;
+}
+@keyframes ws-card {
+  0% { opacity: 0; transform: scale(0.7); }
+  10% { opacity: 1; transform: scale(1.04); }
+  16% { transform: scale(1); }
+  80% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.95); }
+}
+.weather-spotlight-icon {
+  color: var(--gold-deep);
+  filter: drop-shadow(0 2px 8px rgba(201, 162, 63, 0.4));
+  animation: ws-icon-pulse 1.5s ease-in-out infinite;
+}
+@keyframes ws-icon-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+.weather-spotlight-title {
+  font-family: var(--display);
+  font-size: 32px;
+  letter-spacing: 6px;
+  color: var(--gold-deep);
+  text-shadow: 0 2px 12px rgba(201, 162, 63, 0.3);
+}
+.weather-spotlight-desc {
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: var(--ink-soft);
+  text-align: center;
+  max-width: 280px;
+  line-height: 1.5;
 }
 @keyframes fx-sweep {
   0% { background-position: 130% 0; opacity: 0; }
@@ -3611,7 +3693,7 @@ kbd {
     left: 8px;
     top: 62px;
   }
-  .coach-tabs {
+  .coach-drawer {
     left: 8px;
     top: 62px;
   }
@@ -3918,22 +4000,21 @@ kbd {
     height: 16px;
   }
   .log-tab {
-    top: 52px;
-    right: 10px;
+    top: -2px;
+    right: 2px;
     width: 34px;
     height: 34px;
   }
-  .quit-confirm .quit-ask {
-    display: none;
+  .quit-dropdown {
+    padding: 10px 14px;
   }
-  .quit-confirm .btn-danger,
-  .quit-confirm .btn-ghost {
-    padding: 5px 8px;
+  .quit-dropdown .btn-danger,
+  .quit-dropdown .btn-ghost {
+    padding: 5px 10px;
     font-size: 11px;
   }
-  .lang-btn {
-    padding: 2px 6px;
-    font-size: 11px;
+  .lang-cur {
+    font-size: 10px;
   }
   .about-modal {
     width: 93vw;
@@ -3956,62 +4037,85 @@ kbd {
   }
   /* 关卡浮动提示：避开顶栏 */
   .stage-guide {
-    top: 62px;
+    bottom: 240px;
     left: 8px;
-    right: 8px;
-    transform: none;
-    width: auto;
   }
   .stage-guide-bubble {
-    max-width: 100%;
+    max-width: min(260px, 60vw);
   }
   .stage-guide-pill {
-    top: 62px;
+    bottom: 240px;
     left: 8px;
-    right: 8px;
-    transform: none;
-    width: auto;
-    text-align: center;
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
   }
 }
 
 /* ============================================================
-   语言切换 简 / 繁 / EN
+   语言切换 — 地球图标 + 下拉
    ============================================================ */
 .start-corner {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.lang-switch {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(250, 248, 243, 0.92);
+.lang-drop {
+  position: relative;
 }
-.lang-btn {
+.lang-globe {
+  gap: 3px;
+}
+.lang-cur {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  line-height: 1;
+}
+.lang-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 130px;
+  background: rgba(252, 251, 247, 0.98);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  z-index: 200;
+  animation: lang-pop 0.15s var(--ease);
+}
+@keyframes lang-pop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.lang-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
   border: none;
   background: transparent;
-  color: var(--gold-muted);
-  font-size: 12px;
-  letter-spacing: 0.5px;
-  padding: 3px 9px;
-  border-radius: 999px;
+  padding: 7px 10px;
+  border-radius: 6px;
   cursor: pointer;
-  line-height: 1.4;
-  transition: background 0.16s var(--ease), color 0.16s var(--ease);
+  font-size: 13px;
+  color: var(--ink);
+  transition: background 0.12s ease;
 }
-.lang-btn:hover {
-  color: var(--gold-dark);
+.lang-item:hover {
+  background: rgba(201, 162, 63, 0.1);
 }
-.lang-on {
-  background: var(--gold);
-  color: #fff;
+.lang-item-on {
+  color: var(--gold-deep);
+  font-weight: 600;
 }
-.lang-on:hover {
-  color: #fff;
+.lang-item-label {
+  font-weight: 600;
+  min-width: 22px;
+}
+.lang-item-full {
+  color: var(--ink-soft);
+  font-size: 12px;
 }
 
 /* 结算页：人数 / 难度小标 */
@@ -4030,7 +4134,40 @@ kbd {
   padding: 3px 12px;
 }
 
-/* 受罚：高亮骰子 + 明确指引（玩家不再以为卡住） */
+/* 受罚步骤指示器 */
+.penalty-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 6px 0 2px;
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+.penalty-step {
+  color: var(--ink-soft);
+  opacity: 0.5;
+  transition: all 0.3s var(--ease);
+}
+.penalty-step-active {
+  color: var(--gold-deep);
+  opacity: 1;
+  font-weight: 600;
+  animation: step-pulse 1.2s ease-in-out infinite;
+}
+.penalty-step-done {
+  color: var(--verda);
+  opacity: 0.8;
+}
+.penalty-step-arrow {
+  color: var(--gold-muted);
+  font-size: 14px;
+}
+@keyframes step-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+/* 受罚：高亮骰子 + 明确指引 */
 .dice-pick-hint {
   font-size: 13px;
   letter-spacing: 2px;
@@ -4041,6 +4178,15 @@ kbd {
 @keyframes dice-hint-bounce {
   0%, 100% { transform: translateY(0); opacity: 0.8; }
   50% { transform: translateY(3px); opacity: 1; }
+}
+/* 掷骰按钮就绪态 */
+.penalty-roll-ready {
+  animation: roll-ready-pulse 1s ease-in-out infinite;
+  box-shadow: 0 0 0 3px rgba(201, 162, 63, 0.3);
+}
+@keyframes roll-ready-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(201, 162, 63, 0.2); }
+  50% { box-shadow: 0 0 0 6px rgba(201, 162, 63, 0.4); }
 }
 .die-btn {
   position: relative;
@@ -4070,7 +4216,9 @@ kbd {
 }
 @media (prefers-reduced-motion: reduce) {
   .dice-pick-hint,
-  .dice-pick-live .die-btn { animation: none; }
+  .dice-pick-live .die-btn,
+  .penalty-step-active,
+  .penalty-roll-ready { animation: none; }
 }
 /* 受罚多选：选中的骰子高亮、掷骰按钮 */
 .die-btn.die-on {
@@ -4307,26 +4455,154 @@ kbd {
   animation: pulse 1.1s infinite;
 }
 
-.sfx-toggle {
-  display: inline-flex;
+.sfx-off {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+/* ============================================================
+   掷骰聚光灯
+   ============================================================ */
+.dice-spotlight {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 1px solid var(--line-soft);
-  background: transparent;
-  color: var(--gold-muted);
-  cursor: pointer;
-  transition: color 0.18s ease, border-color 0.18s ease;
+  pointer-events: none;
 }
-.sfx-toggle:hover {
+.dice-spot-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  animation: ds-dim 3.8s ease-out both;
+}
+@keyframes ds-dim {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.dice-spot-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 32px 48px 28px;
+  background: radial-gradient(ellipse at center, rgba(252, 248, 235, 0.97) 0%, rgba(245, 236, 212, 0.95) 100%);
+  border: 1.5px solid var(--gold);
+  border-radius: 18px;
+  box-shadow: 0 0 60px rgba(201, 162, 63, 0.35), 0 0 120px rgba(201, 162, 63, 0.15);
+  animation: ds-card 3.8s var(--ease) both;
+  transition: border-color 0.4s ease, box-shadow 0.4s ease;
+}
+@keyframes ds-card {
+  0% { opacity: 0; transform: scale(0.6); }
+  8% { opacity: 1; transform: scale(1.05); }
+  14% { transform: scale(1); }
+  75% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.92); }
+}
+.dice-spot-hit {
+  border-color: #a03020;
+  box-shadow: 0 0 40px rgba(160, 48, 32, 0.35), 0 0 80px rgba(160, 48, 32, 0.15);
+}
+.dice-spot-miss {
+  border-color: var(--verda);
+  box-shadow: 0 0 40px rgba(76, 140, 80, 0.3), 0 0 80px rgba(76, 140, 80, 0.12);
+}
+.dice-spot-chosen {
+  font-size: 14px;
+  letter-spacing: 3px;
   color: var(--gold-deep);
-  border-color: var(--gold);
 }
-.sfx-off {
-  opacity: 0.5;
+.dice-spot-face {
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold-deep);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.6);
+  transition: color 0.3s, border-color 0.3s, background 0.3s;
 }
+.dice-spot-rolling {
+  animation: ds-shake 0.12s linear infinite;
+}
+@keyframes ds-shake {
+  0%, 100% { transform: rotate(-8deg) scale(1); }
+  25% { transform: rotate(6deg) scale(1.05); }
+  50% { transform: rotate(-6deg) scale(1); }
+  75% { transform: rotate(8deg) scale(1.04); }
+}
+.dice-spot-hit .dice-spot-face {
+  color: #8a322b;
+  border-color: #a03020;
+  background: rgba(200, 60, 40, 0.08);
+  animation: ds-land 0.5s var(--ease) both;
+}
+.dice-spot-miss .dice-spot-face {
+  color: var(--verda);
+  border-color: var(--verda);
+  background: rgba(76, 140, 80, 0.06);
+  animation: ds-land 0.5s var(--ease) both;
+}
+@keyframes ds-land {
+  0% { transform: scale(1.35); }
+  50% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+.dice-spot-text {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--ink-soft);
+  animation: ds-dots 1.2s steps(3) infinite;
+}
+@keyframes ds-dots {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+.dice-spot-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  animation: ds-result 0.4s var(--ease) both;
+}
+@keyframes ds-result {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.dice-spot-num {
+  font-family: var(--display);
+  font-size: 18px;
+  letter-spacing: 2px;
+}
+.dice-spot-verdict {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 6px;
+}
+.dice-spot-result-hit .dice-spot-verdict {
+  color: #8a322b;
+}
+.dice-spot-result-miss .dice-spot-verdict {
+  color: var(--verda);
+}
+@media (max-width: 520px) {
+  .dice-spot-card {
+    padding: 24px 36px 20px;
+  }
+  .dice-spot-face {
+    width: 84px;
+    height: 84px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .seat-penalty { animation: none !important; }
   .seat-judging { animation: none !important; }

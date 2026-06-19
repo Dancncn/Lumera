@@ -291,8 +291,8 @@ export function TutorialStages({ onDone, onSkip }: { onDone: () => void; onSkip:
   // ---- play phase: floating guide (collapsible) ----
   if (guideCollapsed) {
     return (
-      <button className="stage-guide-pill" type="button" onClick={() => setGuideCollapsed(false)}>
-        {t('关卡')} {idx + 1} · {t(stage.tag)} ▾
+      <button className="stage-guide-pill" type="button" onClick={() => setGuideCollapsed(false)} title={`${t('关卡')} ${idx + 1} · ${t(stage.tag)}`}>
+        {idx + 1}
       </button>
     );
   }

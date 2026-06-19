@@ -35,7 +35,7 @@ export function useSfx() {
       | undefined;
     if (dice) {
       sfx.diceRoll();
-      setTimeout(() => (dice.hit ? sfx.diceHit() : sfx.diceMiss()), 280);
+      setTimeout(() => (dice.hit ? sfx.diceHit() : sfx.diceMiss()), 1700);
       return;
     }
 

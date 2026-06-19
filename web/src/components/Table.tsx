@@ -8,6 +8,7 @@ import { ActionArrows } from './ActionArrows';
 import { ActionBar } from './ActionBar';
 import { Center } from './Center';
 import { Coach } from './Coach';
+import { DiceSpotlight } from './DiceSpotlight';
 import { EventFx } from './EventFx';
 import { LangSwitch } from './LangSwitch';
 import { FloatingLog } from './FloatingLog';
@@ -24,7 +25,7 @@ function SfxToggle() {
   const { t } = useT();
   return (
     <button
-      className={`btn btn-ghost btn-icon sfx-toggle ${on ? '' : 'sfx-off'}`}
+      className={`btn btn-ghost btn-icon${on ? '' : ' sfx-off'}`}
       type="button"
       title={on ? t('关闭音效') : t('开启音效')}
       onClick={() => setOn(sfx.toggle())}
@@ -67,6 +68,7 @@ export function Table({ view }: { view: PlayerView }) {
       <FlyCards />
       <ActionArrows view={view} />
       <EventFx view={view} />
+      <DiceSpotlight />
       {tutorial && <Coach view={view} />}
       <header className="topbar">
         <div className="brand">
@@ -88,18 +90,8 @@ export function Table({ view }: { view: PlayerView }) {
               <span className="btn-label">{t('重开')}</span>
             </button>
           )}
-          {confirmQuit ? (
-            <span className="quit-confirm">
-              <span className="quit-ask">{t('退出本局？')}</span>
-              <button className="btn btn-danger" type="button" onClick={quitToMenu}>
-                {t('确认退出')}
-              </button>
-              <button className="btn btn-ghost" type="button" onClick={() => setConfirmQuit(false)}>
-                {t('取消')}
-              </button>
-            </span>
-          ) : (
-            <button className="btn btn-ghost btn-icon" type="button" onClick={() => setConfirmQuit(true)} title={t('退出')}>
+          <div className="quit-wrap">
+            <button className="btn btn-ghost btn-icon" type="button" onClick={() => setConfirmQuit((v) => !v)} title={t('退出')}>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 4.5h3.5a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H14" />
                 <path d="M10 8.5l-3.5 3.5L10 15.5" />
@@ -107,7 +99,20 @@ export function Table({ view }: { view: PlayerView }) {
               </svg>
               <span className="btn-label">{t('退出')}</span>
             </button>
-          )}
+            {confirmQuit && (
+              <div className="quit-dropdown">
+                <span className="quit-ask">{t('退出本局？')}</span>
+                <div className="quit-dropdown-btns">
+                  <button className="btn btn-danger" type="button" onClick={quitToMenu}>
+                    {t('确认退出')}
+                  </button>
+                  <button className="btn btn-ghost" type="button" onClick={() => setConfirmQuit(false)}>
+                    {t('取消')}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -117,14 +122,13 @@ export function Table({ view }: { view: PlayerView }) {
           <div className="cloth">
             <Center view={view} />
           </div>
+          <FloatingLog view={view} />
         </div>
         <div className="action-zone">
           <SelfPlate view={view} />
           <ActionBar view={view} />
         </div>
       </main>
-
-      <FloatingLog view={view} />
       {over && <GameOver view={view} />}
     </div>
   );
