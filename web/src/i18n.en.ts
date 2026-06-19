@@ -131,6 +131,8 @@ export const EN: Record<string, string> = {
   '受罚时一次性赌定若干个点、只掷一次骰，掷中其一就「被源淹没」，掉 1 点凝聚度。': 'When penalized, lock in several numbers at once and roll a single die; if it lands on any of them you are "drowned by the Source" and lose 1 Cohesion.',
   '要赌的点数个数 = 自上次中枪以来累计的受罚次数（第 1 次赌 1 个点、第 2 次赌 2 个…，封顶 6），中枪率随之飙升 —— 严惩连环诈牌。': 'Numbers to bet = penalties accrued since your last shot (1st time bet 1 number, 2nd time 2…, capped at 6), so the shot rate climbs with each one — a harsh price for chained bluffs.',
   '中枪掉 1 命后轮盘清零；中枪者把首家位让给下家（保护期），不至于刚掉命又被推到最暴露处。': 'After a hit costs 1 life the roulette resets; the one hit yields the lead to the next player (a grace period), so they aren\'t shoved back into the most exposed spot right after losing a life.',
+  '没中（险过）：不掉命，还补 3 张手牌——补回缩水的手牌、也推着牌库稳步见底，破「囤着牌库不耗、靠连环抓你的 1-3 把你拖死」的僵局。': 'Survive (a near miss): no life lost, and you draw 3 cards — refilling your dwindling hand and steadily draining the deck, breaking the stall where a shark hoards the deck and chains catches on your forced 1-3 claims to grind you out.',
+  '没中（险过）：不掉命，还能补 3 张手牌——手牌不会越打越少，牌库也稳步消耗，不被高手囤着牌库连环抓你的 1-3 拖死。': 'Survive (a near miss): no life lost, and you draw 3 cards — your hand won\'t keep shrinking and the deck steadily drains, so a shark can\'t hoard it and chain-catch your forced 1-3 claims to grind you out.',
   '打出同色 0（顶格 = 10）终结当前这一梯，并领 1 张计分卡入账。': 'Playing a same-color 0 (top = 10) ends the current ladder and earns you 1 score token.',
   '用法是止损：梯子高到你被迫诈牌时，主动打 0 把全场拉回低位重来。': 'Use it to cut losses: when the ladder climbs so high you\'re forced to bluff, play a 0 to pull the whole table back down.',
   '跑成 · 清空手牌': 'Run Out · Empty Your Hand',
