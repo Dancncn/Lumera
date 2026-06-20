@@ -19,7 +19,7 @@ export const DEFAULT_WEATHER_CHANCE = 0.28;
 interface DieFlash {
   seat: number;
   chosen: number[];
-  rolled: number;
+  rolled: number[]; // 第3枪起为 2 个点数
   hit: boolean;
 }
 
@@ -366,7 +366,7 @@ export const useGame = create<Store>((set, get) => {
         { name: 'Aurel · 对手', isAI: true },
       ];
       ais.set(1, new AiPlayer({ seat: 1, seed, profile: 'steady', difficulty: 'easy' }));
-      const { state, events } = createGame({ ...DEFAULT_CONFIG, players: 2, seed }, seats, firstSeat, deck);
+      const { state, events } = createGame({ ...DEFAULT_CONFIG, players: 2, seed, drawCooldown: false, handOverflowLimit: 0, revealOnDraw: false }, seats, firstSeat, deck);
       set({ state, lastEvents: events, lastDie: null, penaltySeat: null, thinking: null });
     },
 

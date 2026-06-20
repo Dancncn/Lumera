@@ -120,6 +120,12 @@ function logLine(s: GameState, ev: GameEvent): LogEntry | null {
       return { tpl: ev.direction === 1 ? '方向反转，改顺时针' : '方向反转，改逆时针' };
     case 'CardDrawn':
       return { tpl: '{name} 摸了 {n} 张', p: { name: nm(ev.seat), n: String(ev.count) } };
+    case 'HandRevealed': {
+      const revStr = ev.card.kind === 'wild' ? '万能牌' : ev.card.kind === 'number' ? claimTok(ev.card.color, ev.card.num) : '功能牌';
+      return { tpl: '{name} 亮出手牌 {card}', p: { name: nm(ev.seat), card: revStr } };
+    }
+    case 'HandOverflow':
+      return { tpl: '{name} 手牌溢出，{n} 张随机回归牌库', p: { name: nm(ev.seat), n: String(ev.count) } };
     case 'CardPlayed':
       return {
         tpl: ev.endsLadder ? '{name} 盖牌出 1 张，宣称 {claim}（打 0·终结本梯）' : '{name} 盖牌出 1 张，宣称 {claim}',
@@ -142,7 +148,7 @@ function logLine(s: GameState, ev: GameEvent): LogEntry | null {
     case 'PenaltyStarted':
       return { tpl: '{name} 受罚：源涌起，本轮赌 {n} 个点', p: { name: nm(ev.seat), n: String(ev.rolls) } };
     case 'DiceRolled':
-      return { tpl: '{name} 赌 {c} 点，掷出 {r} —— {result}', p: { name: nm(ev.seat), c: ev.chosen.join('、'), r: String(ev.rolled), result: ev.hit ? '被淹没（中）' : '险过' } };
+      return { tpl: '{name} 赌 {c} 点，掷出 {r} —— {result}', p: { name: nm(ev.seat), c: ev.chosen.join('、'), r: ev.rolled.join('、'), result: ev.hit ? '被淹没（中）' : '险过' } };
     case 'Returned':
       return { tpl: '{name} 一缕念被收回源头，凝聚度 {n}', p: { name: nm(ev.seat), n: String(ev.livesLeft) } };
     case 'Survived':
@@ -182,6 +188,36 @@ function drawCards(s: GameState, events: GameEvent[], seat: number, count: numbe
     drawn++;
   }
   if (drawn > 0) emit(s, events, { type: 'CardDrawn', seat, count: drawn });
+}
+
+/** 摸牌亮牌：摸牌后随机亮 1 张手牌给全场（破信息不对称）。 */
+function revealOnDraw(s: GameState, events: GameEvent[], seat: number): void {
+  if (!s.config.revealOnDraw) return;
+  const hand = s.players[seat].hand;
+  if (hand.length === 0) return;
+  const idx = Math.floor(rng01(s) * hand.length);
+  const card = hand[idx];
+  s.lastHandReveal = { seat, card };
+  emit(s, events, { type: 'HandRevealed', seat, card });
+}
+
+const HAND_OVERFLOW_DISCARD = 2;
+
+/** 手牌溢出检查：超过上限时随机弃 N 张回牌库。 */
+function checkOverflow(s: GameState, events: GameEvent[], seat: number): void {
+  const limit = s.config.handOverflowLimit;
+  if (limit <= 0) return;
+  const p = s.players[seat];
+  if (p.out || p.hand.length <= limit) return;
+  const count = Math.min(HAND_OVERFLOW_DISCARD, p.hand.length);
+  for (let i = 0; i < count; i++) {
+    const idx = Math.floor(rng01(s) * p.hand.length);
+    s.deck.push(p.hand.splice(idx, 1)[0]);
+  }
+  const sh = shuffle(s.deck, s.rng);
+  s.rng = sh.state;
+  s.deck = sh.arr;
+  emit(s, events, { type: 'HandOverflow', seat, count });
 }
 
 function endGame(s: GameState, events: GameEvent[]): void {
@@ -307,10 +343,23 @@ function maybeWeather(s: GameState, events: GameEvent[], leader: number): void {
   applyWeatherEffect(s, events, kind);
 }
 
-/** 开启一个新的出牌回合（含：终局检查 + 空手补牌防死锁 + 新梯天气 + TurnStarted）。 */
+/** 开启一个新的出牌回合（含：终局检查 + 溢出检查 + 冷却递减 + 空手补牌防死锁 + 新梯天气 + TurnStarted）。 */
 function startPlayTurn(s: GameState, events: GameEvent[], current: number, isFirst: boolean, opening = false): void {
   if (aliveCount(s) <= 1) return endGame(s, events); // 仅剩一缕
   if (s.deck.length === 0) return endGame(s, events); // 牌库摸空（主终局条件）
+
+  // ── 反屯牌：手牌溢出检查（所有存活玩家） ──
+  for (const p of s.players) {
+    if (!p.out) checkOverflow(s, events, p.seat);
+  }
+  if (s.deck.length === 0) return endGame(s, events); // 溢出回流可能不影响，但守恒检查
+
+  // ── 反屯牌：当前玩家摸牌冷却递减 ──
+  if (s.config.drawCooldown) {
+    const me = s.players[current];
+    if (me.drawCooldown > 0) me.drawCooldown--;
+  }
+
   if (s.players[current].hand.length === 0) {
     // 走到这里且空手，必然是「撒谎打最后一张被抓」（跑成各路径在结算时已显式补满 refillTo）。
     drawCards(s, events, current, s.config.refillAfterCaughtLast);
@@ -319,6 +368,7 @@ function startPlayTurn(s: GameState, events: GameEvent[], current: number, isFir
   // 新梯降天气（开局首梯豁免）；梯中接牌（isFirst=false）保留本梯持续天气不动。
   if (isFirst && !opening) maybeWeather(s, events, current);
   s.lastReveal = undefined;
+  s.lastHandReveal = undefined;
   s.phase = { kind: 'play', current, isFirst, hasDrawn: false };
   emit(s, events, { type: 'TurnStarted', seat: current, isFirst });
 }
@@ -335,7 +385,7 @@ function takePile(s: GameState, events: GameEvent[], winner: number): void {
 function startPenalty(s: GameState, events: GameEvent[], roller: number): void {
   s.ladderTop = null;
   s.pendingSkip = 0;
-  // 第 N 次受罚 → 赌定 N 个不同点数（封顶 6：到 6 即赌满全部点数，必中枪）。
+  // 第 N 次受罚 → 赌定 N 个不同点数（封顶 6：赌满全部点数即必中枪）。
   const rolls = Math.min(s.players[roller].escalation, 6);
   s.phase = { kind: 'penalty', roller, rollsRemaining: rolls };
   emit(s, events, { type: 'PenaltyStarted', seat: roller, rolls });
@@ -368,6 +418,7 @@ export function createGame(
       scored: [],
       tokens: 0,
       escalation: 1,
+      drawCooldown: 0,
       out: false,
     });
   }
@@ -538,7 +589,14 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
     if (cmd.type === 'Draw') {
       if (ph.hasDrawn) illegal('本回合已摸过牌');
       if (s.deck.length === 0) illegal('牌库已空');
+      if (s.config.drawCooldown && me.drawCooldown > 0) illegal('摸牌冷却中');
       drawCards(s, events, seat, 1);
+      // 反屯牌：摸牌亮牌
+      revealOnDraw(s, events, seat);
+      // 反屯牌：摸牌冷却（手牌≤2 时 1 回合 CD，>2 时 2 回合 CD）
+      if (s.config.drawCooldown) {
+        me.drawCooldown = me.hand.length <= 2 ? 1 : 2;
+      }
       if (s.deck.length === 0) {
         endGame(s, events);
       } else {
@@ -672,11 +730,17 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
     if (ns.some((n) => n < 1 || n > 6)) illegal('点数须在 1..6');
     if (new Set(ns).size !== ns.length) illegal('赌定的点数不能重复');
 
-    // 一次性掷一次骰：掷出的点落在所赌 N 个点之内即「中枪」（中枪率 N/6）。
-    const r = rollDie(s.rng);
-    s.rng = r.state;
-    const hit = ns.includes(r.rolled);
-    emit(s, events, { type: 'DiceRolled', seat, chosen: [...ns], rolled: r.rolled, hit });
+    // 掷骰：累进数 ≥ penaltyTwoDiceFrom（默认第3枪起）掷 2 颗，否则 1 颗。
+    // 任一颗落在所赌 N 个点之内即「中枪」。1 颗时中枪率 N/6；2 颗时 1-((6-N)/6)²，尾部骤然致命。
+    const dice = ph.rollsRemaining >= s.config.penaltyTwoDiceFrom ? 2 : 1;
+    const rolled: number[] = [];
+    for (let d = 0; d < dice; d++) {
+      const r = rollDie(s.rng);
+      s.rng = r.state;
+      rolled.push(r.rolled);
+    }
+    const hit = rolled.some((d) => ns.includes(d));
+    emit(s, events, { type: 'DiceRolled', seat, chosen: [...ns], rolled, hit });
 
     if (hit) {
       const p = s.players[seat];
@@ -728,10 +792,11 @@ function computePrompt(s: GameState, seat: number): ViewPrompt {
     case 'play': {
       if (s.phase.current !== seat) return { kind: 'idle' };
       const onlyFunctional = me.hand.length > 0 && me.hand.every((c) => c.kind === 'functional');
+      const cooldownReady = !s.config.drawCooldown || me.drawCooldown === 0;
       return {
         kind: 'play',
         isFirst: s.phase.isFirst,
-        canDraw: !s.phase.hasDrawn && s.deck.length > 0,
+        canDraw: !s.phase.hasDrawn && s.deck.length > 0 && cooldownReady,
         canFallback: onlyFunctional || me.hand.length === 0,
       };
     }
@@ -739,9 +804,11 @@ function computePrompt(s: GameState, seat: number): ViewPrompt {
       // 出牌方等待裁决；其余在场玩家都可质疑。
       if (seat === s.phase.player) return { kind: 'idle' };
       return { kind: 'respond', player: s.phase.player, claim: s.pile[s.pile.length - 1].claim };
-    case 'penalty':
+    case 'penalty': {
       if (s.phase.roller !== seat) return { kind: 'idle' };
-      return { kind: 'penalty', roller: s.phase.roller, rollsRemaining: s.phase.rollsRemaining };
+      const dice = s.phase.rollsRemaining >= s.config.penaltyTwoDiceFrom ? 2 : 1;
+      return { kind: 'penalty', roller: s.phase.roller, rollsRemaining: s.phase.rollsRemaining, dice };
+    }
   }
 }
 
@@ -755,6 +822,7 @@ export function viewFor(s: GameState, seat: number): PlayerView {
     scoredCount: p.scored.length,
     tokenValue: p.tokens,
     escalation: p.escalation,
+    drawCooldown: p.drawCooldown,
     out: p.out,
   }));
   return {
@@ -770,6 +838,7 @@ export function viewFor(s: GameState, seat: number): PlayerView {
     deckCount: s.deck.length,
     prompt: computePrompt(s, seat),
     lastReveal: s.lastReveal, // 摊牌结果是公开信息
+    lastHandReveal: s.lastHandReveal, // 摸牌亮牌结果（公开）
     ranking: s.ranking,
     log: s.log.slice(-50),
   };

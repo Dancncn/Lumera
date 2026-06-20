@@ -163,11 +163,14 @@ export function SelfPlate({ view }: { view: PlayerView }) {
   const me = view.players[view.you];
   const isCurrent = view.current === view.you && !me.out;
   const isPenalty = penaltySeat === view.you;
+  const nextSeat = nextAlive(view.players, view.current, view.direction);
+  const isNextMe = nextSeat === view.you && !isCurrent && !me.out;
   return (
     <div className={`selfplate ${isCurrent ? 'self-active' : ''} ${isPenalty ? 'self-penalty' : ''}`} data-seat={view.you}>
       <span className="self-name" style={{ color: playerColor(view.you) }}>{tn(me.name)}</span>
       <Lives n={me.lives} max={view.startingLives} />
       {isPenalty && <span className="self-penalty-tag">{t('受罚中')}</span>}
+      {isNextMe && <span className="self-next-tag">{t('下一个就是你')}</span>}
       <span className="self-stats">
         <span className="stat" title={t('手牌张数')}>
           <HandCount n={me.handCount} />

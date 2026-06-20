@@ -1194,9 +1194,14 @@ button.claim-chip:hover {
 .hand-cards {
   display: flex;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
+  overflow-x: auto;
   min-height: var(--card-h);
+  padding-bottom: 4px;
+}
+.hand-card {
+  flex: 0 0 auto;
 }
 .hand-empty {
   color: var(--gold-muted);
@@ -2019,6 +2024,9 @@ kbd {
 }
 
 /* ---------------- 质疑/摊牌镜头聚焦：压暗四周 ---------------- */
+.table-center:has(.focus-dim) {
+  z-index: 20;
+}
 .focus-dim {
   position: fixed;
   inset: 0;
@@ -4453,6 +4461,17 @@ kbd {
   letter-spacing: 2px;
   color: #c34a38;
   animation: pulse 1.1s infinite;
+}
+.self-next-tag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: #5a8a55;
+  background: rgba(100, 160, 100, 0.12);
+  border: 1px solid rgba(100, 160, 100, 0.3);
+  border-radius: 999px;
+  padding: 1px 10px;
+  animation: pulse 1.6s infinite;
 }
 
 .sfx-off {

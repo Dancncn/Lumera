@@ -219,7 +219,7 @@ function HandSummary({ hand }: { hand: Card[] }) {
   );
 }
 
-function PenaltyPick({ need }: { need: number }) {
+function PenaltyPick({ need, dice }: { need: number; dice: number }) {
   const human = useGame((s) => s.human);
   const { t } = useT();
   const [picked, setPicked] = useState<number[]>([]);
@@ -266,7 +266,8 @@ function PenaltyPick({ need }: { need: number }) {
   return (
     <div className="prompt prompt-penalty">
       <span className="penalty-tip">
-        {t('你受罚了！本轮赌定 {n} 个点数，只掷一次骰；掷中其一就掉 1 命、轮盘重置。', { n: need })}
+        {t('你受罚了！本轮赌定 {n} 个点数，掷 {d} 颗骰，任一颗落在所选点就掉 1 命、轮盘重置。', { n: need, d: dice })}
+        {dice > 1 && <strong className="penalty-tip-warn" style={{ color: '#c2502f' }}>{t('（第三枪起两颗骰子夹击，尾部极凶）')}</strong>}
       </span>
       <div className="penalty-steps">
         <span className={`penalty-step ${!full ? 'penalty-step-active' : 'penalty-step-done'}`}>
@@ -341,7 +342,7 @@ function Prompt({ view }: { view: PlayerView }) {
     );
   }
   if (p.kind === 'penalty') {
-    return <PenaltyPick need={p.rollsRemaining} />;
+    return <PenaltyPick need={p.rollsRemaining} dice={p.dice} />;
   }
   if (p.kind === 'play') {
     return (

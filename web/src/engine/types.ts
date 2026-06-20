@@ -70,6 +70,8 @@ export type GameEvent =
   | { type: 'FunctionalPlayed'; seat: number; func: FunctionalKind }
   | { type: 'DirectionReversed'; direction: 1 | -1 }
   | { type: 'CardDrawn'; seat: number; count: number } // 仅数量公开
+  | { type: 'HandRevealed'; seat: number; card: Card } // 摸牌亮牌：随机亮 1 张手牌给全场
+  | { type: 'HandOverflow'; seat: number; count: number } // 手牌溢出：超上限弃 N 张回牌库
   | { type: 'CardPlayed'; seat: number; claim: Claim; endsLadder: boolean } // 只播宣称
   | { type: 'Fallback'; seat: number; revealed: Card[] }
   | { type: 'PlayAccepted'; seat: number }
@@ -79,7 +81,7 @@ export type GameEvent =
   | { type: 'TokenAwarded'; seat: number; value: number } // 计分卡（打 0 的勇气奖励）
   | { type: 'RanOut'; seat: number } // 清空手牌「跑成了」
   | { type: 'PenaltyStarted'; seat: number; rolls: number }
-  | { type: 'DiceRolled'; seat: number; chosen: number[]; rolled: number; hit: boolean }
+  | { type: 'DiceRolled'; seat: number; chosen: number[]; rolled: number[]; hit: boolean } // 第3枪起掷2颗→rolled 含2个点，任一∈chosen 即中枪
   | { type: 'Returned'; seat: number; livesLeft: number } // 中枪：一缕念被收回源头（扣凝聚）
   | { type: 'Survived'; seat: number } // 未中
   | { type: 'PlayerOut'; seat: number } // 复归出局
@@ -116,7 +118,11 @@ export interface GameConfig {
   refillAfterCaughtLast: number; // 撒谎打最后一张被抓（不算跑成、受罚后）补牌到几张
   maxFunctionalInOpener: number; // 开局保底：起手手牌里功能牌最多几张（削弱开局方差，防被功能牌堵手）
   drawOnSurvive: number; // 受罚「险过」（未掉命）时补摸几张牌：补充缩水手牌 + 加速牌库消耗，破「囤牌抓 1-3」僵局
+  penaltyTwoDiceFrom: number; // 受罚轮盘尾部优化：累进数 ≥ 此值时掷 2 颗骰（任一落在所赌点即中枪），保留前两枪温和、骤增尾部致命度
   escalationResetsOnHit: boolean; // 中枪后受罚累进是否重置
+  drawCooldown: boolean; // 摸牌冷却：手牌≤2 时 1 回合 CD，>2 时 2 回合 CD
+  handOverflowLimit: number; // 手牌溢出上限（0=关闭）：超过此数时回合结束随机弃 2 张回牌库
+  revealOnDraw: boolean; // 摸牌亮牌：摸牌后随机亮 1 张手牌给所有人看，破信息不对称
   weather: boolean; // 混沌天气开关（可选玩法）
   weatherChance: number; // 每开新梯触发天气的概率（0..1）；开局首梯豁免、触发后隔梯冷却
   seed: number;
@@ -131,7 +137,11 @@ export const DEFAULT_CONFIG: Omit<GameConfig, 'players' | 'seed'> = {
   refillAfterCaughtLast: 2,
   maxFunctionalInOpener: 1,
   drawOnSurvive: 3,
+  penaltyTwoDiceFrom: 3,
   escalationResetsOnHit: true,
+  drawCooldown: true,
+  handOverflowLimit: 6,
+  revealOnDraw: true,
   weather: false,
   weatherChance: 0.28,
 };
@@ -146,6 +156,7 @@ export interface PlayerState {
   scored: Card[]; // 收走的牌堆牌（计分区）
   tokens: number; // 计分卡面值合计
   escalation: number; // 下次受罚投骰次数（>=1）
+  drawCooldown: number; // 摸牌冷却剩余回合（0=可摸）
   out: boolean;
 }
 
@@ -177,6 +188,7 @@ export interface GameState {
   rng: number; // 种子化 RNG 当前状态
   log: LogEntry[];
   lastReveal?: { seat: number; card: Card; truthful: boolean };
+  lastHandReveal?: { seat: number; card: Card };
   ranking?: RankEntry[];
   seq: number; // 单调递增，便于前端 diff
 }
@@ -191,6 +203,7 @@ export interface PublicPlayer {
   scoredCount: number;
   tokenValue: number;
   escalation: number;
+  drawCooldown: number; // 摸牌冷却剩余回合（公开信息）
   out: boolean;
 }
 
@@ -198,7 +211,7 @@ export interface PublicPlayer {
 export type ViewPrompt =
   | { kind: 'play'; isFirst: boolean; canDraw: boolean; canFallback: boolean }
   | { kind: 'respond'; player: number; claim: Claim }
-  | { kind: 'penalty'; roller: number; rollsRemaining: number }
+  | { kind: 'penalty'; roller: number; rollsRemaining: number; dice: number } // dice：本次掷几颗骰（第3枪起为 2）
   | { kind: 'idle' } // 不是你行动
   | { kind: 'over' };
 
@@ -215,6 +228,7 @@ export interface PlayerView {
   deckCount: number;
   prompt: ViewPrompt;
   lastReveal?: { seat: number; card: Card; truthful: boolean }; // 摊牌结果（公开）
+  lastHandReveal?: { seat: number; card: Card }; // 最近一次摸牌亮牌（公开）
   ranking?: RankEntry[];
   log: LogEntry[];
 }

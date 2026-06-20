@@ -148,6 +148,7 @@ export class AiPlayer {
   private rng: number;
   private opp = new Map<number, OppStat>();
   private seen = new Map<string, number>();
+  private seenIds = new Set<number>(); // 已记过的物理牌 id，防同一张牌被多事件双记
   private tilt = 0;
   private lastDelay = 600;
   private advice: DimAdvice = NEUTRAL_ADVICE;
@@ -175,8 +176,15 @@ export class AiPlayer {
     return s;
   }
 
-  private recordCard(card: Card): void {
-    if (this.rand() > 0.3 + this.traits.read * 0.7) return;
+  // 记牌：certain=公开必真硬信息（摊牌/摸牌亮牌/兜底）强制记入；否则按难度保留率 ρ 遗忘。
+  // ρ: master 1.0 / hard 0.9 / normal 0.7 / easy 0.4 —— easy 大漏维持弱。
+  private recordCard(card: Card, certain = false): void {
+    if (this.seenIds.has(card.id)) return; // 同一张牌只记一次（防 HandRevealed 后又 CardRevealed 双记 → 假 impossible）
+    if (!certain) {
+      const rho = this.difficulty === 'master' ? 1.0 : this.difficulty === 'hard' ? 0.9 : this.difficulty === 'normal' ? 0.7 : 0.4;
+      if (this.rand() >= rho) return;
+    }
+    this.seenIds.add(card.id);
     const key = card.kind === 'number' ? `${card.color}:${card.num}`
               : card.kind === 'wild' ? 'wild'
               : 'func';
@@ -272,6 +280,60 @@ export class AiPlayer {
     return handThreat * 0.6 + scoreThreat * 0.4;
   }
 
+  // 受罚一次的真命成本（引擎真值）：rolls=min(esc,6) 个赌点；esc≥3 掷 2 骰。
+  // P(中枪)= esc≤2:N/6；esc≥3:1-((6-N)/6)²。命值 lifeLossValue=5 → esc3=3.75 非 2.5。
+  private lifeCost(esc: number): number {
+    const N = Math.min(Math.max(esc, 1), 6);
+    const pHit = N >= 3 ? 1 - ((6 - N) / 6) ** 2 : N / 6;
+    return 5 * pHit;
+  }
+
+  // 多人外部性（kingmaker）：作用在质疑阈值 p* 上。只为拆真正领先者花命，垫底互拆收敛。
+  // 纯只读、不消费 rand。normal/easy 系数=0（无外部性意识，保梯度）。
+  private kingmakerKappa(view: PlayerView, player: number): number {
+    const alive = view.players.filter((p) => !p.out && p.seat !== view.you);
+    const n = alive.length;
+    if (n < 2) return 0; // 2 人局退化为纯 1v1
+    const coef = this.difficulty === 'master' ? 0.12 : this.difficulty === 'hard' ? 0.06 : 0;
+    if (coef === 0) return 0;
+    const threatB = this.opponentThreat(view, player);
+    const others = alive.filter((p) => p.seat !== player);
+    const avgOther = others.length ? others.reduce((s, p) => s + this.opponentThreat(view, p.seat), 0) / others.length : 0;
+    const myThreat = this.opponentThreat(view, view.you);
+    const meBehind = clamp(avgOther - myThreat + 0.5); // 越落后越该搅局→κ 越小（少受抑制）
+    const nScale = 1 + (n - 2) * 0.15; // 人越多外部性越重、越该搭便车
+    // B 领先→(avgOther-threatB)<0→κ<0→降阈值（该拆）；B 垫底→κ>0→抬阈值（别替人除人）
+    return (avgOther - threatB) * coef * nScale * (0.6 + 0.8 * (1 - meBehind));
+  }
+
+  // 出牌侧少互喂：非「我领先且拦截领先者」时，多人局收敛诈牌，不替第三方做嫁衣。
+  private feedRestraint(view: PlayerView): number {
+    if (this.difficulty === 'easy' || this.traits.rationality <= 0.7) return 0;
+    const alive = view.players.filter((p) => !p.out && p.seat !== view.you);
+    if (alive.length < 2) return 0;
+    const avgOther = alive.reduce((s, p) => s + this.opponentThreat(view, p.seat), 0) / alive.length;
+    const responder = nextAlive(view, view.you, view.direction);
+    const targetIsLeader = this.opponentThreat(view, responder) >= avgOther;
+    const myLead = this.opponentThreat(view, view.you) >= avgOther;
+    if (myLead && targetIsLeader) return 0; // 领先者拦领先者=正当拦截，不收敛
+    return clamp(0.2 * (1 - this.aggregateDanger(view)));
+  }
+
+  // 无差异校准诈牌频率 f*：面向全场最爱质疑者 j*，令其质疑 EV≈0 → 诈牌不可读（非针对下家）。
+  private bluffFreqStar(view: PlayerView): number {
+    let jStar = -1;
+    let best = -1;
+    for (const p of view.players) {
+      if (p.out || p.seat === view.you) continue;
+      const t = this.challengeRate(p.seat);
+      if (t > best) { best = t; jStar = p.seat; }
+    }
+    if (jStar < 0) return 0.3;
+    const Lj = this.lifeCost(view.players[jStar]?.escalation ?? 1);
+    const P = Math.max(view.pileCount, 1);
+    return clamp(Lj / (P + Lj));
+  }
+
   // 全员可质疑：被抓概率 = 1 − ∏(1 − trigger_i)，而非仅看下家。
   private aggregateDanger(view: PlayerView): number {
     let pSafe = 1;
@@ -298,12 +360,7 @@ export class AiPlayer {
       score -= val(c.num) * 0.15;
       if (danger > 0.4) score += remaining * danger * 0.5;
       if (danger < 0.3) score += val(c.num) * 0.1;
-      // 大师：考虑对手最近看过什么牌——宣称对手刚看过存在的牌更可信
-      if (this.difficulty === 'master') {
-        const resp = nextAlive(view, view.you, view.direction);
-        const cr = this.challengeRate(resp);
-        if (cr > 0.4) score += remaining * 0.8;
-      }
+      // 选「全场最难证伪」（剩余真牌多+贴梯），去下家化——不再按单一下家质疑率定点，反 tell。
       if (score > bestScore) {
         bestScore = score;
         bestClaim = c;
@@ -329,7 +386,7 @@ export class AiPlayer {
             .map((p) => p.seat);
           break;
         case 'CardRevealed':
-          this.recordCard(e.card);
+          this.recordCard(e.card, this.traits.rationality > 0.7); // 摊牌公开必真：master/hard 必记
           if (e.seat !== this.seat) {
             if (e.truthful) this.stat(e.seat).truths++;
             else this.stat(e.seat).lies++;
@@ -338,7 +395,10 @@ export class AiPlayer {
           }
           break;
         case 'Fallback':
-          for (const c of e.revealed) this.recordCard(c);
+          for (const c of e.revealed) this.recordCard(c, this.traits.rationality > 0.7);
+          break;
+        case 'HandRevealed':
+          this.recordCard(e.card, this.traits.rationality > 0.7); // 摸牌亮牌公开必真（修：原先完全没记）
           break;
         case 'Challenged': {
           const st = this.stat(e.challenger);
@@ -515,53 +575,40 @@ export class AiPlayer {
     if (this.difficulty === 'master') {
       const op = view.players[player];
       if (op && !op.out) {
-        if (op.handCount <= 2) pLie = Math.max(pLie, 0.65 + this.bluffRate(player) * 0.2);
-        else if (op.handCount <= 4) pLie = Math.max(pLie, 0.50 + this.bluffRate(player) * 0.15);
-        if (op.lives <= 1) pLie = clamp(pLie + 0.08);
+        // 终局：对手牌少时收尾诈牌概率↑，但按其历史骗率成比例上调（不再硬抬到 0.65 制造假阳性）。
+        if (op.handCount <= 2) pLie = clamp(pLie + 0.18 * this.bluffRate(player));
+        else if (op.handCount <= 4) pLie = clamp(pLie + 0.10 * this.bluffRate(player));
       }
+      const br = this.bluffRate(player);
+      if (br > 0.5) pLie = clamp(pLie + (br - 0.5) * 0.25); // 高骗率→抬证据(pLie)，不裸加 pCh
     }
     pLie = clamp(pLie, 0.05, 0.97);
 
-    // ── 决策：高理性走 EV，低理性走 sigmoid ──
-    let pCh: number;
-    if (this.traits.rationality > 0.6) {
-      const pile = Math.max(view.pileCount, 1);
-      const me = view.players[view.you];
-      const escRisk = (me?.escalation ?? 1) * 1.5;
-      const evThreshold = (pile + escRisk) / (2 * pile + escRisk);
-      const adjusted = evThreshold - (this.traits.challenge - 0.5) * 0.12 - this.tilt * 0.06;
-      pCh = pLie > adjusted ? clamp(0.7 + (pLie - adjusted) * 2) : clamp(0.15 + (pLie - adjusted) * 1.5);
-    } else {
-      let thr = 0.55;
-      thr -= (this.traits.challenge - 0.5) * 0.5;
-      thr -= Math.min(view.pileCount, 10) * 0.012;
-      thr -= this.tilt * 0.1;
-      thr = clamp(thr, 0.18, 0.85);
-      const margin = pLie - thr;
-      pCh = sigmoid(margin * (4 + this.traits.rationality * 8));
-      const floor = 0.04 + (1 - this.traits.rationality) * 0.10;
-      pCh = clamp(pCh, floor, 1 - floor);
-    }
+    // ── 决策：真命成本破局阈值 p* = L/(P+L)，过阈才质疑（少而准）──
+    // L=输掉质疑时「我自己」的真命成本；P=赌注牌堆。ΔEV=pLie·P−(1−pLie)·L>0 ⟺ pLie>p*。
+    // L 随我 escalation 单调升 → 后期阈值升 → 后期更不敢乱拆（修正旧版越后期越爱拆的反向错误）。
+    const L = this.lifeCost(view.players[view.you]?.escalation ?? 1);
+    const P = Math.max(view.pileCount, 1);
+    // 输掉质疑：既掉命(−L)又把牌堆白送对手(+P 给他)。计入全摆动 → pLie*=(P+L)/(2P+L)。
+    // （仅 L/(P+L) 会漏掉「喂对手牌堆」这半，导致过度质疑——实测命中率仅 42%。）
+    const pStar = (P + L) / (2 * P + L);
+    const pStarAdj = clamp(pStar + this.kingmakerKappa(view, player), 0.05, 0.92);
+    const externAware = clamp((this.traits.rationality - 0.5) / 0.45); // easy≈0 master≈1
 
-    if (this.traits.rationality > 0.7) {
-      const risk = this.riskScore(view);
-      const threat = this.opponentThreat(view, player);
-      pCh -= risk * 0.12;
-      pCh += threat * (0.15 + this.traits.rationality * 0.12);
-      pCh = clamp(pCh, 0.03, 0.98);
-    }
+    // EV 分支（理性者感知阈值）：过阈陡升、未过阈低位。
+    const margin = pLie - pStarAdj;
+    const pChEv = margin > 0 ? clamp(0.55 + margin * 2.2) : clamp(0.06 + margin * 0.8, 0.02, 0.5);
 
-    // 大师独占：精准狙杀 + 适应性剥削
-    if (this.difficulty === 'master') {
-      const op = view.players[player];
-      if (op && !op.out && op.lives <= 1 && op.handCount <= 3) {
-        pCh = clamp(pCh + 0.10);
-      }
-      const br = this.bluffRate(player);
-      if (br > 0.5) pCh = clamp(pCh + (br - 0.5) * 0.35);
-    }
+    // sigmoid 分支（低理性，阈值方向亦朝 p*）：保留性格/上头噪声。
+    let thr = clamp(pStar + 0.05, 0.2, 0.85);
+    thr -= (this.traits.challenge - 0.5) * 0.5;
+    thr -= this.tilt * 0.1;
+    let pChLow = sigmoid((pLie - thr) * (4 + this.traits.rationality * 8));
+    const floor = 0.04 + (1 - this.traits.rationality) * 0.10;
+    pChLow = clamp(pChLow, floor, 1 - floor);
 
-    pCh += this.advice.dpCh; // 维度修正（经典=0；rand 比较前叠加，bare += 避免重 clamp 改动经典）
+    let pCh = mix(pChLow, pChEv, externAware);
+    pCh += this.advice.dpCh; // 天气维度（经典=0）
     const hardness = 1 - Math.min(1, Math.abs(pLie - 0.5) * 3);
     this.lastDelay = this.think(820, 1500, hardness);
     return this.rand() < pCh ? { type: 'Challenge' } : { type: 'Accept' };
@@ -700,6 +747,11 @@ export class AiPlayer {
         const resp = nextAlive(view, view.you, view.direction);
         pDraw += this.challengeRate(resp) * 0.15;
       }
+      if (this.traits.rationality > 0.7) {
+        // 摸牌成本：revealOnDraw 泄一张己牌 + 冷却锁 1~2 回合（手牌>2 锁 2 回合更亏）。
+        const myHand = view.players[view.you]?.handCount ?? 0;
+        pDraw -= (0.1 + (myHand <= 2 ? 0.04 : 0.08)) * this.traits.rationality;
+      }
       pDraw += this.advice.dpDraw; // 维度修正（经典=0）：bounty/bless 略降摸牌
       if (this.rand() < pDraw) {
         this.lastDelay = this.think(620, 700, 0.4);
@@ -718,18 +770,19 @@ export class AiPlayer {
     if (numbers.length && claims.length) {
       let bluffAppetite = clamp(this.traits.bluff + this.tilt * 0.2 - danger * 0.5 * this.traits.read);
       if (this.traits.rationality > 0.7) bluffAppetite -= this.riskScore(view) * 0.2;
-      if (this.difficulty === 'master') {
-        // 针对性诈牌：分析下家质疑倾向，对被动对手加大诈牌
-        const resp = nextAlive(view, view.you, view.direction);
-        const cr = this.challengeRate(resp);
-        const passStreak = this.recentPassStreak(resp);
-        bluffAppetite += (0.5 - cr) * 0.4;
-        if (passStreak >= 3) bluffAppetite += 0.15;
-        // 低危险环境整体更敢诈
-        bluffAppetite += (0.5 - danger) * 0.15;
-      }
-      bluffAppetite += this.advice.dBluffAppetite; // 维度修正（经典=0）：surge/veer 收敛诈牌
-      if (this.rand() < clamp(0.35 + bluffAppetite * 0.6) || (!canDraw && !wild)) {
+      if (this.difficulty === 'master') bluffAppetite += (0.5 - danger) * 0.15; // 低危险更敢诈（非 tell）
+      bluffAppetite += this.advice.dBluffAppetite; // 天气维度（经典=0）
+      bluffAppetite = clamp(bluffAppetite - this.feedRestraint(view), 0, 1); // 少互喂：不替第三方做嫁衣
+      // 诈牌概率：master/hard 用无差异校准 f*（面向全场最爱拆者，不可读，反诱导）；normal 半混；easy 启发式。
+      const heur = clamp(0.35 + bluffAppetite * 0.6);
+      const fStar = this.bluffFreqStar(view);
+      const bluffP =
+        this.difficulty === 'master' || this.difficulty === 'hard'
+          ? clamp(fStar + (this.traits.bluff - 0.5) * 0.12 + (bluffAppetite - 0.5) * 0.1, 0.03, 0.85)
+          : this.difficulty === 'normal'
+            ? mix(heur, fStar, 0.5)
+            : heur;
+      if (this.rand() < bluffP || (!canDraw && !wild)) {
         const dump = this.smartDump(numbers, view);
         this.lastDelay = this.think(880, 1300, 0.65);
         return { type: 'PlayCard', cardId: dump.id, claim: this.blessZeroClaim(claims, view, danger, false) ?? this.pickClaim(claims, view) };
