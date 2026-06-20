@@ -287,6 +287,16 @@ export class AiPlayer {
     return 5 * pHit;
   }
 
+  // 有效命成本：输掉质疑时，中枪(pHit)掉命 −5；但**险过**(1−pHit)会把手牌补到 3 张上限(手牌少时才补到，材料价值)、
+  // 仅累进 +1。前期累进低→险过率高→补牌收益抵掉大半风险→有效成本骤降→该更敢抓便宜牌。
+  // esc≥3 双骰致命、险过率低，有效成本≈真命成本，仍不敢乱抓。
+  private effLifeCost(esc: number): number {
+    const N = Math.min(Math.max(esc, 1), 6);
+    const pHit = N >= 3 ? 1 - ((6 - N) / 6) ** 2 : N / 6;
+    const surviveNet = 0.45; // 险过净收益：补牌到 3 张上限的材料价值 − 累进+1 未来成本（补牌已收口故略降）
+    return Math.max(0.1, this.lifeCost(esc) - (1 - pHit) * surviveNet);
+  }
+
   // 多人外部性（kingmaker）：作用在质疑阈值 p* 上。只为拆真正领先者花命，垫底互拆收敛。
   // 纯只读、不消费 rand。normal/easy 系数=0（无外部性意识，保梯度）。
   private kingmakerKappa(view: PlayerView, player: number): number {
@@ -328,7 +338,7 @@ export class AiPlayer {
       if (t > best) { best = t; jStar = p.seat; }
     }
     if (jStar < 0) return 0.3;
-    const Lj = this.lifeCost(view.players[jStar]?.escalation ?? 1);
+    const Lj = this.effLifeCost(view.players[jStar]?.escalation ?? 1);
     const P = Math.max(view.pileCount, 1);
     return clamp(Lj / (P + Lj));
   }
@@ -551,11 +561,12 @@ export class AiPlayer {
     }
     if (remaining <= 0) pLie = Math.max(pLie, 0.7);
 
-    // 大师独占：终局读心——对手牌少时更可能在赌，上调 pLie 估计（经 EV 框架过滤）
+    // 大师独占：终局读心——对手牌少时更可能在赌，按其历史骗率成比例上调 pLie（经 EV 框架过滤）。
+    // 注：曾试过对近跑成者大幅激进截杀（学真人打法），但实测会让 master 互相误截老实牌、自爆送分，
+    //     反而喂了囤牌/躺平流（kingmaker 回潮，囤牌流 2.7%→14.3%）。故保持谨慎、不一刀切截近跑成者。
     if (this.difficulty === 'master') {
       const op = view.players[player];
       if (op && !op.out) {
-        // 终局：对手牌少时收尾诈牌概率↑，但按其历史骗率成比例上调（不再硬抬到 0.65 制造假阳性）。
         if (op.handCount <= 2) pLie = clamp(pLie + 0.18 * this.bluffRate(player));
         else if (op.handCount <= 4) pLie = clamp(pLie + 0.10 * this.bluffRate(player));
       }
@@ -567,7 +578,7 @@ export class AiPlayer {
     // ── 决策：真命成本破局阈值 p* = L/(P+L)，过阈才质疑（少而准）──
     // L=输掉质疑时「我自己」的真命成本；P=赌注牌堆。ΔEV=pLie·P−(1−pLie)·L>0 ⟺ pLie>p*。
     // L 随我 escalation 单调升 → 后期阈值升 → 后期更不敢乱拆（修正旧版越后期越爱拆的反向错误）。
-    const L = this.lifeCost(view.players[view.you]?.escalation ?? 1);
+    const L = this.effLifeCost(view.players[view.you]?.escalation ?? 1);
     const P = Math.max(view.pileCount, 1);
     // 输掉质疑：既掉命(−L)又把牌堆白送对手(+P 给他)。计入全摆动 → pLie*=(P+L)/(2P+L)。
     // （仅 L/(P+L) 会漏掉「喂对手牌堆」这半，导致过度质疑——实测命中率仅 42%。）
@@ -624,29 +635,33 @@ export class AiPlayer {
     if (!isFirst) {
       const funcs = hand.filter((c) => c.kind === 'functional');
       if (funcs.length) {
-        const responder = nextAlive(view, view.you, view.direction);
-        const aggDanger = this.aggregateDanger(view);
+        const responder = nextAlive(view, view.you, view.direction); // skip 会禁掉的下家
+        const respHand = view.players[responder]?.handCount ?? 9;
         const respTrig = this.trigger(responder);
-        let pFunc = 0.05 + this.traits.risk * 0.08 + aggDanger * 0.14 * this.traits.read;
-        if (this.traits.rationality > 0.7) {
-          const risk = this.riskScore(view);
-          const respThreat = this.opponentThreat(view, responder);
-          pFunc += risk * 0.15 + respThreat * 0.20;
-        }
-        if (this.difficulty === 'master') {
-          const nearWin = view.players.some((p) => !p.out && p.seat !== view.you && p.handCount <= 4);
-          if (nearWin) pFunc += 0.28;
+        const aggDanger = this.aggregateDanger(view);
+        // 战略功能牌（高理性）：以「压制威胁下家」为主轴——下家越是威胁(将空/高分)越值得 skip 截他；
+        // 近跑成(≤3)再加权重点禁；下家爱抓则 reverse 把回合甩开。+性格扰动，不再单一死板只禁近跑成。
+        // 仍避免去 skip 纯囤牌的高手牌低分下家（那只帮他免于暴露）——respThreat 对那种下家本就低。
+        const respThreat = this.opponentThreat(view, responder);
+        let pFunc: number;
+        if (this.traits.rationality > 0.6) {
+          pFunc =
+            respThreat * 0.4 +
+            (respHand <= 2 ? 0.2 : respHand <= 3 ? 0.08 : 0) +
+            (respTrig > 0.6 ? (respTrig - 0.6) * 0.4 : 0) +
+            this.traits.risk * 0.08;
+        } else {
+          // 低理性：旧式随手甩（弱档乱用功能牌，维持难度梯度）
+          pFunc = 0.05 + this.traits.risk * 0.08 + aggDanger * 0.14 * this.traits.read + respThreat * 0.1;
         }
         pFunc *= 0.6 + this.rand() * 0.8;
         if (this.rand() < clamp(pFunc, 0, 0.55)) {
           const skip = funcs.find((c) => c.kind === 'functional' && c.func === 'skip');
           const rev = funcs.find((c) => c.kind === 'functional' && c.func === 'reverse');
-          // 折价加权选功能牌（不新增 rand）。经典 skipMul=reverseMul=1 时与原
-          // `respTrig>0.5&&skip ? skip : rev??skip??funcs[0]` 各存在性组合逐位一致：
-          // skip 基权 0.5（respTrig>0.5 时升 1.5），rev 基权 1.0，严格 > 取 skip。
-          const wSkip = (skip ? 1 : 0) * (respTrig > 0.5 ? 1.5 : 0.5) * this.advice.skipMul;
-          const wRev = (rev ? 1 : 0) * this.advice.reverseMul;
-          const pick = wSkip > wRev ? (skip ?? rev ?? funcs[0]) : (rev ?? skip ?? funcs[0]);
+          // skip 权重随下家威胁递增（压制/截杀）；reverse 在下家爱抓时甩开。保留天气 skipMul/reverseMul 折价。
+          const wSkip = (skip ? respThreat * 0.7 + (respHand <= 3 ? 0.35 : 0.12) : 0) * this.advice.skipMul;
+          const wRev = (rev ? (respTrig > 0.6 ? 0.6 : 0.3) : 0) * this.advice.reverseMul;
+          const pick = wSkip >= wRev ? (skip ?? rev ?? funcs[0]) : (rev ?? skip ?? funcs[0]);
           this.lastDelay = this.think(700, 800, 0.5);
           return { type: 'PlayFunctional', cardId: pick.id };
         }
@@ -759,10 +774,21 @@ export class AiPlayer {
     }
 
     if (wild && claims.length) {
-      const keepWild = this.rand() < this.traits.risk * 0.45 && honest.length > 0;
-      if (!keepWild) {
+      // 万能牌＝灵活进攻牌（必判真）：可当 0 封梯领分、当高数压牌、或安全脱困接牌。
+      // ① bless / 高梯时用 wild 打 0 封梯（领计分卡 + 把危险高梯清掉，纯赚且必真）；
+      // ② 否则存作后手：有垃圾数字可盖就盖数字、把 wild 留着，只在被迫(无数字)或太危险时才烧。
+      const blessZero = this.blessZeroClaim(claims, view, danger, true);
+      const zeroClaim = claims.find((c) => c.num === 0) ?? null;
+      const highLadder = view.ladderTop ? val(view.ladderTop.num) >= 7 : false;
+      const closeClaim = blessZero ?? (zeroClaim && highLadder && this.traits.rationality > 0.6 && this.rand() < 0.45 ? zeroClaim : null);
+      const playWild =
+        closeClaim !== null ||
+        (this.traits.rationality > 0.6
+          ? numbers.length === 0 || this.rand() < danger * 0.55
+          : !(this.rand() < this.traits.risk * 0.45 && honest.length > 0));
+      if (playWild) {
         this.lastDelay = this.think(700, 900, 0.45);
-        return { type: 'PlayCard', cardId: wild.id, claim: this.blessZeroClaim(claims, view, danger, true) ?? this.pickClaim(claims, view) };
+        return { type: 'PlayCard', cardId: wild.id, claim: closeClaim ?? this.pickClaim(claims, view) };
       }
     }
 
@@ -832,11 +858,31 @@ export class AiPlayer {
   }
 
   // 大师弃牌：保留最强颜色连续牌，丢弱色 / 高值垃圾牌。
+  // 牌的「战略留存价值」（越高越该留，越不该当垃圾盖出去）。按压牌强度连续分级：
+  //   0 顶格(=10)最强接、封梯领分；9>8>7 压牌强度递增(8 介于 7 与 9)；4-6 中段垃圾(盖牌首选)；
+  //   1-3 首家起手燃料，但手里超过 2 张时多余的也可丢(lowCount 冗余折价)。大师再给优势色加分。
+  private keepValue(c: NumCard, colorCount: Map<Color, number>, lowCount: number): number {
+    const v = c.num;
+    let k: number;
+    if (v === 0) k = 1.0;
+    else if (v >= 7) k = 0.45 + (v - 7) * 0.12; // 7→0.45 8→0.57 9→0.69
+    else if (v <= 3) k = 0.42 - Math.max(0, lowCount - 2) * 0.1; // 首攻燃料，多于 2 张起贬
+    else k = 0.18 + (v - 4) * 0.02; // 4→0.18 5→0.20 6→0.22
+    if (this.difficulty === 'master') k += (colorCount.get(c.color) ?? 0) * 0.06;
+    return k;
+  }
+
+  // 弃牌（盖牌诈牌时「盖哪张」）：丢 keepValue 最低的牌（4-6 优先，决不先丢 0/9/8/7/1-3）；同价丢更低值。
+  // 低理性档仍按「丢最高值」乱来（会把 0/9 当垃圾），维持难度梯度。
   private smartDump(numbers: NumCard[], view: PlayerView): NumCard {
-    if (this.difficulty === 'master' && numbers.length > 1) {
+    if (this.traits.rationality > 0.6 && numbers.length > 1) {
       const cc = new Map<Color, number>();
-      for (const c of view.yourHand) if (c.kind === 'number') cc.set(c.color, (cc.get(c.color) ?? 0) + 1);
-      return [...numbers].sort((a, b) => (cc.get(a.color) ?? 0) - (cc.get(b.color) ?? 0) || val(b.num) - val(a.num))[0];
+      let lowCount = 0;
+      for (const c of view.yourHand) if (c.kind === 'number') {
+        cc.set(c.color, (cc.get(c.color) ?? 0) + 1);
+        if (c.num >= 1 && c.num <= 3) lowCount++;
+      }
+      return [...numbers].sort((a, b) => this.keepValue(a, cc, lowCount) - this.keepValue(b, cc, lowCount) || val(a.num) - val(b.num))[0];
     }
     return [...numbers].sort((a, b) => val(b.num) - val(a.num))[0];
   }

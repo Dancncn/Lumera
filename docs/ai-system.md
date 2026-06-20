@@ -242,7 +242,7 @@ pCh = mix(pChLow, pChEv, externAware) + advice.dpCh    // 低理性走 sigmoid �
 
 1. **有合法的老实牌** → 多数情况老实接，用 `pickEscalation` 决定爬多高（保守者贴梯顶、冒险者跳高）；小概率改诈（master 仅 0.06，其余 `bluff·0.18`）。
 2. **接不上** → 按 `pDraw` 概率先 `Draw` 补一张（保守、耐心者更爱摸；全场嗜抓则少摸）。
-3. **万能牌**：当脱困王牌，`risk` 高者倾向留着不轻易出。
+3. **万能牌**：当脱困王牌（必判真、能接任何梯）。高理性档**留着作后手**——有 4-8 垃圾数字可盖时优先盖数字、把万能存起来；只在被迫（无数字可盖）、全场太危险（数字诈牌大概率被抓，安全的万能才值得烧）、或 bless 下打 0（纯赚分）时才出。低理性档仍按 `risk` 随意烧。
 4. **诈牌**：先算 `bluffAppetite = clamp(bluff + tilt·0.2 − aggregateDanger·0.5·read)`（上头更敢诈、全场嗜抓则收敛），高理性再减 `riskScore` 与 `feedRestraint`（多人不互喂）。**触发概率**：master/hard 用 §10.4 的无差异校准 `f*`（不可读）、normal 半混 `mix(启发式, f*, 0.5)`、easy 走启发式 `clamp(0.35 + bluffAppetite·0.6)`。无路可退（不能摸、无万能）时被迫诈。
 
 ### 6.3 选宣称内容（`pickClaim`，[ai.ts](../web/src/engine/ai.ts)）
@@ -252,9 +252,17 @@ pCh = mix(pChLow, pChEv, externAware) + advice.dpCh    // 低理性走 sigmoid �
 - 高理性走 `strategicBluffClaim`（[ai.ts](../web/src/engine/ai.ts)）：给每个合法宣称打分，偏好 **`remaining + unseenWilds` 大**（牌源多、不易被算死）、**爬升幅度小**，并按全场危险 `aggregateDanger` 调权重——越危险越要挑「圆得最稳」的牌。
 - 低理性走 `smartBluffClaim`（[ai.ts](../web/src/engine/ai.ts)）或直接 `minEscalation` 取最小爬升。
 
-### 6.4 智能弃牌（`smartDump`，[ai.ts](../web/src/engine/ai.ts)）
+### 6.4 智能弃牌（`smartDump` / `keepValue`，[ai.ts](../web/src/engine/ai.ts)）
 
-要「丢一张垫场」时，普通档丢**最高值**的垃圾牌（高位牌难接、留着没用）；大师档则丢**最弱颜色**里的高值牌，从而**保留优势色的连续牌**留作后手。
+盖牌诈牌要「盖哪张」时，按**战略留存价值** `keepValue` 丢**最低**的那张：
+
+| 牌 | `keepValue` | 为何该留 |
+|----|------------|---------|
+| **0**（顶格=10） | 1.0 | 封梯 + 领计分卡 + 最强接牌 + bless 加分，最该留 |
+| **9 / 1-3** | 0.55 | 9 是同色仅 0 能压的强接牌；1-3 是首家起手燃料 |
+| 4-8 | 0.15 | 中段垃圾，盖牌掩护的首选 |
+
+大师再给**优势色**的牌加分（`+0.06×同色张数`，保留连续接牌）。**关键修正**：旧版按 `val(num)` 降序「丢最高值」，而 `val(0)=10`、`val(9)=9` 恰是最高——于是把最该留的 **0 和 9 当垃圾第一个盖掉**了（你正是看到这个）。现改为丢 `keepValue` 最低（4-8 优先，决不先丢 0/9/1-3）。低理性档仍按旧「丢最高值」乱来，维持难度梯度（实测大师战略牌浪费率 2.4%，梯度不变）。
 
 ---
 
