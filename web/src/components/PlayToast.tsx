@@ -62,7 +62,7 @@ export function PlayToast({ view }: { view: PlayerView }) {
     return () => clearTimeout(timer);
   }, [events, view.you, view.players, view.log.length]);
 
-  if (!toast) return null;
+  if (!toast || view.lastReveal) return null;
   return (
     <div className="play-toast" key={toast.id}>
       {toast.node}
