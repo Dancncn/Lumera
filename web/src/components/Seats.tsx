@@ -139,19 +139,19 @@ export function Seats({ view }: { view: PlayerView }) {
   const penaltySeat = useGame((s) => s.penaltySeat);
   const skippedSeat = useSkippedSeat(events, view);
   const judgingSeat = useJudgingSeat(events);
-  const nextSeat = nextAlive(view.players, view.current, view.direction);
+  const ntp = view.nextToPlay;
   const opponents = view.players.filter((p) => p.seat !== view.you);
   const mid = Math.ceil(opponents.length / 2);
   return (
     <div className="opp-row">
       <div className="opp-side opp-left">
         {opponents.slice(0, mid).map((p) => (
-          <Seat key={p.seat} p={p} view={view} isPenalty={penaltySeat === p.seat} isSkipped={skippedSeat === p.seat} isJudging={judgingSeat === p.seat} isNext={nextSeat === p.seat && nextSeat !== view.current} />
+          <Seat key={p.seat} p={p} view={view} isPenalty={penaltySeat === p.seat} isSkipped={skippedSeat === p.seat} isJudging={judgingSeat === p.seat} isNext={ntp === p.seat && ntp !== view.current} />
         ))}
       </div>
       <div className="opp-side opp-right">
         {opponents.slice(mid).map((p) => (
-          <Seat key={p.seat} p={p} view={view} isPenalty={penaltySeat === p.seat} isSkipped={skippedSeat === p.seat} isJudging={judgingSeat === p.seat} isNext={nextSeat === p.seat && nextSeat !== view.current} />
+          <Seat key={p.seat} p={p} view={view} isPenalty={penaltySeat === p.seat} isSkipped={skippedSeat === p.seat} isJudging={judgingSeat === p.seat} isNext={ntp === p.seat && ntp !== view.current} />
         ))}
       </div>
     </div>
@@ -164,8 +164,7 @@ export function SelfPlate({ view }: { view: PlayerView }) {
   const me = view.players[view.you];
   const isCurrent = view.current === view.you && !me.out;
   const isPenalty = penaltySeat === view.you;
-  const nextSeat = nextAlive(view.players, view.current, view.direction);
-  const isNextMe = nextSeat === view.you && !isCurrent && !me.out;
+  const isNextMe = view.nextToPlay === view.you && !isCurrent && !me.out;
   return (
     <div className={`selfplate ${isCurrent ? 'self-active' : ''} ${isPenalty ? 'self-penalty' : ''}`} data-seat={view.you}>
       <span className="self-name" style={{ color: playerColor(view.you) }}>{tn(me.name)}</span>

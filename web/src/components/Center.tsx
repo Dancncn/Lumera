@@ -49,41 +49,43 @@ export function Center({ view }: { view: PlayerView }) {
         <div className="deck-label">{t('牌库 {n}', { n: view.deckCount })}</div>
       </div>
 
-      <div className="ladder-claim">
-        <div className="ladder-caption">
-          {claimActor ? t('对方宣称 · 待你裁断') : t('梯顶 · 宣称')}
-          <span className="dir">{view.direction === 1 ? t('顺 ↻') : t('逆 ↺')}</span>
-        </div>
-        {claimCard ? (
-          <div
-            key={`${claimCard.kind === 'number' ? claimCard.color + claimCard.num : 'x'}`}
-            className={`claim-card-wrap ${claimActor ? 'claim-judging' : ''}`}
-          >
-            <CardFace card={claimCard} />
-            {claimActor ? (
-              <span className="claim-tag claim-tag-who" style={{ color: playerColor(claimActorSeat) }}>{tn(claimActor)}</span>
-            ) : (
-              <span className="claim-tag">{t('宣称')}</span>
-            )}
+      {!view.lastReveal && (
+        <div className="ladder-claim">
+          <div className="ladder-caption">
+            {claimActor ? t('对方宣称 · 待你裁断') : t('梯顶 · 宣称')}
+            <span className="dir">{view.direction === 1 ? t('顺 ↻') : t('逆 ↺')}</span>
           </div>
-        ) : (
-          <div className="ladder-fresh">
-            {t('新梯')}
-            <span>{t('待首家宣称 1–3')}</span>
-          </div>
-        )}
-        {topClaim && (
-          <div className="ladder-gauge" title={t('梯压 {n}/10', { n: ladderVal })}>
-            <div className="lg-track">
-              <div
-                className="lg-fill"
-                style={{ width: `${ladderVal * 10}%`, background: `hsl(${46 - ((ladderVal - 1) / 9) * 40} 66% 47%)` }}
-              />
+          {claimCard ? (
+            <div
+              key={`${claimCard.kind === 'number' ? claimCard.color + claimCard.num : 'x'}`}
+              className={`claim-card-wrap ${claimActor ? 'claim-judging' : ''}`}
+            >
+              <CardFace card={claimCard} />
+              {claimActor ? (
+                <span className="claim-tag claim-tag-who" style={{ color: playerColor(claimActorSeat) }}>{tn(claimActor)}</span>
+              ) : (
+                <span className="claim-tag">{t('宣称')}</span>
+              )}
             </div>
-            <span className="lg-cap">{t('梯压 {n}/10 · 只升不降', { n: ladderVal })}</span>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="ladder-fresh">
+              {t('新梯')}
+              <span>{t('待首家宣称 1–3')}</span>
+            </div>
+          )}
+          {topClaim && (
+            <div className="ladder-gauge" title={t('梯压 {n}/10', { n: ladderVal })}>
+              <div className="lg-track">
+                <div
+                  className="lg-fill"
+                  style={{ width: `${ladderVal * 10}%`, background: `hsl(${46 - ((ladderVal - 1) / 9) * 40} 66% 47%)` }}
+                />
+              </div>
+              <span className="lg-cap">{t('梯压 {n}/10 · 只升不降', { n: ladderVal })}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className={`pile-area${pileFat ? ' pile-fat' : ''}`}>
         <div className="pile-stack" data-pile>
