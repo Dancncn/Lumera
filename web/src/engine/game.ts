@@ -763,7 +763,12 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
       // 险过：未损命，但下次受罚累进 +1（多赌一个点）。
       emit(s, events, { type: 'Survived', seat });
       s.players[seat].escalation += 1;
-      if (s.config.drawOnSurvive > 0) drawCards(s, events, seat, s.config.drawOnSurvive); // 险过补牌：解缩水手牌 + 耗牌库
+      // 险过补牌：只把手牌补到 surviveRefillTo（最多摸 drawOnSurvive 张）。
+      // 缺牌者(0-2张)解困，但 4-6 囤牌者补不到 → 断掉「囤牌反质疑流靠险过白嫖续牌」的结构漏洞。
+      if (s.config.drawOnSurvive > 0) {
+        const need = Math.min(s.config.drawOnSurvive, s.config.surviveRefillTo - s.players[seat].hand.length);
+        if (need > 0) drawCards(s, events, seat, need);
+      }
       startPlayTurn(s, events, seat, true); // 未中者自己当首家
     }
     s.seq++;
@@ -833,9 +838,13 @@ export function viewFor(s: GameState, seat: number): PlayerView {
     drawCooldown: p.drawCooldown,
     out: p.out,
   }));
+  const nextToPlay = s.phase.kind === 'play' ? step(s, s.phase.current, s.direction)
+    : s.phase.kind === 'respond' ? s.phase.responder
+    : -1;
   return {
     you: seat,
     current: currentActor(s),
+    nextToPlay,
     direction: s.direction,
     weather: s.weather,
     startingLives: s.config.startingLives,

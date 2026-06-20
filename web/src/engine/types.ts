@@ -118,7 +118,8 @@ export interface GameConfig {
   refillTo: number; // 跑成成功（收走牌堆）后补牌到几张
   refillAfterCaughtLast: number; // 撒谎打最后一张被抓（不算跑成、受罚后）补牌到几张
   maxFunctionalInOpener: number; // 开局保底：起手手牌里功能牌最多几张（削弱开局方差，防被功能牌堵手）
-  drawOnSurvive: number; // 受罚「险过」（未掉命）时补摸几张牌：补充缩水手牌 + 加速牌库消耗，破「囤牌抓 1-3」僵局
+  drawOnSurvive: number; // 受罚「险过」（未掉命）时最多补摸几张牌：补充缩水手牌 + 加速牌库消耗，破「囤牌抓 1-3」僵局
+  surviveRefillTo: number; // 险过补牌的手牌上限：只把手牌补到这个数（4-6 囤牌者补不到），防囤牌者靠险过白嫖续牌
   penaltyTwoDiceFrom: number; // 受罚轮盘尾部优化：累进数 ≥ 此值时掷 2 颗骰（任一落在所赌点即中枪），保留前两枪温和、骤增尾部致命度
   escalationResetsOnHit: boolean; // 中枪后受罚累进是否重置
   drawCooldown: boolean; // 摸牌冷却：手牌≤2 时 1 回合 CD，>2 时 2 回合 CD
@@ -138,6 +139,7 @@ export const DEFAULT_CONFIG: Omit<GameConfig, 'players' | 'seed'> = {
   refillAfterCaughtLast: 2,
   maxFunctionalInOpener: 1,
   drawOnSurvive: 3,
+  surviveRefillTo: 3, // 险过只把手牌补到 3 张：缺牌者解困，但 4-6 囤牌者白嫖不到
   penaltyTwoDiceFrom: 3,
   escalationResetsOnHit: true,
   drawCooldown: true,
@@ -219,6 +221,7 @@ export type ViewPrompt =
 export interface PlayerView {
   you: number;
   current: number; // 当前必须行动的座位
+  nextToPlay: number; // 下一个出牌的座位（respond 阶段=裁决者自己，play 阶段=下家）
   direction: 1 | -1;
   weather: WeatherKind | null; // 当前梯的天气（公开信息）
   startingLives: number; // 初始凝聚度（用于命格显示）
