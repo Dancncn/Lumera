@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, Claim, Color, COLOR_META, FunctionalKind, PlayerView } from '../engine/types';
 import { useT } from '../i18n';
 import { playerColor } from '../playerColors';
@@ -34,22 +34,10 @@ export function Center({ view }: { view: PlayerView }) {
     }
   }, [events]);
 
-  const respondClaimRef = useRef<{ claim: Claim; player: number } | null>(null);
-  if (view.prompt.kind === 'respond') {
-    respondClaimRef.current = { claim: view.prompt.claim, player: view.prompt.player };
-  }
-  if (!view.lastReveal && view.prompt.kind !== 'respond') {
-    respondClaimRef.current = null;
-  }
-
-  const frozen = view.lastReveal && respondClaimRef.current;
-  const topClaim = view.prompt.kind === 'respond'
-    ? view.prompt.claim
-    : (frozen ? respondClaimRef.current!.claim : view.ladderTop);
-  const claimActorSeat = view.prompt.kind === 'respond'
-    ? view.prompt.player
-    : (frozen ? respondClaimRef.current!.player : -1);
-  const claimActor = claimActorSeat >= 0 ? view.players[claimActorSeat]?.name ?? null : null;
+  const topClaim = view.prompt.kind === 'respond' ? view.prompt.claim : view.ladderTop;
+  const claimActorSeat = view.prompt.kind === 'respond' ? view.prompt.player : -1;
+  // 质疑揭开时隐藏宣称卡片，避免遮挡
+  const claimActor = !view.lastReveal && claimActorSeat >= 0 ? view.players[claimActorSeat]?.name ?? null : null;
   const claimCard: Card | null = topClaim ? { id: -1, kind: 'number', color: topClaim.color, num: topClaim.num } : null;
   const ladderVal = topClaim ? (topClaim.num === 0 ? 10 : topClaim.num) : 0;
   const pileFat = view.pileCount >= 6;
@@ -113,7 +101,7 @@ export function Center({ view }: { view: PlayerView }) {
           {t('赌注牌堆 {n} 张', { n: view.pileCount })}
           {pileFat ? ` · ${t('肥')}` : ''}
         </div>
-        {lastAction && (
+        {lastAction && !view.lastReveal && (
           <div key={lastAction.id} className={`pile-who${lastAction.kind === 'func' ? ' pile-who-func' : ''}`}>
             <span style={{ color: playerColor(lastAction.seat) }}>{tn(view.players[lastAction.seat]?.name ?? '')}</span>
             {lastAction.kind === 'card'

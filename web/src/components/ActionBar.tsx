@@ -60,8 +60,9 @@ export function ActionBar({ view }: { view: PlayerView }) {
   }, [view.current, p.kind]);
 
   const myTurnPlay = p.kind === 'play';
+  const needsReveal = myTurnPlay && p.needsReveal;
   const selCard = view.yourHand.find((c) => c.id === selId) ?? null;
-  const claims = myTurnPlay ? legalClaims(view.ladderTop, p.isFirst) : [];
+  const claims = myTurnPlay && !needsReveal ? legalClaims(view.ladderTop, p.isFirst) : [];
 
   const wild = selCard?.kind === 'wild';
   // 如实出牌：所选数字牌恰好有一个合法的「同色同数」宣称（万能牌无所谓真假，不给如实键）
@@ -72,6 +73,10 @@ export function ActionBar({ view }: { view: PlayerView }) {
 
   function onCardClick(card: Card) {
     if (!myTurnPlay) return;
+    if (needsReveal) {
+      human({ type: 'RevealCard', cardId: card.id });
+      return;
+    }
     if (card.kind === 'functional') {
       if (p.kind === 'play' && !p.isFirst) human({ type: 'PlayFunctional', cardId: card.id });
       return;
@@ -102,7 +107,14 @@ export function ActionBar({ view }: { view: PlayerView }) {
       }
       if (p.kind === 'penalty') return; // 受罚多选交由 PenaltyPick 自管键盘
       if (p.kind === 'play') {
-        if (selCard) {
+        if (p.needsReveal) {
+          if (digit >= 1 && digit <= 9 && view.yourHand[digit - 1]) {
+            human({ type: 'RevealCard', cardId: view.yourHand[digit - 1].id });
+          } else if (e.key === '0' && view.yourHand[9]) {
+            human({ type: 'RevealCard', cardId: view.yourHand[9].id });
+          } else return;
+          e.preventDefault();
+        } else if (selCard) {
           if (k === 'escape') setSelId(null);
           else if (k === 'enter' || k === ' ') {
             const rc = recommendedClaim(selCard, claims);
@@ -128,7 +140,13 @@ export function ActionBar({ view }: { view: PlayerView }) {
     <div className="actionbar">
       <Prompt view={view} />
 
-      {myTurnPlay && (
+      {myTurnPlay && needsReveal && (
+        <div className="play-controls">
+          <span className="ctrl-tip ctrl-tip-reveal">{t('摸牌后须亮 1 张手牌给全场看，点击选择要亮的牌')}</span>
+        </div>
+      )}
+
+      {myTurnPlay && !needsReveal && (
         <div className="play-controls">
           <span className="ctrl-tip">
             {p.isFirst ? t('首家：盖一张牌，宣称某色 1–3（可撒谎）') : t('接牌：同色更大或相同 / 同数字换色（可撒谎）')}
@@ -155,7 +173,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
         </div>
       )}
 
-      {myTurnPlay && selCard && (
+      {myTurnPlay && !needsReveal && selCard && (
         <div className="claim-picker">
           <ClaimPicker claims={claims} honestClaim={honestClaim} wild={!!wild} onPick={onClaimClick} tutorial={tutorial} />
         </div>
@@ -164,10 +182,11 @@ export function ActionBar({ view }: { view: PlayerView }) {
       <div className="hand">
         <div className="hand-label">
           {t('你的手牌')} · {view.yourHand.length}
-          {myTurnPlay && <span className="kbd-hint">　{t('点牌选中 · 回车出最稳 · Esc 取消')}</span>}
+          {myTurnPlay && !needsReveal && <span className="kbd-hint">　{t('点牌选中 · 回车出最稳 · Esc 取消')}</span>}
+          {needsReveal && <span className="kbd-hint kbd-hint-reveal">　{t('点击一张牌亮给全场')}</span>}
         </div>
         <HandSummary hand={view.yourHand} />
-        <div className={`hand-cards${tutorial && myTurnPlay && !selCard ? ' tut-glow' : ''}`}>
+        <div className={`hand-cards${tutorial && myTurnPlay && !selCard ? ' tut-glow' : ''}${needsReveal ? ' hand-reveal-mode' : ''}`}>
           {view.yourHand.length === 0 && <span className="hand-empty">{t('（空）')}</span>}
           {view.yourHand.map((card, i) => (
             <div className="hand-card" key={card.id} style={{ animationDelay: `${Math.min(i, 9) * 35}ms` }}>
@@ -175,7 +194,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
               <CardFace
                 card={card}
                 selected={card.id === selId}
-                dimmed={!myTurnPlay || (card.kind === 'functional' && p.kind === 'play' && p.isFirst)}
+                dimmed={!myTurnPlay || (!needsReveal && card.kind === 'functional' && p.kind === 'play' && p.isFirst)}
                 onClick={() => onCardClick(card)}
               />
             </div>
@@ -351,8 +370,8 @@ function Prompt({ view }: { view: PlayerView }) {
   }
   if (p.kind === 'play') {
     return (
-      <div className="prompt prompt-play">
-        {t('轮到你出牌')}{p.isFirst ? ` · ${t('你是首家')}` : ''}
+      <div className={`prompt prompt-play${p.needsReveal ? ' prompt-reveal' : ''}`}>
+        {p.needsReveal ? t('摸牌成功 · 请选择一张牌亮给全场') : t('轮到你出牌')}{!p.needsReveal && p.isFirst ? ` · ${t('你是首家')}` : ''}
         {showOnlineTimer && <TurnCountdown deadline={deadline} />}
       </div>
     );

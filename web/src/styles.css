@@ -1129,6 +1129,20 @@ button.claim-chip:hover {
   color: var(--ink-soft);
   font-size: 13.5px;
 }
+.ctrl-tip-reveal {
+  color: #b88430;
+  font-weight: 600;
+}
+.kbd-hint-reveal {
+  color: #b88430;
+}
+.hand-reveal-mode .hand-card {
+  cursor: pointer;
+}
+.prompt-reveal {
+  color: #b88430;
+  font-weight: 600;
+}
 .ctrl-mini {
   display: inline-flex;
   gap: 8px;

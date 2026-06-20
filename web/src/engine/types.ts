@@ -58,6 +58,7 @@ export interface Claim {
 export type Command =
   | { type: 'PlayFunctional'; cardId: number } // 明着甩功能牌（附加动作）
   | { type: 'Draw' } // 先摸 1 张，再出牌
+  | { type: 'RevealCard'; cardId: number } // 摸牌后选择一张手牌亮给全场（反囤牌）
   | { type: 'PlayCard'; cardId: number; claim: Claim } // 盖牌出数字牌/万能牌并宣称
   | { type: 'Fallback' } // 兜底：无数字/万能牌时，亮手 + 弃功能 + 摸一
   | { type: 'Accept' } // 放过，不质疑
@@ -70,7 +71,7 @@ export type GameEvent =
   | { type: 'FunctionalPlayed'; seat: number; func: FunctionalKind }
   | { type: 'DirectionReversed'; direction: 1 | -1 }
   | { type: 'CardDrawn'; seat: number; count: number } // 仅数量公开
-  | { type: 'HandRevealed'; seat: number; card: Card } // 摸牌亮牌：随机亮 1 张手牌给全场
+  | { type: 'HandRevealed'; seat: number; card: Card } // 摸牌亮牌：玩家选择亮 1 张手牌给全场
   | { type: 'HandOverflow'; seat: number; count: number } // 手牌溢出：超上限弃 N 张回牌库
   | { type: 'CardPlayed'; seat: number; claim: Claim; endsLadder: boolean } // 只播宣称
   | { type: 'Fallback'; seat: number; revealed: Card[] }
@@ -122,7 +123,7 @@ export interface GameConfig {
   escalationResetsOnHit: boolean; // 中枪后受罚累进是否重置
   drawCooldown: boolean; // 摸牌冷却：手牌≤2 时 1 回合 CD，>2 时 2 回合 CD
   handOverflowLimit: number; // 手牌溢出上限（0=关闭）：超过此数时回合结束随机弃 2 张回牌库
-  revealOnDraw: boolean; // 摸牌亮牌：摸牌后随机亮 1 张手牌给所有人看，破信息不对称
+  revealOnDraw: boolean; // 摸牌亮牌：摸牌后须选择 1 张手牌亮给所有人看，破信息不对称
   weather: boolean; // 混沌天气开关（可选玩法）
   weatherChance: number; // 每开新梯触发天气的概率（0..1）；开局首梯豁免、触发后隔梯冷却
   seed: number;
@@ -168,7 +169,7 @@ export interface PileEntry {
 
 /** 状态机阶段。 */
 export type Phase =
-  | { kind: 'play'; current: number; isFirst: boolean; hasDrawn: boolean }
+  | { kind: 'play'; current: number; isFirst: boolean; hasDrawn: boolean; needsReveal: boolean }
   | { kind: 'respond'; player: number; responder: number } // player 刚出牌（位于 pile 顶），responder 决定
   | { kind: 'penalty'; roller: number; rollsRemaining: number }
   | { kind: 'over' };
@@ -209,7 +210,7 @@ export interface PublicPlayer {
 
 /** 当前轮到「你」时能做什么。 */
 export type ViewPrompt =
-  | { kind: 'play'; isFirst: boolean; canDraw: boolean; canFallback: boolean; drawCooldown: number } // drawCooldown：本可摸牌但被冷却挡住时的剩余回合（0=未被冷却挡）
+  | { kind: 'play'; isFirst: boolean; canDraw: boolean; canFallback: boolean; drawCooldown: number; needsReveal: boolean } // drawCooldown：本可摸牌但被冷却挡住时的剩余回合（0=未被冷却挡）；needsReveal：摸牌后须亮牌才能出牌
   | { kind: 'respond'; player: number; claim: Claim }
   | { kind: 'penalty'; roller: number; rollsRemaining: number; dice: number } // dice：本次掷几颗骰（第3枪起为 2）
   | { kind: 'idle' } // 不是你行动

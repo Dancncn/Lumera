@@ -510,6 +510,7 @@ export class AiPlayer {
       case 'respond':
         return this.decideRespond(view, p.claim, p.player);
       case 'play':
+        if (p.needsReveal) return this.decideReveal(view);
         return this.decidePlay(view, p.isFirst, p.canDraw);
       default:
         this.lastDelay = 300;
@@ -591,6 +592,25 @@ export class AiPlayer {
     const hardness = 1 - Math.min(1, Math.abs(pLie - 0.5) * 3);
     this.lastDelay = this.think(820, 1500, hardness);
     return this.rand() < pCh ? { type: 'Challenge' } : { type: 'Accept' };
+  }
+
+  private decideReveal(view: PlayerView): Command {
+    this.lastDelay = this.think(400, 600, 0.2);
+    const hand = view.yourHand;
+    if (hand.length === 0) return { type: 'RevealCard', cardId: -1 };
+    // 优先亮功能牌（信息价值最低），其次亮最小数字牌；激进型反而亮大牌虚张声势
+    const funcs = hand.filter((c) => c.kind === 'functional');
+    if (funcs.length > 0) return { type: 'RevealCard', cardId: funcs[0].id };
+    const nums = hand.filter((c): c is NumCard => c.kind === 'number');
+    if (nums.length > 0) {
+      if (this.traits.bluff > 0.6 && this.rand() < 0.4) {
+        const big = nums.reduce((a, b) => (val(a.num) > val(b.num) ? a : b));
+        return { type: 'RevealCard', cardId: big.id };
+      }
+      const small = nums.reduce((a, b) => (val(a.num) < val(b.num) ? a : b));
+      return { type: 'RevealCard', cardId: small.id };
+    }
+    return { type: 'RevealCard', cardId: hand[0].id };
   }
 
   private decidePlay(view: PlayerView, isFirst: boolean, canDraw: boolean): Command {

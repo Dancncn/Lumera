@@ -190,16 +190,6 @@ function drawCards(s: GameState, events: GameEvent[], seat: number, count: numbe
   if (drawn > 0) emit(s, events, { type: 'CardDrawn', seat, count: drawn });
 }
 
-/** 摸牌亮牌：摸牌后随机亮 1 张手牌给全场（破信息不对称）。 */
-function revealOnDraw(s: GameState, events: GameEvent[], seat: number): void {
-  if (!s.config.revealOnDraw) return;
-  const hand = s.players[seat].hand;
-  if (hand.length === 0) return;
-  const idx = Math.floor(rng01(s) * hand.length);
-  const card = hand[idx];
-  s.lastHandReveal = { seat, card };
-  emit(s, events, { type: 'HandRevealed', seat, card });
-}
 
 const HAND_OVERFLOW_DISCARD = 2;
 
@@ -369,7 +359,7 @@ function startPlayTurn(s: GameState, events: GameEvent[], current: number, isFir
   if (isFirst && !opening) maybeWeather(s, events, current);
   s.lastReveal = undefined;
   s.lastHandReveal = undefined;
-  s.phase = { kind: 'play', current, isFirst, hasDrawn: false };
+  s.phase = { kind: 'play', current, isFirst, hasDrawn: false, needsReveal: false };
   emit(s, events, { type: 'TurnStarted', seat: current, isFirst });
 }
 
@@ -559,6 +549,7 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
     const me = s.players[seat];
 
     if (cmd.type === 'PlayFunctional') {
+      if (ph.needsReveal) illegal('摸牌后须先亮牌');
       if (ph.isFirst) illegal('首家不可用功能牌起手');
       const idx = me.hand.findIndex((c) => c.id === cmd.cardId);
       if (idx < 0) illegal('手牌中没有这张');
@@ -591,8 +582,6 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
       if (s.deck.length === 0) illegal('牌库已空');
       if (s.config.drawCooldown && me.drawCooldown > 0) illegal('摸牌冷却中');
       drawCards(s, events, seat, 1);
-      // 反屯牌：摸牌亮牌
-      revealOnDraw(s, events, seat);
       // 反屯牌：摸牌冷却（手牌≤2 时 1 回合 CD，>2 时 2 回合 CD）
       if (s.config.drawCooldown) {
         me.drawCooldown = me.hand.length <= 2 ? 1 : 2;
@@ -600,13 +589,28 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
       if (s.deck.length === 0) {
         endGame(s, events);
       } else {
-        s.phase = { kind: 'play', current: ph.current, isFirst: ph.isFirst, hasDrawn: true };
+        // 反囤牌：摸牌后须手动亮 1 张（revealOnDraw 开启时）
+        const mustReveal = s.config.revealOnDraw && me.hand.length > 0;
+        s.phase = { kind: 'play', current: ph.current, isFirst: ph.isFirst, hasDrawn: true, needsReveal: mustReveal };
       }
       s.seq++;
       return { state: s, events };
     }
 
+    if (cmd.type === 'RevealCard') {
+      if (!ph.needsReveal) illegal('当前无需亮牌');
+      const idx = me.hand.findIndex((c) => c.id === cmd.cardId);
+      if (idx < 0) illegal('该牌不在手中');
+      const card = me.hand[idx];
+      s.lastHandReveal = { seat, card };
+      emit(s, events, { type: 'HandRevealed', seat, card });
+      s.phase = { kind: 'play', current: ph.current, isFirst: ph.isFirst, hasDrawn: true, needsReveal: false };
+      s.seq++;
+      return { state: s, events };
+    }
+
     if (cmd.type === 'Fallback') {
+      if (ph.needsReveal) illegal('摸牌后须先亮牌');
       const hasPlayable = me.hand.some((c) => c.kind === 'number' || c.kind === 'wild');
       if (hasPlayable) illegal('还有数字/万能牌可出，不能兜底');
       const funcIdx = me.hand.findIndex((c) => c.kind === 'functional');
@@ -623,6 +627,7 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
     }
 
     if (cmd.type === 'PlayCard') {
+      if (ph.needsReveal) illegal('摸牌后须先亮牌');
       const idx = me.hand.findIndex((c) => c.id === cmd.cardId);
       if (idx < 0) illegal('手牌中没有这张');
       const card = me.hand[idx];
@@ -800,6 +805,7 @@ function computePrompt(s: GameState, seat: number): ViewPrompt {
         canDraw: wouldDraw && cooldownReady,
         canFallback: onlyFunctional || me.hand.length === 0,
         drawCooldown: wouldDraw && !cooldownReady ? me.drawCooldown : 0, // 仅当被冷却挡住时给出剩余回合
+        needsReveal: s.phase.needsReveal,
       };
     }
     case 'respond':
