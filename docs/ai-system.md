@@ -13,11 +13,11 @@
 整个决策管线可以概括为：
 
 ```
-公开事件流 ──observe()──► 对手模型(opp：诈牌率/嗜抓度/放行记录) + 牌张记忆(seen) + 上头(tilt)
+公开事件流 ──observe()──► 对手模型(opp：诈牌率/嗜抓度/放行记录) + 牌张记忆(seen+去重) + 上头(tilt)
                                               │
 当前视图 view ──decide()──► 估计诈牌概率 pLie ─┤
                                               ▼
-                        性格(traits) × 难度 × 风险/威胁/全场危险/上头  ──► 行动概率 ──► 抽样出 Command
+              性格(traits) × 难度 × 真命成本EV阈值 p* × 多人外部性κ × 全场危险 × 上头  ──► 行动概率 ──► 抽样出 Command
                                               │
                                               └──► 思考时长 delayMs()（拟人节奏）
 ```
@@ -75,11 +75,16 @@ AI 的「记忆」都在 `observe(events, view)` 里随公开事件更新（[ai.
 
 ### 3.1 牌张记忆 `seen`
 
-每当有牌被**公开**（摊牌 `CardRevealed`、兜底亮手 `Fallback`），按概率把它记进 `seen`（`key -> 计数` 的 Map，key 为 `color:num` / `wild` / `func`）。**记牌不是必然成功**，模拟人的记忆力：
+每当有牌被**公开**——摊牌 `CardRevealed`、兜底亮手 `Fallback`、以及**摸牌亮牌 `HandRevealed`**（反屯牌规则：摸牌时随机亮一张手牌给全场）——就把它记进 `seen`（`key -> 计数` 的 Map，key 为 `color:num` / `wild` / `func`），并把该物理牌 id 记入 `seenIds` **去重**（同一张牌先被 `HandRevealed`、后又被 `CardRevealed` 不会重复计数）。
+
+记牌**按难度保留**，模拟记忆力（`recordCard`，[ai.ts](../web/src/engine/ai.ts)）：
 
 ```
-P(记住一张公开的牌) = 0.3 + 0.7 · read
+公开硬信息（摊牌/兜底/摸牌亮牌）：rationality>0.7（master/hard）强制记入；否则按难度保留率 ρ 概率遗忘
+ρ(d) = master 1.0 / hard 0.9 / normal 0.7 / easy 0.4      // easy 大漏 = 记牌残缺（保梯度）
 ```
+
+> **修过的两处记牌缺陷**：① `HandRevealed` 早期**完全没吃**，对手摸牌亮的牌 AI 视而不见（你的「它真记牌吗」之疑由此而来）；② 同名牌被多事件双记会让 `seen` 虚高、误触「必诈地板」造成假阳性质疑。现分别由「吃 HandRevealed」与「按 id 去重」修复——这是 §五的 `p*` 阈值能真正生效的前提：阈值再对，`pLie` 估计烂照样误判。
 
 由此可估「某张牌还剩几张没出现」（`countRemaining`，[ai.ts](../web/src/engine/ai.ts)）：
 
@@ -93,7 +98,7 @@ unseenWilds = max(0, 玩家数 − 我手里万能牌 − 已见万能牌)
 
 ### 3.2 对手模型 `opp`
 
-对每个对手座位维护一组计数（`OppStat`，[ai.ts](../web/src/engine/ai.ts)）：`claims / lies / truths / challenges / passes`，外加一个最近 8 步的动作环形缓冲 `recentActions`（`'ch'` 质疑 / `'pa'` 放行）。
+对每个对手座位维护一组计数（`OppStat`，[ai.ts](../web/src/engine/ai.ts)）：`claims / lies / truths / challenges / passes`。
 
 **「放行」是怎么记的？** 源河的规则是**全场任何人都可质疑**（见 [game-rules.md](game-rules.md)）。所以每当有人出牌（`CardPlayed`），`observe` 先把当时所有「有资格质疑的人」记入 `pendingChallengers`；等到有人真的质疑（`Challenged`）或回合推进（`TurnStarted`）时，把**没出手的那些人**记一次 `passes`（[ai.ts](../web/src/engine/ai.ts)、[ai.ts](../web/src/engine/ai.ts)）。这让 AI 不只看「谁爱抓」，还能看「谁该抓却一直放」——可趁虚而入。
 
@@ -104,10 +109,9 @@ unseenWilds = max(0, 玩家数 − 我手里万能牌 − 已见万能牌)
 | 对手诈牌率 `bluffRate` | `(lies + 0.4·2)/(lies + truths + 2)`，无记录 = 0.4 | 这人一向爱不爱骗（Beta 先验平滑，[ai.ts](../web/src/engine/ai.ts)） |
 | 嗜抓度 `trigger` | `challenges/(challenges + 3)`，无记录 = 0.35 | 他多爱质疑（[ai.ts](../web/src/engine/ai.ts)） |
 | 全场危险 `aggregateDanger` | `1 − ∏(1 − trigger_i)`（遍历所有在场对手） | 我这一手被**任何人**抓的总概率（[ai.ts](../web/src/engine/ai.ts)） |
-| 精细质疑率 `challengeRate` | `(challenges + 0.9)/(challenges + passes + 3)`，样本 <3 或无记录 = 0.3 | **大师独占**：区分「真爱抓」与「只是没机会」（[ai.ts](../web/src/engine/ai.ts)） |
-| 近期放行连击 `recentPassStreak` | 末尾连续 `'pa'` 的个数 | **大师独占**：连续放行 = 这人现在很被动（[ai.ts](../web/src/engine/ai.ts)） |
+| 精细质疑率 `challengeRate` | `(challenges + 0.9)/(challenges + passes + 3)`，样本 <3 或无记录 = 0.3 | **大师/老练独占**：区分「真爱抓」与「只是没机会」，用于挑出全场最爱拆者来校准诈牌频率 f\*（[ai.ts](../web/src/engine/ai.ts)） |
 
-注意 `trigger` 与 `aggregateDanger` 是面向「我要不要诈牌」的——全场越嗜抓，我越不敢诈；`challengeRate / recentPassStreak` 则是大师档专用的精细剥削信号。
+注意 `trigger` 与 `aggregateDanger` 是面向「我要不要诈牌」的——全场越嗜抓，我越不敢诈；`challengeRate` 则供大师/老练算 §六的无差异诈牌频率 `f*`（面向**全场最爱拆者**而非单一下家，反诱导）。
 
 ### 3.3 上头 `tilt`
 
@@ -164,49 +168,63 @@ runs = 200 (rat>0.95) / 100 (>0.9) / 60 (>0.75) / 30 (其余)     // 越理性�
 
 ---
 
-## 五、质疑决策：EV 阈值 与 sigmoid 两条路径
+## 五、质疑决策：真命成本破局阈值
 
-拿到 `pLie` 后转成「出手质疑的概率」`pCh`，再 `rand() < pCh` 抽样定夺。分两条路径：
+拿到 `pLie` 后转成「出手质疑的概率」`pCh`，再 `rand() < pCh` 抽样定夺。核心是一条**期望值不等式**：质疑赢了吞下整摞牌堆（+P），输了既掉一条命（−L）又把牌堆白送对手。
 
-### 5.1 高理性（`rationality > 0.6`）：期望值阈值
+### 5.1 真命成本 L（`lifeCost`，[ai.ts](../web/src/engine/ai.ts)）
 
-先算**盈亏平衡的诈牌概率阈值** `evThreshold`：质疑赢了吞下整摞牌堆（赌注 ∝ `pile`），输了掷骰受罚（风险 ∝ 受罚累进 `escalation`）：
-
-```
-pile        = max(pileCount, 1)
-escRisk     = escalation × 1.5
-evThreshold = (pile + escRisk) / (2·pile + escRisk)        // 恒在 (0.5, 1]
-```
-
-行为直觉：**牌堆越肥** → 阈值趋近 `0.5`（池子大，值得搏）；**自己受罚累进越高** → 阈值趋近 `1`（猜错就在高累进下掷骰，很可能中枪，越谨慎）。再按性格与情绪微调，映射成分段线性出手概率：
+输掉质疑要受罚掷骰，掉命的期望损失就是「真命成本」。引擎的受罚轮盘：赌定 `N = min(escalation, 6)` 个不同点；`N ≥ 3`（`penaltyTwoDiceFrom` 默认 3）时掷 **2 颗**骰、否则 1 颗，任一落在所赌点即掉 1 命（命值 `lifeLossValue = 5`）：
 
 ```
-adjusted = evThreshold − (challenge − 0.5)·0.12 − tilt·0.06     // 爱抓/上头 → 阈值下移
-pCh = pLie > adjusted ? clamp(0.7 + (pLie−adjusted)·2)          // 越过阈值：大概率抓
-                      : clamp(0.15 + (pLie−adjusted)·1.5)       // 没过阈值：小概率试探
+N = min(max(esc, 1), 6)
+P(中枪) = N≥3 ? 1 − ((6−N)/6)²    // 双骰，尾部骤升
+              : N/6               // 单骰
+L = 5 · P(中枪)
 ```
 
-### 5.2 低理性：sigmoid 软判
+逐档实测：`L(1)=0.83, L(2)=1.67, L(3)=3.75, L(4)=4.44, L(5)=4.86, L(6)=5.0`。**esc≥3 的双骰让代价从 esc3 起骤升（3.75 而非线性的 2.5）**——这是「越到后期越不敢乱拆」的数学锚。L 取**我自己**当前的 escalation（质疑失败是我受罚）。
+
+### 5.2 破局阈值 p\*
+
+设 `pLie` 为对方撒谎概率、`P = max(pileCount, 1)` 为牌堆赌注。质疑相对放行的期望增益：
 
 ```
-thr = clamp(0.55 − (challenge−0.5)·0.5 − min(pile,10)·0.012 − tilt·0.1,  0.18, 0.85)
-pCh = sigmoid((pLie − thr) · (4 + rationality·8))
-floor = 0.04 + (1 − rationality)·0.10
-pCh = clamp(pCh, floor, 1 − floor)        // 理性越低，越保留两头的「意外」
+ΔEV = pLie·P − (1−pLie)·(L + P)       // 赢吞 P；输既掉 L 又把 P 送给对手 → 全摆动
+ΔEV > 0  ⟺  pLie > p* = (P + L) / (2P + L)
 ```
 
-### 5.3 风险/威胁修正（仅 `rationality > 0.7`）
+> **关键修正**：早期版本误用 `p* = L/(P+L)`，漏算了「输掉质疑还把牌堆喂给对手」这半个摆动，导致**严重过度质疑**（实测命中率仅 44%、每局全场掉 7.5 命、躺平不抓的人反而赢）。计入全摆动后阈值恒在 `(0.5, 1)`，质疑变得「少而准」（掉命 −36%、躺平剥削者从 31% 打回 7%）。
+
+### 5.3 多人外部性修正 κ（`kingmakerKappa`，大师/老练独占）
+
+3 人以上时，A 拆 B 无论输赢都有人受损，**没参与的第三方坐收渔利**（kingmaker）。于是按相对名次修正阈值——只为拆真正领先者花命、垫底互拆要收敛：
 
 ```
-pCh −= riskScore(view) · 0.12                          // 自己越脆弱，越不敢赌
-pCh += opponentThreat(view, player) · (0.15 + rationality·0.12)   // 对手越接近得分，越要拦（理性越高拦得越凶）
-pCh = clamp(pCh, 0.03, 0.98)
+κ = (avgOtherThreat − threatB) · coef · (1 + (N_active−2)·0.15) · (0.6 + 0.8·(1−meBehind))
+    coef = master 0.12 / hard 0.06 / 其余 0       // 只有高难度有外部性意识（保梯度）
+    meBehind = clamp(avgOther − myThreat + 0.5)    // 我越落后越该搅局 → κ 越小、少受抑制
+p*_adj = clamp(p* + κ, 0.05, 0.92)
 ```
 
-- `riskScore`（[ai.ts](../web/src/engine/ai.ts)）综合自己的受罚累进、命数脆弱度、手牌领先/落后。
-- `opponentThreat`（[ai.ts](../web/src/engine/ai.ts)）综合对手手牌将空（快跑成）与已得分。
+B 是领先者（`threatB` 高）→ κ<0 → 阈值降（**该拆，命花刀刃上**）；B 是垫底、而我不落后 → κ>0 → 阈值升（**别替领先的第三方除掉弱者**）。2 人局 `N_active<2 → κ=0`，退化为纯 1v1。`threatB / avgOther / myThreat` 都由 `opponentThreat`（综合对手手牌将空 + 已得分）算出。
 
-（大师档在此之上还有「精准狙杀 + 适应性剥削」，见 §十。）
+### 5.4 阈值 → 出手概率（双分支按理性插值）
+
+```
+externAware = clamp((rationality − 0.5) / 0.45)       // easy≈0, normal≈0.8, hard≈0.8, master≈1
+margin = pLie − p*_adj
+
+EV 分支（理性者）:   pChEv = margin>0 ? clamp(0.3 + margin·2.8)            // 破阈中位起步、明显超阈才高信心
+                                : clamp(0.05 + margin·0.5, 0.02, 0.3)
+sigmoid 分支（莽撞）: thr = clamp(p* + 0.05, 0.2, 0.85) − (challenge−0.5)·0.5 − tilt·0.1
+                    pChLow = clamp(sigmoid((pLie−thr)·(4 + rationality·8)),  floor, 1−floor)
+                    floor = 0.04 + (1 − rationality)·0.10
+
+pCh = mix(pChLow, pChEv, externAware) + advice.dpCh    // 低理性走 sigmoid 高 floor（仍会误抓=弱），高理性走精确 EV
+```
+
+`−5/命` 的代价下，`pChEv` 刻意「破阈不立刻开枪、明显超阈才有信心」——偏好**精度**而非破平衡乱抓（这条爬升斜率与 §5.2 的 `p*` 是仅有的两个质疑调参旋钮）。**必诈地板（§4.0）绕过整套 EV**：数学上不可能为真时 gain 确定、无外部性损失，仍近 100% 抓。
 
 ---
 
@@ -225,7 +243,7 @@ pCh = clamp(pCh, 0.03, 0.98)
 1. **有合法的老实牌** → 多数情况老实接，用 `pickEscalation` 决定爬多高（保守者贴梯顶、冒险者跳高）；小概率改诈（master 仅 0.06，其余 `bluff·0.18`）。
 2. **接不上** → 按 `pDraw` 概率先 `Draw` 补一张（保守、耐心者更爱摸；全场嗜抓则少摸）。
 3. **万能牌**：当脱困王牌，`risk` 高者倾向留着不轻易出。
-4. **诈牌**：`bluffAppetite = clamp(bluff + tilt·0.2 − aggregateDanger·0.5·read)`（上头更敢诈、全场嗜抓则收敛），高理性再减 `riskScore`。无路可退（不能摸、无万能）时被迫诈。
+4. **诈牌**：先算 `bluffAppetite = clamp(bluff + tilt·0.2 − aggregateDanger·0.5·read)`（上头更敢诈、全场嗜抓则收敛），高理性再减 `riskScore` 与 `feedRestraint`（多人不互喂）。**触发概率**：master/hard 用 §10.4 的无差异校准 `f*`（不可读）、normal 半混 `mix(启发式, f*, 0.5)`、easy 走启发式 `clamp(0.35 + bluffAppetite·0.6)`。无路可退（不能摸、无万能）时被迫诈。
 
 ### 6.3 选宣称内容（`pickClaim`，[ai.ts](../web/src/engine/ai.ts)）
 
@@ -271,47 +289,48 @@ ms   = clamp(round(ms), 240, 3200)                // 收进 0.24s–3.2s
 
 ## 十、大师档：从博弈论最优基线出发的「最优 + 剥削」
 
-`master` 不是「把旋钮调满」那么简单，而是一套独占的增强逻辑。它先把性格压成近最优基线（§二），再无条件启用普通档需要高理性才触发的全部特性（MC 200 次采样、EV 阈值、风险/威胁修正、战略选宣称），并额外叠加下面几层——既要**算得最优**，又要**针对具体对手剥削**：
+`master` 先把性格压成近最优基线（§二），无条件启用普通档需高理性才触发的全部特性（MC 200 次采样、§五真命成本 EV、§5.3 kingmaker、§六 f\* 校准诈牌、§3.1 完整记牌 ρ=1.0）。它的强**不是「更爱开枪」，而是「算得最优 + 针对具体对手剥削」**——旧版靠在 EV 之后裸加 `pCh` 多质疑，反而在 −5/命 的代价下变弱（命中率仅 44%、互相送命喂第三方）；新版把所有剥削信号一律折进 `pLie` **证据**或 §5.3 的阈值修正 **κ**，决不绕过 EV 框架。
 
-### 10.1 终局读心（pLie 上调，[ai.ts](../web/src/engine/ai.ts)）
-对手手牌越少，越可能在背水一搏，于是抬高对其宣称的 `pLie` 下限：
+### 10.1 终局读心（抬 `pLie` 证据，[ai.ts](../web/src/engine/ai.ts)）
+对手手牌越少越可能在收尾诈牌，于是**按其历史骗率成比例**上调 `pLie`（而非硬抬到高位制造假阳性）：
 
 ```
-对手 handCount ≤ 2:  pLie = max(pLie, 0.65 + bluffRate(player)·0.2)
-对手 handCount ≤ 4:  pLie = max(pLie, 0.50 + bluffRate(player)·0.15)
-对手 lives ≤ 1:      pLie += 0.08
+对手 handCount ≤ 2:  pLie += 0.18 · bluffRate(player)
+对手 handCount ≤ 4:  pLie += 0.10 · bluffRate(player)
+bluffRate(player) > 0.5:  pLie += (bluffRate − 0.5)·0.25      // 惯犯加大怀疑
 ```
 
-这些只是**抬高估计**，仍要经 §五的 EV 框架过滤，不会变成无脑乱抓。
+这些只是**抬高估计**，仍要经 §五的 `p*` 阈值过滤，不会变成无脑乱抓。
 
-### 10.2 精准狙杀 + 适应性剥削（pCh 修正，[ai.ts](../web/src/engine/ai.ts)）
-```
-对手 lives≤1 且 handCount≤3:  pCh += 0.10        // 残血将跑成 → 优先拦截
-bluffRate(player) > 0.5:       pCh += (bluffRate − 0.5)·0.35   // 惯犯 → 加大打击
-```
+### 10.2 多人 kingmaker（阈值修正 κ）
+见 §5.3——只为拆真正领先者花命、垫底互拆收敛、人多搭便车。这是治「两个 AI 互相送命、把没参与的第三方喂成赢家」的核心；作用在 §五的阈值 `p*` 上，而非裸加 `pCh`（旧版 `pCh += 0.10 / += (br−0.5)·0.35` 已删，前者并入 κ、后者并入 §10.1 的 `pLie` 证据）。
 
-### 10.3 摸牌的期望值（`estimateDrawHit`，[ai.ts](../web/src/engine/ai.ts)）
-接不上时，先估「摸一张能合法如实出」的概率（牌池里能接当前梯顶的牌占比），据此决定摸还是诈：
+### 10.3 摸牌的期望值与泄露成本（`estimateDrawHit`，[ai.ts](../web/src/engine/ai.ts)）
+接不上时先估「摸一张能合法如实出」的概率（牌池里能接当前梯顶的牌占比），并计入摸牌的**信息泄露 + 冷却**成本（反屯牌规则：摸牌随机亮一张己牌、且锁 1~2 回合）：
 
 ```
 drawHit > 0.35:  pDraw += 0.25       // 大概率摸到能用的 → 倾向摸
 drawHit < 0.12:  pDraw −= 0.20       // 几乎摸不到 → 不如直接诈
 pDraw += challengeRate(下家)·0.15     // 下家越爱抓，诈牌代价越大 → 越倾向摸
+pDraw −= (0.10 + (手牌≤2 ? 0.04 : 0.08)) · rationality   // 摸牌泄一张己牌 + 冷却锁，越亏越少摸
 ```
 
-### 10.4 针对性诈牌（`bluffAppetite` 调整，[ai.ts](../web/src/engine/ai.ts)）
-用精细信号挑「软柿子」下手：
+> （`firstPlay` 的保底摸牌**不**折价——它是破「囤牌耗死」僵局的关键，须保留把牌库往见底推。）
+
+### 10.4 不可读的诈牌（无差异频率 f\*）
+大师/老练的诈牌频率不再「专挑软柿子下家」，而用**无差异校准**（`bluffFreqStar`）：
 
 ```
-bluffAppetite += (0.5 − challengeRate(下家))·0.4    // 下家越被动，越敢对他诈
-recentPassStreak(下家) ≥ 3:  bluffAppetite += 0.15   // 连续放行 → 趁虚而入
-bluffAppetite += (0.5 − aggregateDanger)·0.15        // 全场越安静，整体越敢诈
+f* = Lⱼ / (P + Lⱼ)      // j* = 全场 challengeRate 最高者；Lⱼ = 其真命成本
+bluffP(master/hard) = clamp(f* + (bluff−0.5)·0.12 + (bluffAppetite−0.5)·0.1)
 ```
+
+让最爱拆的人「抓与不抓无差异」→ 诈牌**不可读**。已删除旧版「`+= (0.5−challengeRate(下家))·0.4` 专挑下家」「`recentPassStreak≥3 → +0.15` 连放就加码」这两个可被真人诱导的 tell。多人局再叠 `feedRestraint`：非「我领先且正拦截领先者」时收敛诈牌，不替第三方做嫁衣。
 
 ### 10.5 预判性功能牌（[ai.ts](../web/src/engine/ai.ts)）
 有对手手牌将空（`handCount ≤ 4`）时，大幅抬高甩功能牌的概率（`pFunc += 0.28`），优先用 `skip` 打断对手的跑成节奏。
 
-> 综合效果：大师档几乎不失误、记得清、算得准（MC 200 次），并且会**针对每个对手的历史行为**调整诈牌与质疑——面对爱抓的人收敛、面对爱放的人加压、对残血对手精准补刀。它是为「打得过普通档之后还想被虐」准备的。
+> 综合效果：大师档**少质疑、超准、不互喂、不可读**——记得清（ρ=1 + 去重）、算得对（真命成本 EV），按对手历史调整诈牌与质疑（面对爱抓的收敛、惯犯加大怀疑、对领先者精准拦截），且决不靠乱开枪送命。无头实测：每局全场掉命 −36%、各类剥削打法（躺平/紧逼/拆诈）胜率从 30%+ 压回 ~7%、难度梯度 master>hard>normal>easy 全配置严格成立。它是为「打得过普通档之后还想被虐」准备的最终 boss。
 
 ---
 
@@ -395,11 +414,13 @@ AI 既是对手，也是引擎的**对抗性压力测试器**。`npm run sim`（
 |------|------|------|
 | `PROFILES` | 5×7 性格矩阵 | 性格基线 |
 | `applyDifficulty` | 4 档变换系数 | 难度强弱与手感（easy 莽撞、master 近最优） |
-| `recordCard` | `0.3 + 0.7·read` | 记牌成功率 |
+| `recordCard` | 保留率 `ρ(d) = 1.0/0.9/0.7/0.4` | 按难度的记牌完整度（公开硬信息 master/hard 必记 + id 去重） |
 | `bluffRate` / `trigger` / `challengeRate` | 先验与平滑常数 | 对手历史的平滑估计 |
 | `mcLieProb` | `runs = 30 / 60 / 100 / 200` | 蒙特卡洛采样次数（随理性升） |
-| `decideRespond` | `evThreshold` / `thr` / sigmoid 斜率 | 质疑阈值与软硬程度 |
-| §十 master 各式 | pLie 下限、pCh 加成、draw EV、bluffAppetite 调整 | 大师档的剥削力度 |
+| `lifeCost` | 命值 5、`penaltyTwoDiceFrom` | 真命成本 L（与引擎受罚轮盘同步；改引擎须同步此处） |
+| `decideRespond` | `p* = (P+L)/(2P+L)`、`pChEv` 爬升斜率 | 质疑阈值与开枪信心（仅有的两个质疑旋钮） |
+| `kingmakerKappa` | `coef = 0.12/0.06/0` | 大师/老练的多人不互喂力度 |
+| §十 master 各式 | pLie 证据、draw 泄露折价、`f*` 校准、`feedRestraint` | 大师档的剥削与反 tell 力度 |
 | `think` | `[240, 3200]ms`、`slow` | 拟人停顿区间 |
 | 驱动层 | `delayFor`、`DELAY_SCALE` | 动画节拍与全局快慢 |
 

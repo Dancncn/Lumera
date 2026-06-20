@@ -9,6 +9,7 @@ import { ActionBar } from './ActionBar';
 import { Center } from './Center';
 import { Coach } from './Coach';
 import { DiceSpotlight } from './DiceSpotlight';
+import { RevealSpotlight } from './RevealSpotlight';
 import { EventFx } from './EventFx';
 import { LangSwitch } from './LangSwitch';
 import { FloatingLog } from './FloatingLog';
@@ -69,6 +70,7 @@ export function Table({ view }: { view: PlayerView }) {
       <ActionArrows view={view} />
       <EventFx view={view} />
       <DiceSpotlight />
+      <RevealSpotlight view={view} />
       {tutorial && <Coach view={view} />}
       <header className="topbar">
         <div className="brand">

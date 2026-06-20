@@ -45,9 +45,9 @@ const TURN_TIMEOUT_MS = Number(process.env.YUANHE_TURN_TIMEOUT_MS ?? 20000);
 const DELAY_SCALE = Number(process.env.YUANHE_DELAY_SCALE ?? 1);
 
 // 质疑窗口：真人在场时，AI 先静默 REACTION_WINDOW 毫秒（反应窗口），把「首次截牌」机会留给真人；
-// 在场真人都放行即提前解锁 AI。联机保留 8 秒自动放行硬上限 + 倒计时（不能让一个真人无限拖住整桌）。纯 AI 收得更快。
-const REACTION_WINDOW = 3000;
-const RESPOND_WINDOW_HUMAN = 8000;
+// 在场真人都放行即提前解锁 AI。联机保留 10 秒自动放行硬上限 + 倒计时（不能让一个真人无限拖住整桌）。纯 AI 收得更快。
+const REACTION_WINDOW = 6000;
+const RESPOND_WINDOW_HUMAN = 10000;
 const RESPOND_WINDOW_AI = 2400;
 function challengeDelay(): number {
   return 700 + Math.random() * 1200;
@@ -421,8 +421,8 @@ export class Room {
     };
 
     if (humanEligible) {
-      // 真人在场：AI 先静默 3 秒反应窗口，把首次截牌机会留给真人；在场真人都放行则提前解锁（见 pass）。
-      // 保留 8 秒自动放行硬上限 + 倒计时：联机不能让一个真人无限拖住整桌。
+      // 真人在场：AI 先静默 6 秒反应窗口，把首次截牌机会留给真人；在场真人都放行则提前解锁（见 pass）。
+      // 保留 10 秒自动放行硬上限 + 倒计时：联机不能让一个真人无限拖住整桌。
       this.respondReleaseAis = releaseAis;
       this.respondTimers.push(setTimeout(releaseAis, REACTION_WINDOW * DELAY_SCALE));
       const windowMs = RESPOND_WINDOW_HUMAN * DELAY_SCALE;
@@ -472,7 +472,7 @@ export class Room {
     const seat = this.seats.find((s) => s.token === token);
     if (!seat || !this.respondPending.has(seat.seat)) return;
     this.respondPending.delete(seat.seat);
-    // 在场真人都已放行 → 提前解锁 AI 表态（不必等满 3 秒反应窗口）；否则照常收窗。
+    // 在场真人都已放行 → 提前解锁 AI 表态（不必等满 6 秒反应窗口）；否则照常收窗。
     const st = this.state;
     const humanLeft = [...this.respondPending].some((sd) => !st.players[sd].isAI && this.seats[sd].conn !== null);
     if (!humanLeft && this.respondReleaseAis) this.respondReleaseAis();

@@ -127,7 +127,6 @@ interface OppStat {
   truths: number;
   challenges: number;
   passes: number;
-  recentActions: ('ch' | 'pa')[];
 }
 
 function nextAlive(view: PlayerView, from: number, dir: 1 | -1): number {
@@ -170,7 +169,7 @@ export class AiPlayer {
   private stat(seat: number): OppStat {
     let s = this.opp.get(seat);
     if (!s) {
-      s = { claims: 0, lies: 0, truths: 0, challenges: 0, passes: 0, recentActions: [] };
+      s = { claims: 0, lies: 0, truths: 0, challenges: 0, passes: 0 };
       this.opp.set(seat, s);
     }
     return s;
@@ -403,14 +402,9 @@ export class AiPlayer {
         case 'Challenged': {
           const st = this.stat(e.challenger);
           if (e.challenger !== this.seat) st.challenges++;
-          st.recentActions.push('ch');
-          if (st.recentActions.length > 8) st.recentActions.shift();
           for (const seat of this.pendingChallengers) {
             if (seat === e.challenger || seat === this.seat) continue;
-            const ps = this.stat(seat);
-            ps.passes++;
-            ps.recentActions.push('pa');
-            if (ps.recentActions.length > 8) ps.recentActions.shift();
+            this.stat(seat).passes++;
           }
           this.pendingChallengers = [];
           break;
@@ -418,10 +412,7 @@ export class AiPlayer {
         case 'TurnStarted':
           for (const seat of this.pendingChallengers) {
             if (seat === this.seat) continue;
-            const ps = this.stat(seat);
-            ps.passes++;
-            ps.recentActions.push('pa');
-            if (ps.recentActions.length > 8) ps.recentActions.shift();
+            this.stat(seat).passes++;
           }
           this.pendingChallengers = [];
           break;
@@ -455,18 +446,6 @@ export class AiPlayer {
     const total = s.challenges + s.passes;
     if (total < 3) return 0.3;
     return (s.challenges + 0.9) / (total + 3);
-  }
-
-  // 大师独占：近期趋势——最近几次是质疑多还是放行多（检测连续放行 = 可趁虚而入）
-  private recentPassStreak(seat: number): number {
-    const s = this.opp.get(seat);
-    if (!s || s.recentActions.length < 2) return 0;
-    let streak = 0;
-    for (let i = s.recentActions.length - 1; i >= 0; i--) {
-      if (s.recentActions[i] === 'pa') streak++;
-      else break;
-    }
-    return streak;
   }
 
   // 受罚时随机赌定 count 个不同点数（AI 无任何信息优势，纯随机洗牌取前 count 个）。
@@ -595,9 +574,9 @@ export class AiPlayer {
     const pStarAdj = clamp(pStar + this.kingmakerKappa(view, player), 0.05, 0.92);
     const externAware = clamp((this.traits.rationality - 0.5) / 0.45); // easy≈0 master≈1
 
-    // EV 分支（理性者感知阈值）：过阈陡升、未过阈低位。
+    // EV 分支：破阈中位起步、明显超阈才高信心质疑（偏好精度但保留 recall，避免过度被动）。
     const margin = pLie - pStarAdj;
-    const pChEv = margin > 0 ? clamp(0.55 + margin * 2.2) : clamp(0.06 + margin * 0.8, 0.02, 0.5);
+    const pChEv = margin > 0 ? clamp(0.3 + margin * 2.8) : clamp(0.05 + margin * 0.5, 0.02, 0.3);
 
     // sigmoid 分支（低理性，阈值方向亦朝 p*）：保留性格/上头噪声。
     let thr = clamp(pStar + 0.05, 0.2, 0.85);

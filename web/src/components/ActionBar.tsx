@@ -8,7 +8,7 @@ import { ClaimPicker } from './ClaimPicker';
 import { DiceFace } from './DiceFace';
 
 const TURN_SECS = 20;
-const CHALLENGE_SECS = 8;
+const CHALLENGE_SECS = 10;
 
 export function TurnCountdown({ deadline, compact, totalSecs = TURN_SECS }: { deadline: number; compact?: boolean; totalSecs?: number }) {
   const [remaining, setRemaining] = useState(() => Math.max(0, deadline - Date.now()));
@@ -133,12 +133,17 @@ export function ActionBar({ view }: { view: PlayerView }) {
           <span className="ctrl-tip">
             {p.isFirst ? t('首家：盖一张牌，宣称某色 1–3（可撒谎）') : t('接牌：同色更大或相同 / 同数字换色（可撒谎）')}
           </span>
-          {(p.canDraw || p.canFallback) && (
+          {(p.canDraw || p.canFallback || p.drawCooldown > 0) && (
             <span className="ctrl-mini">
               {p.canDraw && (
                 <button className="btn btn-mini" type="button" onClick={() => human({ type: 'Draw' })}>
                   {t('摸一张')}
                 </button>
+              )}
+              {!p.canDraw && p.drawCooldown > 0 && (
+                <span className="ctrl-cd" title={t('反囤牌：摸牌冷却，过 N 回合才能再摸')}>
+                  ❄ {t('摸牌冷却 · 还需 {n} 回合', { n: p.drawCooldown })}
+                </span>
               )}
               {p.canFallback && (
                 <button className="btn btn-mini" type="button" onClick={() => human({ type: 'Fallback' })}>

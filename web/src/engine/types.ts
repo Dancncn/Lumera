@@ -209,7 +209,7 @@ export interface PublicPlayer {
 
 /** 当前轮到「你」时能做什么。 */
 export type ViewPrompt =
-  | { kind: 'play'; isFirst: boolean; canDraw: boolean; canFallback: boolean }
+  | { kind: 'play'; isFirst: boolean; canDraw: boolean; canFallback: boolean; drawCooldown: number } // drawCooldown：本可摸牌但被冷却挡住时的剩余回合（0=未被冷却挡）
   | { kind: 'respond'; player: number; claim: Claim }
   | { kind: 'penalty'; roller: number; rollsRemaining: number; dice: number } // dice：本次掷几颗骰（第3枪起为 2）
   | { kind: 'idle' } // 不是你行动

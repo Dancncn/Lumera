@@ -793,11 +793,13 @@ function computePrompt(s: GameState, seat: number): ViewPrompt {
       if (s.phase.current !== seat) return { kind: 'idle' };
       const onlyFunctional = me.hand.length > 0 && me.hand.every((c) => c.kind === 'functional');
       const cooldownReady = !s.config.drawCooldown || me.drawCooldown === 0;
+      const wouldDraw = !s.phase.hasDrawn && s.deck.length > 0; // 本回合本可摸牌（未摸过、牌库非空）
       return {
         kind: 'play',
         isFirst: s.phase.isFirst,
-        canDraw: !s.phase.hasDrawn && s.deck.length > 0 && cooldownReady,
+        canDraw: wouldDraw && cooldownReady,
         canFallback: onlyFunctional || me.hand.length === 0,
+        drawCooldown: wouldDraw && !cooldownReady ? me.drawCooldown : 0, // 仅当被冷却挡住时给出剩余回合
       };
     }
     case 'respond':

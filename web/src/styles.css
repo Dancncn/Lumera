@@ -4622,8 +4622,73 @@ kbd {
   }
 }
 
+/* 反囤牌·摸牌亮牌：中央闪现（比掷骰更轻、更短，因摸牌更频繁） */
+.reveal-spotlight {
+  position: fixed;
+  inset: 0;
+  z-index: 890;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.reveal-spot-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.32);
+  animation: rv-dim 2.4s ease-out both;
+}
+@keyframes rv-dim {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.reveal-spot-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 26px 40px 22px;
+  background: radial-gradient(ellipse at center, rgba(252, 248, 235, 0.97) 0%, rgba(245, 236, 212, 0.95) 100%);
+  border: 1.5px solid var(--gold);
+  border-radius: 18px;
+  box-shadow: 0 0 50px rgba(201, 162, 63, 0.32), 0 0 100px rgba(201, 162, 63, 0.14);
+  animation: rv-card 2.4s var(--ease) both;
+}
+@keyframes rv-card {
+  0% { opacity: 0; transform: scale(0.7) translateY(8px); }
+  12% { opacity: 1; transform: scale(1.04) translateY(0); }
+  20% { transform: scale(1); }
+  72% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.94); }
+}
+.reveal-spot-cap {
+  font-size: 15px;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+.reveal-spot-sub {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--gold-deep);
+  opacity: 0.85;
+}
+
+/* 反囤牌·摸牌冷却：座位徽标 + 操作区提示（冰蓝） */
+.stat-cd { color: #2f6fa8; }
+.ctrl-cd {
+  font-size: 12px;
+  color: #2f6fa8;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  align-self: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .seat-penalty { animation: none !important; }
   .seat-judging { animation: none !important; }
   .seat-skipped::after { animation: none; opacity: 1; }
+  .reveal-spot-card, .reveal-spot-dim { animation: none !important; }
 }

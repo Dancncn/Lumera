@@ -21,6 +21,7 @@ function assertNoLeak(s: GameState): void {
     for (let other = 0; other < s.players.length; other++) {
       if (other === seat) continue;
       for (const c of s.players[other].hand) {
+        if (v.lastHandReveal && v.lastHandReveal.card.id === c.id) continue; // revealOnDraw 合法公开，非泄露
         if (json.includes(`"id":${c.id},`) || json.includes(`"id":${c.id}}`))
           throw new Error(`信息泄露：座位 ${seat} 的视图含座位 ${other} 在手牌 id=${c.id}`);
       }
@@ -28,6 +29,7 @@ function assertNoLeak(s: GameState): void {
     for (const e of s.pile) {
       if (json.includes(`"id":${e.card.id},`) || json.includes(`"id":${e.card.id}}`)) {
         if (v.lastReveal && v.lastReveal.card.id === e.card.id) continue;
+        if (v.lastHandReveal && v.lastHandReveal.card.id === e.card.id) continue; // 摸牌亮过、随后被打出，合法公开
         throw new Error(`信息泄露：座位 ${seat} 的视图含牌堆盖牌 id=${e.card.id}`);
       }
     }

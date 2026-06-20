@@ -82,7 +82,7 @@ let weatherChanceVal = DEFAULT_WEATHER_CHANCE; // 记住天气频率，「再来
 // 质疑窗口：真人在场时，AI 先静默 REACTION_WINDOW 毫秒（反应窗口），把「首次截牌」的机会留给真人；
 // 真人一旦放行就立刻解锁 AI 表态。单人局不再自动放行（截牌不限时、不显示倒计时）。
 // 纯 AI 局：各自拟人错峰表态 + 硬上限收窗，收得更快。
-const REACTION_WINDOW = 3000;
+const REACTION_WINDOW = 6000;
 const RESPOND_WINDOW_AI = 2400;
 function challengeDelay(): number {
   return 700 + Math.random() * 1200;
@@ -214,7 +214,7 @@ export const useGame = create<Store>((set, get) => {
     };
 
     if (humanEligible) {
-      // 真人在场：AI 先静默 3 秒反应窗口，把首次截牌机会留给真人；真人放行立刻解锁（见 pass）。
+      // 真人在场：AI 先静默 6 秒反应窗口，把首次截牌机会留给真人；真人放行立刻解锁（见 pass）。
       // 单人局不设自动放行硬上限——截牌想多久都行、也不显示倒计时（turnDeadline 已置空）。
       respondReleaseAis = releaseAis;
       respondTimers.push(setTimeout(releaseAis, REACTION_WINDOW));
@@ -437,7 +437,7 @@ export const useGame = create<Store>((set, get) => {
       if (!s || s.phase.kind !== 'respond') return;
       if (respondPending.has(0)) {
         respondPending.delete(0);
-        // 真人放行：立刻解锁 AI 表态（不必等满 3 秒反应窗口）；无 AI 待解锁则照常收窗。
+        // 真人放行：立刻解锁 AI 表态（不必等满 6 秒反应窗口）；无 AI 待解锁则照常收窗。
         if (respondReleaseAis) respondReleaseAis();
         else checkRespondProceed();
       }
