@@ -111,7 +111,6 @@ function Seat({
         <span className="stat stat-score" title={t('收走的牌堆，按张数计分')}>
           {t('计分区')} <b key={p.scoredCount} className="score-bump">{p.scoredCount}</b>
         </span>
-        <span className="stat" title={t('打 0 领取的计分卡面值')}>{t('计分卡')} {p.tokenValue}</span>
         {p.escalation > 1 && <span className="stat stat-warn" title={t('下次受罚要赌的点数')}>{t('受罚')}×{p.escalation}</span>}
         {p.drawCooldown > 0 && <span className="stat stat-cd" title={t('反囤牌：摸牌冷却剩余回合')}>❄ {t('冷却')} {p.drawCooldown}</span>}
       </div>
@@ -178,7 +177,6 @@ export function SelfPlate({ view }: { view: PlayerView }) {
         <span className="stat stat-score" title={t('收走的牌堆，按张数计分')}>
           {t('计分区')} <b key={me.scoredCount} className="score-bump">{me.scoredCount}</b>
         </span>
-        <span className="stat" title={t('打 0 领取的计分卡面值')}>{t('计分卡')} {me.tokenValue}</span>
         {me.escalation > 1 && <span className="stat stat-warn" title={t('下次受罚要赌的点数')}>{t('受罚')}×{me.escalation}</span>}
         {me.drawCooldown > 0 && <span className="stat stat-cd" title={t('反囤牌：摸牌冷却剩余回合')}>❄ {t('冷却')} {me.drawCooldown}</span>}
       </span>

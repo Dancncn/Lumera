@@ -142,7 +142,7 @@ function logLine(s: GameState, ev: GameEvent): LogEntry | null {
     case 'PileTaken':
       return { tpl: '{name} 收走牌堆 {n} 张，计入计分区', p: { name: nm(ev.seat), n: String(ev.count) } };
     case 'TokenAwarded':
-      return { tpl: '{name} 领取计分卡 +{v}（打 0 的勇气奖励）', p: { name: nm(ev.seat), v: String(ev.value) } };
+      return { tpl: '{name} 计分区 +{v}（打 0 的勇气奖励）', p: { name: nm(ev.seat), v: String(ev.value) } };
     case 'RanOut':
       return { tpl: '{name} 清空手牌「跑成了」，补满手牌继续', p: { name: nm(ev.seat) } };
     case 'PenaltyStarted':
@@ -219,8 +219,7 @@ function endGame(s: GameState, events: GameEvent[]): void {
         seat: p.seat,
         name: p.name,
         score: p.scored.length + p.tokens - penalty,
-        scoredCount: p.scored.length,
-        tokenValue: p.tokens,
+        scoredCount: p.scored.length + p.tokens,
         livesLost,
         out: p.out,
       };
@@ -667,7 +666,7 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
       const ranOut = s.players[player].hand.length === 0;
 
       if (top.claim.num === 0) {
-        // 打 0：终结本梯、领计分卡、牌堆不清空
+        // 打 0：终结本梯、计分区加分、牌堆不清空
         s.players[player].tokens += s.config.tokenValueOnZero;
         emit(s, events, { type: 'TokenAwarded', seat: player, value: s.config.tokenValueOnZero });
         blessReward(s, events, player, 'bold'); // 恩泽·勇者：打出 0（顶格）即奖励，跑成与否都算一次（须在 startPlayTurn 清天气前）
@@ -832,8 +831,7 @@ export function viewFor(s: GameState, seat: number): PlayerView {
     isAI: p.isAI,
     lives: p.lives,
     handCount: p.hand.length,
-    scoredCount: p.scored.length,
-    tokenValue: p.tokens,
+    scoredCount: p.scored.length + p.tokens,
     escalation: p.escalation,
     drawCooldown: p.drawCooldown,
     out: p.out,

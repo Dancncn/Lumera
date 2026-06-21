@@ -47,7 +47,7 @@ export function Coach({ view }: { view: PlayerView }) {
             : '轮到你出牌：点一张手牌，再选宣称（同色更大或相同 / 同数字换色）。',
         };
       } else if (hand.some((c) => c.kind === 'number' && c.num === 0) && !shown.has('zero')) {
-        step = { key: 'zero', text: '你有一张 0：打出能终结本梯、领 1 张计分卡。被高压逼急时用它止损。' };
+        step = { key: 'zero', text: '你有一张 0：打出能终结本梯、计分区 +2。被高压逼急时用它止损。' };
       } else if (hand.some((c) => c.kind === 'wild') && !shown.has('wild')) {
         step = { key: 'wild', text: '你有万能牌：盖着出可冒充任一合法牌，被截也判真——脱困王牌。' };
       } else if (hand.length === 1 && !shown.has('runout')) {

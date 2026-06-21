@@ -17,9 +17,9 @@ addKw('log-kw-danger', [
   'penalized', 'Engulfed', 'Caught lying', 'depleted', 'returned to Source', 'eliminated', 'challenged', 'Showdown', 'reveal',
 ]);
 addKw('log-kw-good', [
-  '跑成', '宣称为真', '险过', '计分卡', '收走牌堆',
-  '宣稱為真', '險過', '計分卡',
-  'Run Out', 'truthful', 'Survived', 'score token', 'takes pile',
+  '跑成', '宣称为真', '险过', '计分区 +', '收走牌堆',
+  '宣稱為真', '險過', '計分區 +',
+  'Run Out', 'truthful', 'Survived', 'score area +', 'takes pile',
 ]);
 const KW_RE = new RegExp(
   Object.keys(KW_CLASS)

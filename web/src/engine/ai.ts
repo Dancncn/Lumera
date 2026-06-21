@@ -775,7 +775,7 @@ export class AiPlayer {
 
     if (wild && claims.length) {
       // 万能牌＝灵活进攻牌（必判真）：可当 0 封梯领分、当高数压牌、或安全脱困接牌。
-      // ① bless / 高梯时用 wild 打 0 封梯（领计分卡 + 把危险高梯清掉，纯赚且必真）；
+      // ① bless / 高梯时用 wild 打 0 封梯（计分区 +2 + 把危险高梯清掉，纯赚且必真）；
       // ② 否则存作后手：有垃圾数字可盖就盖数字、把 wild 留着，只在被迫(无数字)或太危险时才烧。
       const blessZero = this.blessZeroClaim(claims, view, danger, true);
       const zeroClaim = claims.find((c) => c.num === 0) ?? null;

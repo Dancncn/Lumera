@@ -62,7 +62,6 @@ export function GameOver({ view }: { view: PlayerView }) {
               <th>{t('意志')}</th>
               <th>{t('总分')}</th>
               <th>{t('计分区')}</th>
-              <th>{t('计分卡')}</th>
               <th>{t('失凝聚')}</th>
             </tr>
           </thead>
@@ -76,13 +75,12 @@ export function GameOver({ view }: { view: PlayerView }) {
                 </td>
                 <td className="go-score">{r.score}</td>
                 <td>{r.scoredCount}</td>
-                <td>{r.tokenValue}</td>
                 <td>−{r.livesLost * 5}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <div className="go-formula">{t('总分 = 计分区张数 + 计分卡面值 − 失凝聚（每命 −5）')}</div>
+        <div className="go-formula">{t('总分 = 计分区 − 失凝聚（每命 −5）')}</div>
         {youRank > 0 && <div className="go-yourank">{t('你的名次：第 {a} / {b}', { a: youRank, b: ranking.length })}</div>}
         <div className="go-btns">
           {tutorial ? (

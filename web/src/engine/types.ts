@@ -79,7 +79,7 @@ export type GameEvent =
   | { type: 'Challenged'; challenger: number; against: number }
   | { type: 'CardRevealed'; seat: number; card: Card; truthful: boolean } // 摊牌：亮真实牌
   | { type: 'PileTaken'; seat: number; count: number }
-  | { type: 'TokenAwarded'; seat: number; value: number } // 计分卡（打 0 的勇气奖励）
+  | { type: 'TokenAwarded'; seat: number; value: number } // 打 0 的勇气奖励（直接加入计分区）
   | { type: 'RanOut'; seat: number } // 清空手牌「跑成了」
   | { type: 'PenaltyStarted'; seat: number; rolls: number }
   | { type: 'DiceRolled'; seat: number; chosen: number[]; rolled: number[]; hit: boolean } // 第3枪起掷2颗→rolled 含2个点，任一∈chosen 即中枪
@@ -103,7 +103,6 @@ export interface RankEntry {
   name: string;
   score: number;
   scoredCount: number;
-  tokenValue: number;
   livesLost: number;
   out: boolean;
 }
@@ -113,7 +112,7 @@ export interface GameConfig {
   players: number; // 2..4
   startingHand: number; // 起手张数
   startingLives: number; // 初始凝聚度（命数）
-  tokenValueOnZero: number; // 打出 0 领取的计分卡面值
+  tokenValueOnZero: number; // 打出 0 时计分区加分值
   lifeLossValue: number; // 每损失 1 命的扣分（复归出局的 −15 即 3×5，无需额外负债字段）
   refillTo: number; // 跑成成功（收走牌堆）后补牌到几张
   refillAfterCaughtLast: number; // 撒谎打最后一张被抓（不算跑成、受罚后）补牌到几张
@@ -157,7 +156,7 @@ export interface PlayerState {
   hand: Card[];
   lives: number;
   scored: Card[]; // 收走的牌堆牌（计分区）
-  tokens: number; // 计分卡面值合计
+  tokens: number; // 打 0 勇气奖励累计（已合并进 scoredCount）
   escalation: number; // 下次受罚投骰次数（>=1）
   drawCooldown: number; // 摸牌冷却剩余回合（0=可摸）
   out: boolean;
@@ -204,7 +203,6 @@ export interface PublicPlayer {
   lives: number; // 凝聚度
   handCount: number; // 手牌数量（不含内容）
   scoredCount: number;
-  tokenValue: number;
   escalation: number;
   drawCooldown: number; // 摸牌冷却剩余回合（公开信息）
   out: boolean;
