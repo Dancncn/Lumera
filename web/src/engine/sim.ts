@@ -22,6 +22,8 @@ function assertNoLeak(s: GameState): void {
     for (let other = 0; other < s.players.length; other++) {
       if (other === seat) continue;
       for (const c of s.players[other].hand) {
+        // 例外：摊牌(lastReveal)与摸牌亮牌(lastHandReveal)是规则允许公开的牌——虽仍在他手里，但合法地出现在所有视图。
+        if (v.lastReveal?.card.id === c.id || v.lastHandReveal?.card.id === c.id) continue;
         // 视图里 yourHand 只含 seat 自己，因此别家手牌 id 不该出现
         if (json.includes(`"id":${c.id},`) || json.includes(`"id":${c.id}}`)) {
           throw new Error(`信息泄露：座位 ${seat} 的视图含有座位 ${other} 的在手牌 id=${c.id}`);
@@ -31,8 +33,8 @@ function assertNoLeak(s: GameState): void {
     // 牌堆里盖着的真实牌不应出现在视图里
     for (const e of s.pile) {
       if (json.includes(`"id":${e.card.id},`) || json.includes(`"id":${e.card.id}}`)) {
-        // 例外：摊牌后 lastReveal 会公开顶牌，这是规则允许的公开信息
-        if (v.lastReveal && v.lastReveal.card.id === e.card.id) continue;
+        // 例外：摊牌(lastReveal)、摸牌亮牌(lastHandReveal)公开的牌可合法出现在视图
+        if (v.lastReveal?.card.id === e.card.id || v.lastHandReveal?.card.id === e.card.id) continue;
         throw new Error(`信息泄露：座位 ${seat} 的视图含有牌堆盖牌 id=${e.card.id}`);
       }
     }

@@ -35,7 +35,7 @@ Windows 下可用 `scripts\redeploy.bat`（先设环境变量 `DEPLOY_HOST` / `D
 1. **Node 20+**（官方 tarball 装到 `/usr/local`，软链 `/usr/bin/node`）。
 2. **建用户 + 目录**：`useradd --system --no-create-home --shell /usr/sbin/nologin lumera` ; `mkdir -p /opt/Lumera`。
 3. **拉源码**：`git clone <你的仓库地址> /opt/Lumera/repo`（私有仓库可用只读部署密钥 / token）。
-4. 放好 `deploy.sh`、装 `Lumera.service`（`systemctl enable --now Lumera`），首次 `bash /opt/Lumera/deploy.sh`。
+4. 把 [deploy-example.sh](deploy-example.sh) 复制为服务器上的 `/opt/Lumera/deploy.sh`（改掉里面的路径/服务名变量）、装 `Lumera.service`（`systemctl enable --now Lumera`），首次 `bash /opt/Lumera/deploy.sh`。
 5. **反向代理 + HTTPS**，二选一：
    - **Caddy**（最省事，自动签发/续期证书）：用本目录的 [Caddyfile](Caddyfile)，把 `REPLACE_WITH_YOUR_DOMAIN` 换成 `YOUR_DOMAIN` 即可。
    - **nginx**：`YOUR_DOMAIN` 的 vhost 做 80→443 跳转 + 反代 `127.0.0.1:8787`，WebSocket 需转发 `Upgrade`/`Connection` 头；证书用 acme.sh / certbot（Let's Encrypt）。

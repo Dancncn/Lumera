@@ -190,16 +190,21 @@ function drawCards(s: GameState, events: GameEvent[], seat: number, count: numbe
   if (drawn > 0) emit(s, events, { type: 'CardDrawn', seat, count: drawn });
 }
 
+/** 该座位是否受「宗师负重」约束（handicapSeats 为空时恒 false → 经典局逐字节等价）。 */
+function isHandicapped(s: GameState, seat: number): boolean {
+  return s.config.handicapSeats.includes(seat);
+}
 
 const HAND_OVERFLOW_DISCARD = 2;
 
-/** 手牌溢出检查：超过上限时随机弃 N 张回牌库。 */
+/** 手牌溢出 / 负重手牌上限检查：超上限弃牌回牌库（负重硬性弃到上限；普通溢出弃 N 张）。 */
 function checkOverflow(s: GameState, events: GameEvent[], seat: number): void {
-  const limit = s.config.handOverflowLimit;
-  if (limit <= 0) return;
   const p = s.players[seat];
-  if (p.out || p.hand.length <= limit) return;
-  const count = Math.min(HAND_OVERFLOW_DISCARD, p.hand.length);
+  if (p.out) return;
+  const capped = isHandicapped(s, seat) && s.config.hcHandCap > 0;
+  const limit = capped ? s.config.hcHandCap : s.config.handOverflowLimit;
+  if (limit <= 0 || p.hand.length <= limit) return;
+  const count = capped ? p.hand.length - limit : Math.min(HAND_OVERFLOW_DISCARD, p.hand.length);
   for (let i = 0; i < count; i++) {
     const idx = Math.floor(rng01(s) * p.hand.length);
     s.deck.push(p.hand.splice(idx, 1)[0]);
@@ -213,7 +218,7 @@ function checkOverflow(s: GameState, events: GameEvent[], seat: number): void {
 function endGame(s: GameState, events: GameEvent[]): void {
   const ranking: RankEntry[] = s.players
     .map((p) => {
-      const livesLost = s.config.startingLives - p.lives;
+      const livesLost = (p.startLives ?? s.config.startingLives) - p.lives;
       const penalty = livesLost * s.config.lifeLossValue; // 每命 -5；满 3 命即 -15
       return {
         seat: p.seat,
@@ -398,12 +403,16 @@ export function createGame(
   const aiNames = ['Aurel', 'Selvar', 'Verda', 'Thalos'];
   for (let i = 0; i < config.players; i++) {
     const init = seats?.[i];
+    const hcLives = config.handicapSeats.includes(i)
+      ? Math.max(1, config.startingLives + config.hcLivesDelta)
+      : config.startingLives;
     players.push({
       seat: i,
       name: init ? init.name : i === 0 ? '你 · Lumir' : aiNames[i % aiNames.length],
       isAI: init ? init.isAI : i !== 0,
       hand: [],
-      lives: config.startingLives,
+      lives: hcLives,
+      startLives: hcLives,
       scored: [],
       tokens: 0,
       escalation: 1,
@@ -764,7 +773,8 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
       s.players[seat].escalation += 1;
       // 险过补牌：只把手牌补到 surviveRefillTo（最多摸 drawOnSurvive 张）。
       // 缺牌者(0-2张)解困，但 4-6 囤牌者补不到 → 断掉「囤牌反质疑流靠险过白嫖续牌」的结构漏洞。
-      if (s.config.drawOnSurvive > 0) {
+      const noRefill = isHandicapped(s, seat) && s.config.hcNoSurviveRefill;
+      if (s.config.drawOnSurvive > 0 && !noRefill) {
         const need = Math.min(s.config.drawOnSurvive, s.config.surviveRefillTo - s.players[seat].hand.length);
         if (need > 0) drawCards(s, events, seat, need);
       }

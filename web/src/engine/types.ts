@@ -126,6 +126,11 @@ export interface GameConfig {
   revealOnDraw: boolean; // 摸牌亮牌：摸牌后须选择 1 张手牌亮给所有人看，破信息不对称
   weather: boolean; // 混沌天气开关（可选玩法）
   weatherChance: number; // 每开新梯触发天气的概率（0..1）；开局首梯豁免、触发后隔梯冷却
+  // 「宗师」负重（可选 DLC）：仅作用于 handicapSeats 指定座位（生产=真人座位；空数组=不启用，经典局逐字节等价）。
+  handicapSeats: number[]; // 受负重的座位
+  hcHandCap: number; // 负重·手牌上限（0=关闭）：超出即弃回牌库，废掉囤牌
+  hcNoSurviveRefill: boolean; // 负重·险过完全不补牌：断掉续牌永动机
+  hcLivesDelta: number; // 负重·起始命数增量（-1=少一条命；0=不变）
   seed: number;
 }
 
@@ -146,6 +151,10 @@ export const DEFAULT_CONFIG: Omit<GameConfig, 'players' | 'seed'> = {
   revealOnDraw: true,
   weather: false,
   weatherChance: 0.28,
+  handicapSeats: [],
+  hcHandCap: 0,
+  hcNoSurviveRefill: false,
+  hcLivesDelta: 0,
 };
 
 // ---------------- 引擎内部状态（真相） ----------------
@@ -155,6 +164,7 @@ export interface PlayerState {
   isAI: boolean;
   hand: Card[];
   lives: number;
+  startLives?: number; // 起始命数（记分基线；负重 -1 命时与 startingLives 不同）。缺省=config.startingLives
   scored: Card[]; // 收走的牌堆牌（计分区）
   tokens: number; // 打 0 勇气奖励累计（已合并进 scoredCount）
   escalation: number; // 下次受罚投骰次数（>=1）
