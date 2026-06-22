@@ -65,6 +65,12 @@ scripts\deploy.ps1 -VpsHost <IP> -Domain <域名>   :: 一键部署到香港 VPS
 ## 验证
 
 ```bat
-cd web && npm run sim       :: 引擎无头模拟（1200 局：牌张守恒 / 无泄露 / 必然终局）
-cd server && npm test       :: 联机端到端（双房间并发、按座位隔离、终局排名）
+cd web && npm run sim          :: 引擎无头模拟（1200 局：牌张守恒 / 无泄露 / 必然终局）
+cd web && npm run sim:weather  :: 混沌天气 DLC 无头模拟（1000 局 + 确定性复现）
+cd server && npm test          :: 联机端到端（双房间并发、按座位隔离、终局排名）
 ```
+
+## 许可证
+
+[MIT](LICENSE) © Dan Arnoux。代码、文档与原创世界观（源 / Lumera / 四力）可自由学习、修改、再分发——欢迎拿去当作架构思路的参考。
+

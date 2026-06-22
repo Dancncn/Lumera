@@ -3,7 +3,7 @@ import { chooseCommand } from '../../web/src/engine/ai';
 import { ClientMsg, ServerMsg } from '../../web/src/net/protocol';
 import { PlayerView } from '../../web/src/engine/types';
 
-const URL = process.env.LIVE_URL ?? 'wss://lumera.danarnoux.com/ws';
+const URL = process.env.LIVE_URL ?? 'ws://127.0.0.1:8787/ws'; // 默认本地；压测线上设 LIVE_URL=wss://your-domain/ws
 const ROOMS = Number(process.env.ROOMS ?? 30);
 const PER = Number(process.env.PER ?? 3);
 const TAG = process.env.TAG ?? 'load';
