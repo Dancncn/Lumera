@@ -49,6 +49,18 @@ export function AboutButton() {
                   github.com/Dancncn
                 </a>
               </p>
+              <p className="about-line">
+                <span className="about-k">{t('源代码')}</span>
+                <a className="about-v about-link" href="https://github.com/Dancncn/Lumera" target="_blank" rel="noreferrer noopener">
+                  github.com/Dancncn/Lumera
+                </a>
+              </p>
+              <p className="about-line">
+                <span className="about-k">{t('许可证')}</span>
+                <a className="about-v about-link" href="https://github.com/Dancncn/Lumera/blob/main/LICENSE" target="_blank" rel="noreferrer noopener">
+                  AGPL-3.0
+                </a>
+              </p>
               <p className="about-thanks">{t('感谢支持 —— 有任何意见或建议，欢迎到博客留言联系。')}</p>
             </div>
           </div>

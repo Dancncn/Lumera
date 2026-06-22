@@ -101,6 +101,8 @@ export const EN: Record<string, string> = {
   '关闭': 'Close',
   '游戏开发': 'Developed by',
   '博客': 'Blog',
+  '源代码': 'Source',
+  '许可证': 'License',
   '感谢支持 —— 有任何意见或建议，欢迎到博客留言联系。': 'Thanks for your support — for any comments or suggestions, leave a note on the blog.',
 
   // RulesModal (SECTIONS)
