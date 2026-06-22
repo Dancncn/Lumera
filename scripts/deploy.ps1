@@ -2,7 +2,7 @@ param(
   [Parameter(Mandatory = $true)][string]$VpsHost,
   [Parameter(Mandatory = $true)][string]$Domain,
   [string]$User = 'root',
-  [string]$RemoteDir = '/opt/yuanhe'
+  [string]$RemoteDir = '/opt/Lumera'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,13 +14,13 @@ Write-Host '== 本地构建 ==' -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw '构建失败，已中止部署' }
 
 $target = "$User@$VpsHost"
-$staging = '/tmp/yuanhe-deploy'
+$staging = '/tmp/lumera-deploy'
 
 Write-Host "== 上传到 $target ==" -ForegroundColor Cyan
 ssh $target "rm -rf $staging && mkdir -p $staging"
 scp server/dist/server.js "${target}:$staging/server.js"
 scp -r server/dist/public "${target}:$staging/"
-scp deploy/yuanhe.service "${target}:$staging/yuanhe.service"
+scp deploy/Lumera.service "${target}:$staging/Lumera.service"
 
 $remote = @"
 set -e
@@ -30,24 +30,24 @@ if [ "`$(id -u)" -ne 0 ]; then
   SUDO='sudo'
   command -v sudo >/dev/null 2>&1 || { echo '当前非 root 且无 sudo，无法部署'; exit 1; }
 fi
-id yuanhe >/dev/null 2>&1 || `$SUDO useradd --system --no-create-home --shell /usr/sbin/nologin yuanhe
+id lumera >/dev/null 2>&1 || `$SUDO useradd --system --no-create-home --shell /usr/sbin/nologin lumera
 `$SUDO mkdir -p $RemoteDir
 `$SUDO rm -rf $RemoteDir/public
 `$SUDO cp $staging/server.js $RemoteDir/server.js
 `$SUDO cp -r $staging/public $RemoteDir/public
-`$SUDO chown -R yuanhe:yuanhe $RemoteDir
-`$SUDO cp $staging/yuanhe.service /etc/systemd/system/yuanhe.service
+`$SUDO chown -R lumera:lumera $RemoteDir
+`$SUDO cp $staging/Lumera.service /etc/systemd/system/Lumera.service
 `$SUDO systemctl daemon-reload
-`$SUDO systemctl enable yuanhe >/dev/null 2>&1 || true
-`$SUDO systemctl restart yuanhe
+`$SUDO systemctl enable Lumera >/dev/null 2>&1 || true
+`$SUDO systemctl restart Lumera
 if [ -d /etc/caddy ]; then
   if [ -f /etc/caddy/Caddyfile ]; then `$SUDO cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak.`$(date +%s); fi
   printf '%s {\n    encode zstd gzip\n    reverse_proxy 127.0.0.1:8787\n}\n' '$Domain' | `$SUDO tee /etc/caddy/Caddyfile >/dev/null
   `$SUDO systemctl reload caddy 2>/dev/null || `$SUDO systemctl restart caddy
 fi
 rm -rf $staging
-echo '--- yuanhe 状态 ---'
-`$SUDO systemctl --no-pager --lines=4 status yuanhe | sed -n '1,6p'
+echo '--- Lumera 状态 ---'
+`$SUDO systemctl --no-pager --lines=4 status Lumera | sed -n '1,6p'
 "@
 
 $remote | ssh $target 'bash -s'

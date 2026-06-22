@@ -1,10 +1,10 @@
-# 源 · Lumera
+# 源河 · Lumera
 
-2–4 人的卡牌博弈（数字阶梯牌面 + 「盖牌宣称 + 撒谎 + 质疑」）。单机人机在浏览器跑，联机多房间走一台香港 VPS。
+2–4 人的卡牌博弈（数字阶梯牌面 + 「盖牌宣称 + 撒谎 + 质疑」）。
 
 **▶ 在线试玩：<https://lumera.danarnoux.com>**（单机人机即开即玩；联机开房叫上朋友）
 
-## 架构一句话
+## 架构
 
 权威状态机只有一份，用 TypeScript 写在 `web/src/engine/`：`apply(state, seat, cmd) -> {state, events}` 进命令出事件，`viewFor(state, seat) -> PlayerView` 把真相投影成某座位有权看到的过滤视图。真实手牌、牌库、盖着的牌只活在引擎状态里，任何参与者（人或 AI）都只能拿到 `viewFor` 的结果——**结构上无法作弊**。
 
@@ -29,16 +29,21 @@
 
 ```
 web/                现有前端 + 纯 TS 引擎（单机直接用，联机复用）
-  src/engine/       权威状态机 + AI（apply / viewFor / 种子 RNG / GameConfig）
-  src/net/          protocol.ts（前后端共享协议） + client.ts（WS 客户端）
+  src/engine/       权威状态机 + AI（apply / viewFor / 种子 RNG / GameConfig），含 sim.ts / simWeather.ts（无头模拟器）
+  src/net/          protocol.ts（前后端共享协议） + client.ts（WS 客户端） + telemetry.ts（遥测心跳/对局上报） + history.ts（本地对局历史）
   src/store/        gameStore.ts（local / online 双模，组件层零改动）
 server/             Node + ws 多房间联机后端（复用 ../web 的引擎与协议）
   src/room.ts       房间 actor：独占 GameState、串行处理、AI 补位、按座位广播
   src/hub.ts        Hub + RoomStore 抽象（内存实现，留横向扩展接缝）
   src/server.ts     http 静态 + WebSocket，路由 socket 进房间
+  src/static.ts     同源静态服务
+  src/stats.ts      在线/对局统计
   test/online.ts    端到端：双房间并发跑完整局，断言按座位隔离、无信息泄露
-scripts/            setup / dev / build / run-local（.bat） + deploy.ps1
-deploy/             systemd 单元 + Caddyfile + 部署指南
+  test/resilience.ts 断线韧性
+  test/load.ts      压测
+  test/live.ts      线上连通
+scripts/            setup / dev / build / run-local / redeploy（.bat） + deploy.ps1
+deploy/             systemd 单元 + Caddyfile + 部署指南 + deploy-example.sh（部署脚本样例）
 ```
 
 ## 本地开发
@@ -69,7 +74,7 @@ scripts\deploy.ps1 -VpsHost <IP> -Domain <域名>   :: 一键部署到香港 VPS
 ```bat
 cd web && npm run sim          :: 引擎无头模拟（1200 局：牌张守恒 / 无泄露 / 必然终局）
 cd web && npm run sim:weather  :: 混沌天气 DLC 无头模拟（1000 局 + 确定性复现）
-cd server && npm test          :: 联机端到端（双房间并发、按座位隔离、终局排名）
+cd server && npm test          :: 联机端到端（双房间并发、按座位隔离、终局排名）+ 断线韧性
 ```
 
 ## 许可证

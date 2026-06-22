@@ -75,7 +75,7 @@ export function viewFor(s: GameState, seat: number): PlayerView;
 
 `apply` 不修改入参（内部 `structuredClone(prev)` 后在副本上推进），先校验这条命令对当前 phase 和这个座位是否合法（只有当前玩家能出牌，只有下一家能质疑，只有受罚方能选点数），然后改状态、产出事件，返回 `{ state, events }`。非法命令抛 `GameError`。
 
-`viewFor` 把真相投影成某个座位有权看到的部分，**是整个系统的安全边界**：它是 AI 和联机客户端拿数据的唯一入口，两者拿到同一个 `PlayerView`，因此「会读底牌的作弊 AI」在结构上根本写不出来。视图的公开部分有各人凝聚度（命数）、手牌数量（注意是数量、不是内容）、计分区、当前梯顶（宣称的那张牌）、出牌方向、牌库剩余、各人受罚累进次数；私有部分只有你自己的真实手牌；桌上盖着的真实牌不在任何人的视图里，只有被质疑摊牌时才在 `CardRevealed` 事件里亮出。
+`viewFor` 把真相投影成某个座位有权看到的部分，**是整个系统的安全边界**：它是 AI 和联机客户端拿数据的唯一入口，两者拿到同一个 `PlayerView`，因此「会读底牌的作弊 AI」在结构上根本写不出来。视图的公开部分有各人凝聚度（命数）、手牌数量（注意是数量、不是内容）、计分区、各人受罚累进次数与摸牌冷却（`drawCooldown`）、当前梯顶（宣称的那张牌）、出牌方向、牌库剩余、当前天气（`weather`）、下一出牌座位（`nextToPlay`）、初始凝聚度（`startingLives`，供命格显示）、最近一次摸牌亮牌（`lastHandReveal`）；私有部分只有你自己的真实手牌；桌上盖着的真实牌不在任何人的视图里，只有被质疑摊牌时才在 `CardRevealed` 事件里亮出。
 
 `actorOf(state)` 返回当前必须行动的座位，供前端与服务器判断「轮到谁」「该不该自动驱动 AI」。
 
@@ -92,6 +92,7 @@ Setup ── 发牌、定首家 ──┐
         ┌──►│   play           │ ← 当前玩家
         │   └──────────────────┘
         │     │ 盖牌出数字/万能牌 + 宣称 (PlayCard)；可先 Draw 补一张；
+        │     │ Draw 摸牌后须先 RevealCard 亮 1 张（revealOnDraw 开启时）；
         │     │ 功能牌明牌打 (PlayFunctional)；纯功能牌时 Fallback 兜底
         │     ▼
         │   ┌──────────────────┐
@@ -101,9 +102,10 @@ Setup ── 发牌、定首家 ──┐
         │     └─ Challenge ────► 亮真实牌、逐项比对 → 判输家                  │
         │           ▼                                                         │
         │   ┌──────────────────┐                                            │
-        │   │   penalty        │ ← 输家：一次赌 N 个点 (ChooseNumber)、掷一次│
+        │   │   penalty        │ ← 输家：一次赌 N 个点 (ChooseNumber) 并掷骰 │
         │   └──────────────────┘                                            │
-        │     ├─ 中（N/6）→ 一缕念被收回源头（扣凝聚）→（归零? 复归出局；全员? 结束）
+        │     │ 前两枪掷 1 颗 (N/6)，第 3 枪起掷 2 颗 (任一中即中枪)         │
+        │     ├─ 中 → 一缕念被收回源头（扣凝聚）→（归零? 复归出局；全员? 结束）
         │     └─ 未中 → 受罚累进 +1（下次多赌一个点）                        │
         │         └ 梯子重启、定新首家 ──────────────────────────────────────┤
         └──────────────────────────────────────────────────────────────────┘
@@ -119,6 +121,7 @@ Phase 是一个判别联合（`web/src/engine/types.ts`）：`play` / `respond` 
 type Command =
   | { type: 'PlayFunctional'; cardId: number } // 明着甩功能牌（附加动作）
   | { type: 'Draw' }                            // 先摸 1 张，再出牌
+  | { type: 'RevealCard'; cardId: number }      // 摸牌后选择一张手牌亮给全场（反囤牌）
   | { type: 'PlayCard'; cardId: number; claim: Claim } // 盖牌出数字/万能牌并宣称
   | { type: 'Fallback' }                        // 兜底：无数字/万能牌时，亮手 + 弃功能 + 摸一
   | { type: 'Accept' }                          // 放过，不质疑
@@ -128,7 +131,7 @@ type Command =
 
 撒谎就是 `PlayCard` 里 `cardId` 指向的真实牌与 `claim` 不一致。
 
-**事件（引擎 → 参与者，按可见性分发）** 包括：`TurnStarted`、`FunctionalPlayed`、`DirectionReversed`、`CardDrawn`（仅数量公开）、`CardPlayed`（只播宣称、不播真实牌）、`Fallback`、`PlayAccepted`、`Challenged` / `CardRevealed`、`PileTaken`、`TokenAwarded`、`RanOut`、`PenaltyStarted` / `DiceRolled`、`Returned`（对应原「中枪/扣命」）、`Survived`、`PlayerOut`（对应原「死亡」）、`LadderReset`、`GameOver`；混沌天气（DLC）开启时另有 `WeatherChanged`（新梯降天气）/ `WeatherTriggered`（持续天气 ban/veer 触发）/ `WeatherBonus`（恩泽奖励，`kind: 'bold' | 'winner'`），详见 [weather-mode.md](weather-mode.md)。
+**事件（引擎 → 参与者，按可见性分发）** 包括：`TurnStarted`、`FunctionalPlayed`、`DirectionReversed`、`CardDrawn`（仅数量公开）、`HandRevealed`（摸牌亮牌：选 1 张手牌亮给全场）、`HandOverflow`（手牌溢出：超上限弃 N 张回牌库）、`CardPlayed`（只播宣称、不播真实牌）、`Fallback`、`PlayAccepted`、`Challenged` / `CardRevealed`、`PileTaken`、`TokenAwarded`、`RanOut`、`PenaltyStarted` / `DiceRolled`、`Returned`（对应原「中枪/扣命」）、`Survived`、`PlayerOut`（对应原「死亡」）、`LadderReset`、`GameOver`；混沌天气（DLC）开启时另有 `WeatherChanged`（新梯降天气）/ `WeatherTriggered`（持续天气 ban/veer 触发）/ `WeatherBonus`（恩泽奖励，`kind: 'bold' | 'winner'`），详见 [weather-mode.md](weather-mode.md)。
 
 **网络协议（`web/src/net/protocol.ts`，前后端共享）：** 客户端消息 `ClientMsg` = `join` / `start` / `restart` / `cmd` / `leave` / `pass`（弃权放行）/ `setRoomCfg`（房主在大厅实时改房间设置）/ `ping`；服务器消息 `ServerMsg` = `joined` / `room` / `sync`（带 `PlayerView` + 事件，可含回合截止 `turnDeadline`/`turnDuration`）/ `playerLeft` / `error` / `pong`。房间设置（`weather` / `weatherChance`）随 `join` / `joined` / `room` / `setRoomCfg` 同步全员。每条消息自带 `roomId` 与玩家身份 `token`——这是横向扩展的接缝（见附录）。
 
@@ -141,19 +144,30 @@ interface GameConfig {
   players: number;               // 2..4
   startingHand: number;          // 起手张数
   startingLives: number;         // 初始凝聚度（命数）
-  tokenValueOnZero: number;      // 打出 0 领取的计分卡面值
+  tokenValueOnZero: number;      // 打出 0 时计分区加分值
   lifeLossValue: number;         // 每损失 1 命的扣分（复归出局即 3×5）
   refillTo: number;              // 跑成成功（收走牌堆）后补牌到几张
   refillAfterCaughtLast: number; // 撒谎打最后一张被抓（不算跑成）补牌到几张
   maxFunctionalInOpener: number; // 开局保底：起手手牌里功能牌最多几张
+  drawOnSurvive: number;         // 受罚「险过」时最多补摸几张牌（破囤牌僵局）
+  surviveRefillTo: number;       // 险过补牌的手牌上限：只把手牌补到这个数（囤牌者补不到）
+  penaltyTwoDiceFrom: number;    // 受罚累进数 ≥ 此值时掷 2 颗骰（任一中即中枪）
   escalationResetsOnHit: boolean;// 中枪后受罚累进是否重置
+  drawCooldown: boolean;         // 摸牌冷却：手牌≤2 时 1 回合 CD，>2 时 2 回合 CD
+  handOverflowLimit: number;     // 手牌溢出上限（0=关闭）：超过此数时回合结束随机弃 2 张回牌库
+  revealOnDraw: boolean;         // 摸牌亮牌：摸牌后须选 1 张手牌亮给全场，破信息不对称
   weather: boolean;              // 混沌天气开关（DLC，可选玩法）
   weatherChance: number;         // 每开新梯触发天气的概率（0..1）
+  // 「宗师」负重（可选 DLC）：仅作用于 handicapSeats 指定座位（空数组=不启用，经典局逐字节等价）
+  handicapSeats: number[];       // 受负重的座位
+  hcHandCap: number;             // 负重·手牌上限（0=关闭）：超出即弃回牌库，废掉囤牌
+  hcNoSurviveRefill: boolean;    // 负重·险过完全不补牌：断掉续牌永动机
+  hcLivesDelta: number;          // 负重·起始命数增量（-1=少一条命；0=不变）
   seed: number;                  // 种子，决定洗牌与掷骰
 }
 ```
 
-`DEFAULT_CONFIG`（不含 `players` / `seed`）：起手 6 张、3 命、打 0 领 +2、每命 −5、跑成成功补满到 6（`refillTo`）、撒谎打最后一张被抓只补 2（`refillAfterCaughtLast`，与跑成奖励拆开）、开局起手功能牌≤1（`maxFunctionalInOpener`，发牌后超额功能牌与牌库底对调、削开局方差）、中枪后累进重置、**混沌天气默认关闭**（`weather: false`、`weatherChance: 0.28`，DLC 见 [weather-mode.md](weather-mode.md)）。这一层存在的全部意义，就是让你反复调奖罚和概率时永远不必动状态机。
+`DEFAULT_CONFIG`（不含 `players` / `seed`）：起手 6 张、3 命、打 0 计分区 +2、每命 −5、跑成成功补满到 6（`refillTo`）、撒谎打最后一张被抓只补 2（`refillAfterCaughtLast`，与跑成奖励拆开）、开局起手功能牌≤1（`maxFunctionalInOpener`，发牌后超额功能牌与牌库底对调、削开局方差）、险过最多补摸 3 张且只补到 3 张上限（`drawOnSurvive: 3` / `surviveRefillTo: 3`，囤牌者补不到）、受罚累进 ≥3 时掷 2 颗骰（`penaltyTwoDiceFrom: 3`）、中枪后累进重置、摸牌冷却开启（`drawCooldown: true`）、手牌溢出上限 6（`handOverflowLimit: 6`）、摸牌亮牌开启（`revealOnDraw: true`）、**混沌天气默认关闭**（`weather: false`、`weatherChance: 0.28`，DLC 见 [weather-mode.md](weather-mode.md)）、**宗师负重默认不启用**（`handicapSeats: []`、`hcHandCap: 0`、`hcNoSurviveRefill: false`、`hcLivesDelta: 0`，空座位数组下与经典局逐字节等价）。这一层存在的全部意义，就是让你反复调奖罚和概率时永远不必动状态机。
 
 ## 七、联机后端
 

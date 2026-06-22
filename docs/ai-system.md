@@ -63,7 +63,7 @@
 | **easy** | `rationality ×0.55`、`read ×0.4`、`challenge ×0.75`，但**抬高** `bluff ×1.3`、`tilt ×1.8+0.15` | 莽撞新手：算不清、记不住、爱乱诈、一受挫就上头 |
 | **normal** | `rationality ×1.08+0.06`、`read ×1.1+0.06`、`challenge ×1.06+0.03` | 基线小幅增强，松弛可亲 |
 | **hard** | `rationality` 封顶 `0.86`、`read` 封顶 `0.82`、`challenge ×1.2+0.10`、压 `bluff`、`tilt ×0.4`、抬耐心 | 老练对手：读得准、爱抓、冷静，但**刻意不触顶**（留一线人味） |
-| **master** | 直接重写为近最优基线：`rationality≈0.99`、`read≈0.98`、`challenge≈0.82`、`tilt ×0.02`，原性格仅作约 ±1–5% 的调味噪声 | 最终 boss：**所有性格都解锁全部智能**，几乎不上头、几乎不失误（见 §十） |
+| **master** | 直接重写为近最优基线：`rationality≈0.99`、`read≈0.98`、`challenge≈0.82`、`tilt ×0.02`，原性格仅作约 ±1–5% 的调味噪声（各维系数 0.02~0.10，`bluff` 维最大、约 ±5%） | 最终 boss：**所有性格都解锁全部智能**，几乎不上头、几乎不失误（见 §十） |
 
 所有结果经 `clamp` 收回 `[0,1]`。直觉：难度越高，越多跨过 §四、§五里 `rationality > 0.55 / 0.6 / 0.7` 的门槛，读牌越准、抓得越狠、越不上头；只有 master 把理性/看人推到接近 1，从而无条件启用全部高级特性。
 
@@ -172,18 +172,37 @@ runs = 200 (rat>0.95) / 100 (>0.9) / 60 (>0.75) / 30 (其余)     // 越理性�
 
 拿到 `pLie` 后转成「出手质疑的概率」`pCh`，再 `rand() < pCh` 抽样定夺。核心是一条**期望值不等式**：质疑赢了吞下整摞牌堆（+P），输了既掉一条命（−L）又把牌堆白送对手。
 
-### 5.1 真命成本 L（`lifeCost`，[ai.ts](../web/src/engine/ai.ts)）
+### 5.1 真命成本 L 与有效命成本 effLifeCost（[ai.ts](../web/src/engine/ai.ts)）
 
-输掉质疑要受罚掷骰，掉命的期望损失就是「真命成本」。引擎的受罚轮盘：赌定 `N = min(escalation, 6)` 个不同点；`N ≥ 3`（`penaltyTwoDiceFrom` 默认 3）时掷 **2 颗**骰、否则 1 颗，任一落在所赌点即掉 1 命（命值 `lifeLossValue = 5`）：
+输掉质疑要受罚掷骰，掉命的期望损失就是「真命成本」`lifeCost`。引擎的受罚轮盘：赌定 `N = min(escalation, 6)` 个不同点；`N ≥ 3`（`penaltyTwoDiceFrom` 默认 3）时掷 **2 颗**骰、否则 1 颗，任一落在所赌点即掉 1 命（命值 `lifeLossValue = 5`）：
 
 ```
 N = min(max(esc, 1), 6)
-P(中枪) = N≥3 ? 1 − ((6−N)/6)²    // 双骰，尾部骤升
-              : N/6               // 单骰
-L = 5 · P(中枪)
+pHit = N≥3 ? 1 − ((6−N)/6)²    // 双骰，尾部骤升
+            : N/6              // 单骰
+lifeCost(esc) = 5 · pHit
 ```
 
-逐档实测：`L(1)=0.83, L(2)=1.67, L(3)=3.75, L(4)=4.44, L(5)=4.86, L(6)=5.0`。**esc≥3 的双骰让代价从 esc3 起骤升（3.75 而非线性的 2.5）**——这是「越到后期越不敢乱拆」的数学锚。L 取**我自己**当前的 escalation（质疑失败是我受罚）。
+**esc≥3 的双骰让代价从 esc3 起骤升（lifeCost(3)=3.75 而非线性的 2.5）**——这是「越到后期越不敢乱拆」的数学锚。
+
+但真正进质疑阈值的不是 `lifeCost`，而是**有效命成本** `effLifeCost`（`effLifeCost`，[ai.ts](../web/src/engine/ai.ts)）。输掉质疑只有 `pHit` 概率真掉命；剩下 `1−pHit` 的**险过**会把手牌补到 3 张上限（`surviveRefillTo`，材料净收益），仅累进 +1。于是把这份续牌收益从命成本里扣掉：
+
+```
+effLifeCost(esc) = max(0.1, lifeCost(esc) − (1 − pHit)·0.45)     // 0.45 = 险过补牌到 3 张的材料净收益
+```
+
+前期累进低 → 险过率高 → 补牌收益抵掉大半风险 → 有效成本骤降 → 该更敢抓便宜牌；esc≥3 双骰致命、险过率低，`effLifeCost ≈ lifeCost`，仍不敢乱抓。逐档实测（以 ai.ts 实算为准）：
+
+| esc | pHit | lifeCost | **effLifeCost** |
+|----|------|----------|-----------------|
+| 1 | 0.17 | 0.83 | **≈0.46** |
+| 2 | 0.33 | 1.67 | **≈1.37** |
+| 3 | 0.75 | 3.75 | **≈3.64** |
+| 4 | 0.89 | 4.44 | **≈4.39** |
+| 5 | 0.97 | 4.86 | **≈4.85** |
+| 6 | 1.00 | 5.00 | **5.00** |
+
+`effLifeCost` 取**我自己**当前的 escalation（质疑失败是我受罚）。下文 `p*` 里的 L 一律指 `effLifeCost`。
 
 ### 5.2 破局阈值 p\*
 
@@ -254,21 +273,29 @@ pCh = mix(pChLow, pChEv, externAware) + advice.dpCh    // 低理性走 sigmoid �
 
 ### 6.4 智能弃牌（`smartDump` / `keepValue`，[ai.ts](../web/src/engine/ai.ts)）
 
-盖牌诈牌要「盖哪张」时，按**战略留存价值** `keepValue` 丢**最低**的那张：
+盖牌诈牌要「盖哪张」时，按**战略留存价值** `keepValue` 丢**最低**的那张。现版按压牌强度连续分 4 段（`v` 为牌面数字，`lowCount` 为手里 1-3 张数）：
 
 | 牌 | `keepValue` | 为何该留 |
 |----|------------|---------|
-| **0**（顶格=10） | 1.0 | 封梯 + 领计分卡 + 最强接牌 + bless 加分，最该留 |
-| **9 / 1-3** | 0.55 | 9 是同色仅 0 能压的强接牌；1-3 是首家起手燃料 |
-| 4-8 | 0.15 | 中段垃圾，盖牌掩护的首选 |
+| **0**（顶格=10） | `1.0` | 封梯 + 领计分 + 最强接牌 + bless 加分，最该留 |
+| **7 / 8 / 9** | `0.45 + (v−7)·0.12` → 7→0.45 / 8→0.57 / 9→0.69 | 高位强接牌，压牌强度递增 |
+| **1-3** | `0.42 − max(0, lowCount−2)·0.1` | 首家起手燃料；手里超过 2 张时多余的折价 |
+| 4-6 | `0.18 + (v−4)·0.02` → 4→0.18 / 5→0.20 / 6→0.22 | 中段垃圾，盖牌掩护的首选 |
 
-大师再给**优势色**的牌加分（`+0.06×同色张数`，保留连续接牌）。**关键修正**：旧版按 `val(num)` 降序「丢最高值」，而 `val(0)=10`、`val(9)=9` 恰是最高——于是把最该留的 **0 和 9 当垃圾第一个盖掉**了（你正是看到这个）。现改为丢 `keepValue` 最低（4-8 优先，决不先丢 0/9/1-3）。低理性档仍按旧「丢最高值」乱来，维持难度梯度（实测大师战略牌浪费率 2.4%，梯度不变）。
+大师再给**优势色**的牌加分（`+0.06×同色张数`，保留连续接牌）。**关键修正**：旧版按 `val(num)` 降序「丢最高值」，而 `val(0)=10`、`val(9)=9` 恰是最高——于是把最该留的 **0 和 9 当垃圾第一个盖掉**了（你正是看到这个）。现改为丢 `keepValue` 最低（4-6 优先，决不先丢 0/7/8/9/1-3）。低理性档仍按旧「丢最高值」乱来，维持难度梯度（实测大师战略牌浪费率 2.4%，梯度不变）。
 
 ---
 
 ## 七、受罚选点
 
-进入受罚（俄罗斯轮盘）阶段时，须一次性**赌定 N 个不同点数**（N = 本次受罚累进 `rollsRemaining`，封顶 6），只掷一次骰，掷出的点落在所赌 N 个之内即中枪——中枪率恒为 `N/6`。AI 用 `pickDistinctDice(N)`（[ai.ts](../web/src/engine/ai.ts)）从 `1..6` 里**随机取 N 个不同点**返回 `ChooseNumber{ ns }`。因为中枪率只取决于 N（赌哪几个点都一样），这里没有可优化空间，随机取 N 个不同点即最优。
+进入受罚（俄罗斯轮盘）阶段时，须一次性**赌定 N 个不同点数**（N = 本次受罚累进 `rollsRemaining`，封顶 6）。掷骰数随累进分两段（与 §五同源，引擎 `game.ts`：`penaltyTwoDiceFrom` 默认 3）：
+
+```
+前两枪（N≤2）  掷 1 颗骰：落在所赌 N 个点内即中枪 → 中枪率 N/6
+第 3 枪起（N≥3）掷 2 颗骰：任一颗落在所赌 N 个点内即中枪 → 中枪率 1 − ((6−N)/6)²（尾部骤升）
+```
+
+AI 用 `pickDistinctDice(N)`（[ai.ts](../web/src/engine/ai.ts)）从 `1..6` 里**随机取 N 个不同点**返回 `ChooseNumber{ ns }`。无论单骰双骰，中枪率都只取决于 N（赌哪几个点、几颗骰都一样），赌哪几个点没有可优化空间——所以随机取 N 个不同点即最优。
 
 ---
 
@@ -329,14 +356,30 @@ pDraw −= (0.10 + (手牌≤2 ? 0.04 : 0.08)) · rationality   // 摸牌泄一�
 大师/老练的诈牌频率不再「专挑软柿子下家」，而用**无差异校准**（`bluffFreqStar`）：
 
 ```
-f* = Lⱼ / (P + Lⱼ)      // j* = 全场 challengeRate 最高者；Lⱼ = 其真命成本
+f* = Lⱼ / (P + Lⱼ)      // j* = 全场 challengeRate 最高者；Lⱼ = 其有效命成本 effLifeCost(escⱼ)
 bluffP(master/hard) = clamp(f* + (bluff−0.5)·0.12 + (bluffAppetite−0.5)·0.1)
 ```
 
 让最爱拆的人「抓与不抓无差异」→ 诈牌**不可读**。已删除旧版「`+= (0.5−challengeRate(下家))·0.4` 专挑下家」「`recentPassStreak≥3 → +0.15` 连放就加码」这两个可被真人诱导的 tell。多人局再叠 `feedRestraint`：非「我领先且正拦截领先者」时收敛诈牌，不替第三方做嫁衣。
 
-### 10.5 预判性功能牌（[ai.ts](../web/src/engine/ai.ts)）
-有对手手牌将空（`handCount ≤ 4`）时，大幅抬高甩功能牌的概率（`pFunc += 0.28`），优先用 `skip` 打断对手的跑成节奏。
+### 10.5 战略性功能牌（高理性，[ai.ts](../web/src/engine/ai.ts)）
+非首家时先决定要不要明甩功能牌（`decidePlay` 功能牌段）。高理性档（`rationality > 0.6`）以**压制威胁下家**为主轴，按下家威胁度 `respThreat`（`opponentThreat`：将空 + 已得分）连续加权，而非旧版的 `handCount ≤ 4 → pFunc += 0.28` 单一常量：
+
+```
+pFunc = respThreat·0.4
+      + (下家手牌≤2 ? 0.2 : ≤3 ? 0.08 : 0)      // 近跑成再加权重点禁
+      + (respTrig>0.6 ? (respTrig−0.6)·0.4 : 0)  // 爱抓的下家更想甩开
+      + risk·0.08
+pFunc *= 0.6 + rand()·0.8                         // 性格扰动，封顶 0.55
+```
+
+低理性档仍走旧式随手甩（`0.05 + risk·0.08 + aggDanger·0.14·read + respThreat·0.1`）。要甩时再在 skip / reverse 间按权重择一（保留天气 `skipMul / reverseMul` 折价）：
+
+```
+wSkip = (respThreat·0.7 + (下家手牌≤3 ? 0.35 : 0.12)) · skipMul   // 下家越威胁越想 skip 截他
+wRev  = (respTrig>0.6 ? 0.6 : 0.3) · reverseMul                  // 下家爱抓则 reverse 甩开回合
+pick  = wSkip ≥ wRev ? skip : reverse
+```
 
 > 综合效果：大师档**少质疑、超准、不互喂、不可读**——记得清（ρ=1 + 去重）、算得对（真命成本 EV），按对手历史调整诈牌与质疑（面对爱抓的收敛、惯犯加大怀疑、对领先者精准拦截），且决不靠乱开枪送命。无头实测：每局全场掉命 −36%、各类剥削打法（躺平/紧逼/拆诈）胜率从 30%+ 压回 ~7%、难度梯度 master>hard>normal>easy 全配置严格成立。它是为「打得过普通档之后还想被虐」准备的最终 boss。
 
@@ -380,7 +423,7 @@ class AiPlayer {
 ```
 
 - **内部状态**：`traits`（已按难度调制）、`rng`（独立流）、`opp`（对手模型 Map，含放行记录）、`seen`（牌张记忆 Map）、`tilt`、`lastDelay`、`pendingChallengers`、`advice`（当前天气的维度建议包，见 §十一；经典模式为冻结的 `NEUTRAL_ADVICE`）。
-- **`decide` 按 `view.prompt.kind` 分派**：`penalty → ChooseNumber`、`respond → decideRespond`、`play → decidePlay`、其它（不是你行动）→ `Accept`。
+- **`decide` 按 `view.prompt.kind` 分派**：`penalty → ChooseNumber`（`pickDistinctDice`）、`respond → decideRespond`、其它（不是你行动）→ `Accept`；`play` 再做一层子分派——`if (prompt.needsReveal) → decideReveal`（摸牌后按 `revealOnDraw` 规则亮一张：优先功能牌→最小数字牌；激进型 `bluff>0.6` 小概率亮大牌虚张），否则 `→ decidePlay`。
 - **唯一输入是 `PlayerView`**——这就是「结构上不可作弊」的实现层保证。
 - 文件末尾另有无状态便捷函数 `chooseCommand(view)`（[ai.ts](../web/src/engine/ai.ts)），用临时 AI 池决策、**无对手记忆**，仅供测试/兜底；真正对局一律由驱动层持久的 `AiPlayer` 实例驱动。
 
@@ -425,8 +468,8 @@ AI 既是对手，也是引擎的**对抗性压力测试器**。`npm run sim`（
 | `recordCard` | 保留率 `ρ(d) = 1.0/0.9/0.7/0.4` | 按难度的记牌完整度（公开硬信息 master/hard 必记 + id 去重） |
 | `bluffRate` / `trigger` / `challengeRate` | 先验与平滑常数 | 对手历史的平滑估计 |
 | `mcLieProb` | `runs = 30 / 60 / 100 / 200` | 蒙特卡洛采样次数（随理性升） |
-| `lifeCost` | 命值 5、`penaltyTwoDiceFrom` | 真命成本 L（与引擎受罚轮盘同步；改引擎须同步此处） |
-| `decideRespond` | `p* = (P+L)/(2P+L)`、`pChEv` 爬升斜率 | 质疑阈值与开枪信心（仅有的两个质疑旋钮） |
+| `lifeCost` / `effLifeCost` | 命值 5、`penaltyTwoDiceFrom`、险过净收益 0.45 | 真命成本与有效命成本（与引擎受罚轮盘 + 险过补牌同步；改引擎须同步此处） |
+| `decideRespond` | `p* = (P+L)/(2P+L)`（L=`effLifeCost`）、`pChEv` 爬升斜率 | 质疑阈值与开枪信心（仅有的两个质疑旋钮） |
 | `kingmakerKappa` | `coef = 0.12/0.06/0` | 大师/老练的多人不互喂力度 |
 | §十 master 各式 | pLie 证据、draw 泄露折价、`f*` 校准、`feedRestraint` | 大师档的剥削与反 tell 力度 |
 | `think` | `[240, 3200]ms`、`slow` | 拟人停顿区间 |
