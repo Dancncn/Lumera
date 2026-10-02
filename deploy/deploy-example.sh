@@ -1,39 +1,40 @@
 #!/usr/bin/env bash
-# ──────────────────────────────────────────────────────────────────────────
-# Lumera 部署脚本「参照示例」(deploy-example.sh)
-#
-# 这是放在服务器上的 /opt/Lumera/deploy.sh 的脱敏样例：拉取 → 构建 → 换包 → 重启。
-# 真实脚本不入库（含各人自己的路径/远端）；复制本文件、改掉下面几个变量即可用。
-#
-# set -e：任一步失败立即退出，绝不换包/重启 —— 构建挂了线上仍是旧版本，安全。
-# ──────────────────────────────────────────────────────────────────────────
-set -euo pipefail
+# Run on the VPS: bash /opt/Lumera/deploy.sh [commit-or-tag]
+# Copy this wrapper outside the checkout; it builds an immutable Git revision.
+set -Eeuo pipefail
 
-APP_DIR="/opt/Lumera"          # 运行目录（server.js + public/ 落在这里）
-REPO_DIR="$APP_DIR/repo"       # git clone 的源码
-SERVICE="Lumera"               # systemd 服务名
-BRANCH="main"
+APP_DIR="${APP_DIR:-/opt/Lumera}"
+REPO_DIR="${REPO_DIR:-$APP_DIR/repo}"
+BRANCH="${BRANCH:-main}"
+REF="${1:-origin/$BRANCH}"
 
-cd "$REPO_DIR"
+git -C "$REPO_DIR" fetch --quiet origin "$BRANCH"
+REVISION=$(git -C "$REPO_DIR" rev-parse --verify "$REF^{commit}")
+mkdir -p "$APP_DIR"
+APP_DIR=$(cd "$APP_DIR" && pwd -P)
+BUILD_DIR=$(mktemp -d "$APP_DIR/build.XXXXXXXX")
+trap 'rm -rf -- "$BUILD_DIR"' EXIT
+git -C "$REPO_DIR" archive "$REVISION" | tar -x -C "$BUILD_DIR"
 
-echo "[1/5] pull"
-git fetch --quiet origin "$BRANCH"
-git reset --hard "origin/$BRANCH"
+echo "Building and checking $REVISION"
+npm --prefix "$BUILD_DIR/web" ci
+npm --prefix "$BUILD_DIR/server" ci
+npm --prefix "$BUILD_DIR/web" run typecheck
+npm --prefix "$BUILD_DIR/web" run test:typecheck
+npm --prefix "$BUILD_DIR/web" run test:engine
+npm --prefix "$BUILD_DIR/web" run sim
+npm --prefix "$BUILD_DIR/web" run sim:weather
+npm --prefix "$BUILD_DIR/server" run typecheck
+npm --prefix "$BUILD_DIR/server" test
+npm --prefix "$BUILD_DIR/web" run build
+npm --prefix "$BUILD_DIR/server" run build
+npm --prefix "$BUILD_DIR/server" run test:smoke
+cp -R "$BUILD_DIR/web/dist" "$BUILD_DIR/server/dist/public"
+printf '%s\n' "$REVISION" > "$BUILD_DIR/server/dist/REVISION"
 
-echo "[2/5] build web"
-npm --prefix web ci --silent
-npm --prefix web run build --silent      # 产物：web/dist/（含 index.html + assets）
-
-echo "[3/5] build server"
-npm --prefix server ci --silent
-npm --prefix server run build --silent   # 产物：server/dist/server.js（esbuild 单文件）
-
-echo "[4/5] stage artifacts"
-install -m 644 "$REPO_DIR/server/dist/server.js" "$APP_DIR/server.js"
-rm -rf "$APP_DIR/public"
-cp -r "$REPO_DIR/web/dist" "$APP_DIR/public"
-
-echo "[5/5] restart service"
-sudo systemctl restart "$SERVICE"
-sleep 1
-curl -fsS http://127.0.0.1:8787/healthz && echo "  [deploy OK]"
+RELEASE_ID="${REVISION:0:12}-$(date -u +%Y%m%dT%H%M%SZ)"
+if [[ $EUID -eq 0 ]]; then
+  bash "$BUILD_DIR/deploy/release.sh" "$APP_DIR" "$RELEASE_ID" "$BUILD_DIR/server/dist"
+else
+  sudo bash "$BUILD_DIR/deploy/release.sh" "$APP_DIR" "$RELEASE_ID" "$BUILD_DIR/server/dist"
+fi

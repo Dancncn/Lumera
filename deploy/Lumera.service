@@ -6,15 +6,17 @@ After=network.target
 Type=simple
 User=lumera
 WorkingDirectory=/opt/Lumera
-ExecStart=/usr/bin/node /opt/Lumera/server.js
+ExecStart=/usr/bin/node /opt/Lumera/current/server.js
 Environment=PORT=8787
 Environment=HOST=127.0.0.1
+Environment=STATS_FILE=/opt/Lumera/shared/state/stats.json
+EnvironmentFile=-/opt/Lumera/shared/environment
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/Lumera
+ReadWritePaths=/opt/Lumera/shared
 PrivateTmp=true
 
 [Install]

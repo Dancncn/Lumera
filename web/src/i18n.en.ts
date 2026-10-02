@@ -1,5 +1,10 @@
 // English dictionary: simplified-Chinese source → English. Missing keys fall back to source. Filled by the i18n agent.
 export const EN: Record<string, string> = {
+  '连接已结束，请退出本局后重新进入。': 'Connection ended. Leave this game before joining again.',
+  '此座位已在其他页面连接，请关闭重复页面。': 'This seat is connected in another tab. Please close the duplicate tab.',
+  '连接已断开，正在重连… 暂时无法操作。': 'Connection lost. Reconnecting… Controls are temporarily unavailable.',
+  '已连接，正在同步对局…': 'Connected. Syncing the game…',
+  '等待房主开始下一局': 'Waiting for the host to start the next game',
   // StartScreen
   '新手': 'Novice',
   '对手更冲动、爱犯错': 'Opponents are rasher and make more mistakes',

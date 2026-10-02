@@ -33,6 +33,8 @@ Thumbs.db
 # Runtime / cache
 .cache/
 coverage/
+playwright-report/
+test-results/
 tmp/
 temp/
 

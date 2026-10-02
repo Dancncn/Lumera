@@ -6,7 +6,7 @@ import { Hub } from './hub';
 import { Conn } from './room';
 import { makeStaticHandler } from './static';
 import { countGame, countOnline, countVisit, liveOnline, snapshot, touchSession } from './stats';
-import { ClientMsg, MAX_ROOM_ID } from '../../web/src/net/protocol';
+import { cleanRoomId, parseClientMessage } from './messages';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 8787);
@@ -67,28 +67,12 @@ const wss = new WebSocketServer({ server: http, path: '/ws', maxPayload: 64 * 10
 interface Ctx {
   conn: Conn;
   roomId: string | null;
+  token: string | null;
 }
 
 type LiveSocket = WebSocket & { __alive?: boolean };
 
 let nextId = 1;
-
-function cleanRoomId(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null;
-  const s = raw.trim().slice(0, MAX_ROOM_ID);
-  if (!/^[\w\-一-龥]{1,32}$/u.test(s)) return null;
-  return s;
-}
-
-function parse(data: WebSocket.RawData): ClientMsg | null {
-  try {
-    const msg = JSON.parse(data.toString());
-    if (msg && typeof msg.t === 'string') return msg as ClientMsg;
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
 
 wss.on('connection', (ws) => {
   if (wss.clients.size > MAX_CONNECTIONS) {
@@ -102,17 +86,23 @@ wss.on('connection', (ws) => {
   const conn: Conn = {
     id: nextId++,
     send(msg) {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
-    },
-    close() {
+      if (ws.readyState !== WebSocket.OPEN) return;
       try {
-        ws.close();
+        ws.send(JSON.stringify(msg));
+      } catch (error) {
+        console.error('WebSocket send failed', error);
+        ws.terminate();
+      }
+    },
+    close(code, reason) {
+      try {
+        ws.close(code, reason);
       } catch {
         /* ignore */
       }
     },
   };
-  const ctx: Ctx = { conn, roomId: null };
+  const ctx: Ctx = { conn, roomId: null, token: null };
   (ws as LiveSocket).__alive = true;
   countOnline(wss.clients.size);
 
@@ -121,60 +111,71 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('message', (data) => {
-    const msg = parse(data);
-    if (!msg) return;
-    if (msg.t === 'ping') {
-      conn.send({ t: 'pong' });
-      return;
-    }
-    if (msg.t === 'join') {
-      const roomId = cleanRoomId(msg.roomId);
-      if (!roomId || typeof msg.token !== 'string' || !msg.token) {
-        conn.send({ t: 'error', message: '房间号或身份无效' });
+    if (ws.readyState !== WebSocket.OPEN) return;
+    try {
+      const msg = parseClientMessage(data.toString());
+      if (!msg) {
+        conn.send({ t: 'error', message: '消息格式无效' });
         return;
       }
-      const room = hub.obtain(roomId, msg.players, msg.weather === true, msg.weatherChance);
-      if (!room) {
-        conn.send({ t: 'error', message: '服务器繁忙，房间数已达上限，请稍后再试' });
+      if (msg.t === 'ping') {
+        conn.send({ t: 'pong' });
         return;
       }
-      ctx.roomId = roomId;
-      room.join(conn, msg.token, msg.name, msg.players);
-      return;
-    }
+      const roomId = cleanRoomId(msg.roomId)!;
+      if (msg.t === 'join') {
+        const previous = ctx.roomId ? hub.find(ctx.roomId) : undefined;
+        if (ctx.token && (ctx.token !== msg.token || !previous?.ownsConnection(conn, ctx.token))) {
+          conn.send({ t: 'error', message: '连接身份不匹配，请重新连接' });
+          return;
+        }
+        const room = hub.obtain(roomId, msg.players, msg.weather === true, msg.weatherChance);
+        if (!room) {
+          conn.send({ t: 'error', message: '服务器繁忙，房间数已达上限，请稍后再试' });
+          return;
+        }
+        // A rejected join leaves the original membership intact. Detach only after success.
+        if (!room.join(conn, msg.token, msg.name, msg.players)) return;
+        ctx.roomId = roomId;
+        ctx.token = msg.token;
+        if (previous && previous !== room) previous.disconnect(conn);
+        return;
+      }
 
-    const roomId = ctx.roomId;
-    if (!roomId) {
-      conn.send({ t: 'error', message: '尚未加入房间' });
-      return;
-    }
-    const room = hub.find(roomId);
-    if (!room) {
-      conn.send({ t: 'error', message: '房间不存在' });
-      return;
-    }
-    if (typeof (msg as { token?: unknown }).token !== 'string') return;
-    const token = (msg as { token: string }).token;
-    switch (msg.t) {
-      case 'cmd':
-        room.command(token, msg.command);
-        break;
-      case 'pass':
-        room.pass(token);
-        break;
-      case 'setRoomCfg':
-        room.setRoomCfg(token, { weather: msg.weather, weatherChance: msg.weatherChance });
-        break;
-      case 'start':
-        room.start(token);
-        break;
-      case 'restart':
-        room.restart(token);
-        break;
-      case 'leave':
-        room.leave(token);
-        ctx.roomId = null;
-        break;
+      if (!ctx.roomId || !ctx.token) {
+        conn.send({ t: 'error', message: '尚未加入房间' });
+        return;
+      }
+      const room = hub.find(ctx.roomId);
+      if (roomId !== ctx.roomId || msg.token !== ctx.token || !room?.ownsConnection(conn, ctx.token)) {
+        conn.send({ t: 'error', message: '连接身份或房间不匹配' });
+        return;
+      }
+      switch (msg.t) {
+        case 'cmd':
+          room.command(ctx.token, msg.command);
+          break;
+        case 'pass':
+          room.pass(ctx.token);
+          break;
+        case 'setRoomCfg':
+          room.setRoomCfg(ctx.token, { weather: msg.weather, weatherChance: msg.weatherChance });
+          break;
+        case 'start':
+          room.start(ctx.token);
+          break;
+        case 'restart':
+          room.restart(ctx.token);
+          break;
+        case 'leave':
+          room.leave(ctx.token);
+          ctx.roomId = null;
+          ctx.token = null;
+          break;
+      }
+    } catch (error) {
+      console.error('WebSocket message handling failed', error);
+      conn.send({ t: 'error', message: '操作未完成，请重试' });
     }
   });
 
@@ -209,5 +210,7 @@ const heartbeat = setInterval(() => {
 http.on('close', () => clearInterval(heartbeat));
 
 http.listen(PORT, HOST, () => {
-  console.log(`源河联机服务器 ws://${HOST}:${PORT}/ws  静态目录=${PUBLIC_DIR}`);
+  const address = http.address();
+  const port = address && typeof address !== 'string' ? address.port : PORT;
+  console.log(`源河联机服务器 ws://${HOST}:${port}/ws  静态目录=${PUBLIC_DIR}`);
 });

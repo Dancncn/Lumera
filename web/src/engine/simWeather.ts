@@ -49,7 +49,7 @@ interface GameResult {
   blessBoldCount: number;
 }
 
-function runGame(players: number, seed: number, weatherOn: boolean, checkLeak: boolean, chance?: number): GameResult {
+function runGame(players: number, seed: number, weatherOn: boolean, checkLeak: boolean, chance?: number, trace?: string[]): GameResult {
   const config: GameConfig = { ...DEFAULT_CONFIG, players, seed, weather: weatherOn, weatherChance: chance ?? DEFAULT_CONFIG.weatherChance };
   let { state, events } = createGame(config);
   const initialTotal = totalCards(state);
@@ -58,7 +58,10 @@ function runGame(players: number, seed: number, weatherOn: boolean, checkLeak: b
 
   const difficulty = DIFFS[seed % DIFFS.length];
   const ais: AiPlayer[] = state.players.map((_, seat) => new AiPlayer({ seat, seed: config.seed, difficulty }));
-  const observeAll = (evs: GameEvent[], s: GameState) => { for (const ai of ais) ai.observe(evs, viewFor(s, ai.seat)); };
+  const observeAll = (evs: GameEvent[], s: GameState) => {
+    trace?.push(JSON.stringify({ state: s, events: evs }));
+    for (const ai of ais) ai.observe(evs, viewFor(s, ai.seat));
+  };
   observeAll(events, state);
 
   const byKind: Record<WeatherKind, number> = { bounty: 0, shuffle: 0, surge: 0, ban: 0, veer: 0, bless: 0 };
@@ -125,15 +128,17 @@ function main(): void {
   const perCount = [334, 333, 333]; // 合计 1000 场
 
   // —— 确定性复现：同 seed + 天气开 跑两次，结果必须逐字节一致（验证随机全走 s.rng）——
-  let detOk = true;
   for (let i = 0; i < 24; i++) {
     const seed = 7777 + i * 13;
     const players = counts[i % 3];
-    const a = runGame(players, seed, true, false);
-    const b = runGame(players, seed, true, false);
-    if (JSON.stringify(a) !== JSON.stringify(b)) { detOk = false; console.error(`✗ 复现失败 seed=${seed}`); }
+    const traceA: string[] = [], traceB: string[] = [];
+    runGame(players, seed, true, false, undefined, traceA);
+    runGame(players, seed, true, false, undefined, traceB);
+    if (traceA.length !== traceB.length || traceA.some((step, index) => step !== traceB[index])) {
+      throw new Error(`确定性复现失败：完整状态/事件轨迹不一致，seed=${seed}`);
+    }
   }
-  console.log(detOk ? '✓ 确定性复现：24 组同种子两跑结果完全一致（随机全走 s.rng）' : '✗ 确定性复现失败');
+  console.log('✓ 确定性复现：24 组同种子的完整状态/事件轨迹一致');
 
   // —— 1000 场天气局：断言不变量 + 收集统计 ——
   const wSteps: number[] = [], wLives: number[] = [], wWeather: number[] = [], wTrig: number[] = [], wLadders: number[] = [], wBonus: number[] = [], wBold: number[] = [], wPts: number[] = [];

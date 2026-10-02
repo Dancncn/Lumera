@@ -1,0 +1,76 @@
+name: Verify
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-deployment:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: PowerShell deployment failure handling
+        shell: pwsh
+        run: ./deploy/test-deploy.ps1
+
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            server/package-lock.json
+      - name: Install locked dependencies
+        run: |
+          npm ci --prefix web
+          npm ci --prefix server
+      - name: Install Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Frontend typecheck and regressions
+        working-directory: web
+        run: |
+          npm run typecheck
+          npm run test:typecheck
+          npm run test:engine
+          npm run test:ui
+      - name: Engine simulations
+        working-directory: web
+        run: |
+          npm run sim
+          npm run sim:weather
+      - name: Backend regressions
+        working-directory: server
+        run: |
+          npm run typecheck
+          npm test
+      - name: Build and verify standalone package
+        run: |
+          npm run build --prefix web
+          npm run build --prefix server
+          npm run test:smoke --prefix server
+      - name: Deployment rollback regressions
+        run: bash deploy/test-release.sh
+      - name: Browser failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-results-node-${{ matrix.node }}
+          path: web/.cache/playwright-results/
+          include-hidden-files: true
+          retention-days: 7

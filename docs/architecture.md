@@ -14,7 +14,7 @@
 
 整套系统建立在两条原则上，后面所有决策都从这里推出来。
 
-**权威状态机（authoritative state machine）。** 因为游戏的核心乐趣是盖着牌撒谎，真实牌面绝对不能让对手看到。所有真相——每人的真实手牌、桌上盖着的牌究竟是什么、洗牌顺序、那一次掷骰的结果——只存在于权威的那一份 `GameState` 里。每个参与者（人或 AI）只能拿到一份过滤后的视图 `PlayerView`：自己的手牌、公开信息、以及别人嘴上宣称了什么。参与者永远不做规则判定，只渲染状态、发送命令。
+**权威状态机（authoritative state machine）。** 因为游戏的核心乐趣是盖着牌撒谎，真实牌面绝对不能让对手看到。所有真相——每人的真实手牌、桌上盖着的牌究竟是什么、洗牌顺序、那一次掷骰的结果——只存在于权威的那一份 `GameState` 里。每个参与者（人或 AI）只能拿到一份过滤后的视图 `PlayerView`：自己的手牌、公开信息、以及别人嘴上宣称了什么。参与者可以按规则展示可选动作，但最终合法性由权威引擎裁定。
 
 > 单机里「防作弊」是伪命题（真相本就在你自己的浏览器内存里），`viewFor` 这层投影在单机阶段只是「整洁分层 + 给 AI 喂同构视图」；它真正的安全意义在联机阶段（引擎搬到服务器）才兑现：真相留在服务器，客户端收到的永远是过滤后的视图。
 
@@ -30,9 +30,9 @@
 
 **联机后端用 Node + `ws`。** 没有 axum、没有 WASM、没有 ts-rs。服务器以相对路径 `import` 前端的引擎源码（`../../web/src/engine/`），完整复用 `apply` / `viewFor` / AI；网络层只负责把 WebSocket 上收到的命令喂进引擎、把过滤视图广播回各座位。
 
-序列化与类型同步：命令、事件、视图、网络信封都是普通 TS 接口/联合类型，序列化就是 `JSON.stringify`。因为前后端是同一份 TS 源码，协议永远不会对不上——这正是当初用 ts-rs 从 Rust 生成 TS 想达到的效果，而全 TS 直接 `import` 就免费拿到了。
+序列化与类型同步：命令、事件、视图、网络信封都是普通 TS 接口/联合类型，序列化使用 `JSON.stringify`。共享源码可以减少编译期类型漂移，但不保证网络输入可信，也不能消除旧客户端与新服务器的版本差异。服务器在入口校验消息结构；引擎再次校验命令、颜色、整数点数与阶段合法性。
 
-部署上把前端构建产物打进 server 包，上线就是一台机器上的单个 Node 进程：目标是一台香港 VPS，对这种回合制、低频（大部分时间在等人出牌）的小游戏绰绰有余。数据方面当前无持久化，房间状态放内存，但留了横向扩展的接缝（见第七节与附录）。
+部署上把前端构建产物打进 server 包，上线是一台机器上的单个 Node 进程。房间状态只保存在内存，服务重启会中断对局；累计统计写入 `STATS_FILE` 指定的 JSON 文件，对局历史保存在客户端浏览器。发布采用版本目录、原子切换与健康检查失败回滚，统计文件放在独立持久目录，详见部署指南。
 
 ## 三、工程结构
 
@@ -73,9 +73,9 @@ export function apply(prev: GameState, seat: number, cmd: Command): { state: Gam
 export function viewFor(s: GameState, seat: number): PlayerView;
 ```
 
-`apply` 不修改入参（内部 `structuredClone(prev)` 后在副本上推进），先校验这条命令对当前 phase 和这个座位是否合法（只有当前玩家能出牌，只有下一家能质疑，只有受罚方能选点数），然后改状态、产出事件，返回 `{ state, events }`。非法命令抛 `GameError`。
+`apply` 先校验命令结构和座位，再 `structuredClone(prev)`，不修改入参。在副本上校验当前阶段与行动权限：只有当前玩家能出牌，任何在场的非出牌方都能质疑，只有受罚方能选择点数。合法命令推进状态并返回 `{ state, events }`；非法命令抛 `GameError`。
 
-`viewFor` 把真相投影成某个座位有权看到的部分，**是整个系统的安全边界**：它是 AI 和联机客户端拿数据的唯一入口，两者拿到同一个 `PlayerView`，因此「会读底牌的作弊 AI」在结构上根本写不出来。视图的公开部分有各人凝聚度（命数）、手牌数量（注意是数量、不是内容）、计分区、各人受罚累进次数与摸牌冷却（`drawCooldown`）、当前梯顶（宣称的那张牌）、出牌方向、牌库剩余、当前天气（`weather`）、下一出牌座位（`nextToPlay`）、初始凝聚度（`startingLives`，供命格显示）、最近一次摸牌亮牌（`lastHandReveal`）；私有部分只有你自己的真实手牌；桌上盖着的真实牌不在任何人的视图里，只有被质疑摊牌时才在 `CardRevealed` 事件里亮出。
+`viewFor` 把真相投影成某个座位有权看到的部分，**是信息可见性的边界**：它是 AI 和联机客户端拿数据的唯一入口，两者拿到同一个 `PlayerView`，因此「会读底牌的作弊 AI」在结构上根本写不出来。视图的公开部分有各人凝聚度（命数）、手牌数量（注意是数量、不是内容）、计分区、各人受罚累进次数与摸牌冷却（`drawCooldown`）、当前梯顶（宣称的那张牌）、出牌方向、牌库剩余、当前天气（`weather`）、下一出牌座位（`nextToPlay`）、初始凝聚度（`startingLives`，供命格显示）、最近一次摸牌亮牌（`lastHandReveal`）；私有部分只有你自己的真实手牌；桌上盖着的真实牌不在任何人的视图里，只有被质疑摊牌时才在 `CardRevealed` 事件里亮出。
 
 `actorOf(state)` 返回当前必须行动的座位，供前端与服务器判断「轮到谁」「该不该自动驱动 AI」。
 
@@ -105,12 +105,12 @@ Setup ── 发牌、定首家 ──┐
         │   │   penalty        │ ← 输家：一次赌 N 个点 (ChooseNumber) 并掷骰 │
         │   └──────────────────┘                                            │
         │     │ 前两枪掷 1 颗 (N/6)，第 3 枪起掷 2 颗 (任一中即中枪)         │
-        │     ├─ 中 → 一缕念被收回源头（扣凝聚）→（归零? 复归出局；全员? 结束）
+        │     ├─ 中 → 一缕念被收回源头（扣凝聚）→（归零? 复归出局；仅剩一人? 结束）
         │     └─ 未中 → 受罚累进 +1（下次多赌一个点）                        │
         │         └ 梯子重启、定新首家 ──────────────────────────────────────┤
         └──────────────────────────────────────────────────────────────────┘
 
-牌库摸空 / 全员复归 ──► over（按计分高低排名）
+牌库摸空 / 存活玩家不超过一人 ──► over（按计分高低排名）
 ```
 
 Phase 是一个判别联合（`web/src/engine/types.ts`）：`play` / `respond` / `penalty` / `over`，各自带行动所需的座位与上下文。
@@ -133,7 +133,7 @@ type Command =
 
 **事件（引擎 → 参与者，按可见性分发）** 包括：`TurnStarted`、`FunctionalPlayed`、`DirectionReversed`、`CardDrawn`（仅数量公开）、`HandRevealed`（摸牌亮牌：选 1 张手牌亮给全场）、`HandOverflow`（手牌溢出：超上限弃 N 张回牌库）、`CardPlayed`（只播宣称、不播真实牌）、`Fallback`、`PlayAccepted`、`Challenged` / `CardRevealed`、`PileTaken`、`TokenAwarded`、`RanOut`、`PenaltyStarted` / `DiceRolled`、`Returned`（对应原「中枪/扣命」）、`Survived`、`PlayerOut`（对应原「死亡」）、`LadderReset`、`GameOver`；混沌天气（DLC）开启时另有 `WeatherChanged`（新梯降天气）/ `WeatherTriggered`（持续天气 ban/veer 触发）/ `WeatherBonus`（恩泽奖励，`kind: 'bold' | 'winner'`），详见 [weather-mode.md](weather-mode.md)。
 
-**网络协议（`web/src/net/protocol.ts`，前后端共享）：** 客户端消息 `ClientMsg` = `join` / `start` / `restart` / `cmd` / `leave` / `pass`（弃权放行）/ `setRoomCfg`（房主在大厅实时改房间设置）/ `ping`；服务器消息 `ServerMsg` = `joined` / `room` / `sync`（带 `PlayerView` + 事件，可含回合截止 `turnDeadline`/`turnDuration`）/ `playerLeft` / `error` / `pong`。房间设置（`weather` / `weatherChance`）随 `join` / `joined` / `room` / `setRoomCfg` 同步全员。每条消息自带 `roomId` 与玩家身份 `token`——这是横向扩展的接缝（见附录）。
+**网络协议（`web/src/net/protocol.ts`，前后端共享）：** 客户端消息 `ClientMsg` = `join` / `start` / `restart` / `cmd` / `leave` / `pass`（个人放行）/ `setRoomCfg`（房主在大厅实时改房间设置）/ `ping`；服务器消息 `ServerMsg` = `joined` / `room` / `sync`（带 `PlayerView` + 事件，可含回合截止 `turnDeadline`/`turnDuration`）/ `playerLeft` / `error` / `pong`。房间设置（`weather` / `weatherChance`）随 `join` / `joined` / `room` / `setRoomCfg` 同步全员。除 `ping` 外，客户端消息携带 `roomId` 与 `token`，且必须与当前连接成功加入的房间和凭证一致。网络上的 `Accept` 仅表示当前玩家放行，由 Room 在全员放行或窗口超时后调用引擎完成接受流程。
 
 ## 六、可调参数
 
@@ -175,9 +175,9 @@ interface GameConfig {
 
 - 接收某座位的 `cmd`，调 `apply` 推进，按事件可见性给每个座位发各自的 `sync`（内含 `viewFor` 出来的过滤视图 + 公开事件）。
 - **AI 补位**：空座位/掉线座位转 AI。轮到 AI 时不立即出手，而是按事件类型用 `setTimeout` 给一个带抖动的拟人化延迟（翻牌/掷骰/摊牌各有不同节奏），再调 `apply`，营造「在思考」的观感。
-- 掉线宽限：座位断开后保留一段宽限期（`GRACE_MS`），期间可重连接管；房间空了回调 `onEmpty` 由上层回收。
+- 掉线宽限：进行中的座位断开后转 AI，保留原 `token` 供恢复；全房间离线时保留一段宽限期（`GRACE_MS`），之后回收。昵称仅用于展示，不能恢复座位。同凭证恢复会替换旧连接，旧连接不能继续操作。大厅掉线会释放空位。
 
-**Hub + RoomStore。** `server/src/hub.ts` 的 `Hub` 通过 `RoomStore` 接口存取房间，当前实现是内存里的 `Map`（`MemoryRoomStore`），带 `maxRooms` 上限与空房回收。把存取藏在接口后面，是为将来真要放大时换成 Redis（存状态 + pub/sub 广播）只动这一层、游戏逻辑一行不改。
+**Hub + RoomStore。** `server/src/hub.ts` 的 `Hub` 通过 `RoomStore` 接口存取房间，当前实现是内存里的 `Map`（`MemoryRoomStore`），带 `maxRooms` 上限与空房回收。接口返回的是包含连接、计时器和 AI 的活 `Room` 对象；它不是可直接替换为 Redis 的持久化接口。未来多实例部署还需要设计状态快照、房间归属、连接路由和计时器恢复。
 
 **HTTP 层。** `server/src/server.ts` 用 Node 原生 `http` + `ws`：`/healthz` 健康检查、`/stats` 在线与对局统计、`/beat` 心跳上报「当前在线」，其余走静态文件（生产包里前端与服务同源），WebSocket 升级后按 `roomId` 路由进对应房间。
 
@@ -204,11 +204,19 @@ scripts\run-local.bat  :: 本地单进程跑生产包（同源静态 + ws）
 
 ```bat
 cd web && npm run sim       :: 引擎无头模拟（1200 局：牌张守恒 / 无泄露 / 必然终局）
-cd server && npm test       :: 联机端到端（双房间并发、按座位隔离、终局排名）
+cd server && npm test       :: 安全与身份回归、三房间联机、断线恢复
 ```
 
 部署：`scripts\deploy.ps1 -VpsHost <IP> -Domain <域名>` 一键部署到香港 VPS，细节见 [../deploy/README.md](../deploy/README.md)。
 
 ## 附：将来横向扩展的两个口子
 
-当前单实例 + 内存房间对当前规模是最优解，不要过早上 Redis。但为将来真要放大时不必重写，现在就守住两点：其一，房间的存取藏在 `RoomStore` 接口后面（当前是内存 `Map`），将来换成 Redis 存状态加 pub/sub 广播时，改动只集中在这一层，游戏逻辑一行不动；其二，每条 WebSocket 消息都自包含，带上 `roomId` 和玩家身份 `token`，不依赖「这条连接一直连在同一台机器」的隐含假设，这样将来加负载均衡、按房间路由都不难。这两点在小规模阶段的代码量跟纯内存版几乎一样，却把天花板抬高了。
+当前实现面向单实例。扩容前应根据实际容量测试决定是否需要多实例，而不是只替换存储适配器。可复用的基础是纯规则引擎与明确的消息类型；需要新增的能力包括房间状态持久化、单一写入者归属、跨实例广播、连接路由、计时器与 AI 恢复。`token` 是恢复凭证，并不代替连接绑定和访问校验。
+
+## 接手与验证
+
+阅读顺序：规则文档 → `engine/types.ts` → `createGame/apply/viewFor` → `gameStore.ts` → `protocol.ts` 与 `Room`。前端 store 和服务端 Room 共用规则，但分别维护 AI 与反应窗口的调度，修改时序需要同时验收单机和联机。
+
+完整本地检查见根目录 `scripts/verify.bat`；GitHub Actions 在 Node.js 22/24 上运行类型检查、引擎回归、浏览器回归、经典/天气模拟、后端安全/联机测试、独立生产包验证和离线发布回滚测试。天气确定性比较完整状态和事件轨迹，不一致会直接失败。牌面泄露检查是抽样保护，不能单独证明网络边界安全。
+
+上线交接还需要确认实际运行版本、VPS/SSH 与域名/DNS 管理权限、服务环境变量、统计文件位置和权限、备份恢复方式。仓库中的测试不能代替真实服务器环境的验收。

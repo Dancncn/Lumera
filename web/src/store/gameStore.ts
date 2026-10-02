@@ -42,6 +42,7 @@ interface Store {
   onlineView: PlayerView | null;
   lobby: Lobby | null;
   conn: ConnStatus | 'idle';
+  onlineReady: boolean;
   netError: string | null;
   thinking: number | null;
   lastEvents: GameEvent[];
@@ -65,6 +66,7 @@ interface Store {
   setRoomWeather: (weather: boolean) => void;
   setRoomChance: (weatherChance: number) => void;
   leaveRoom: () => void;
+  dismissNetError: () => void;
 }
 
 let aiTimer: ReturnType<typeof setTimeout> | null = null;
@@ -315,6 +317,7 @@ export const useGame = create<Store>((set, get) => {
     onlineView: null,
     lobby: null,
     conn: 'idle',
+    onlineReady: false,
     netError: null,
     thinking: null,
     lastEvents: [],
@@ -329,6 +332,7 @@ export const useGame = create<Store>((set, get) => {
 
     newGame: (players: number, diff?: Difficulty, firstSeat?: number, deck?: Card[], weather?: boolean, weatherChance?: number) => {
       if (get().mode === 'online') {
+        if (!get().lobby?.host || !get().onlineReady || get().conn !== 'open') return;
         net?.restart();
         return;
       }
@@ -346,7 +350,7 @@ export const useGame = create<Store>((set, get) => {
       });
       const { state, events } = createGame({ ...DEFAULT_CONFIG, players, seed, weather: weatherOn, weatherChance: weatherChanceVal }, seats, firstSeat, deck);
       observeAll(events, state);
-      set({ state, lastEvents: events, lastDie: null, penaltySeat: null, thinking: null, tutorial: false, difficulty, players });
+      set({ state, lastEvents: events, lastDie: null, penaltySeat: null, thinking: null, tutorial: false, tutorialStage: null, difficulty, players });
       reportLocalGame(); // 单机局也计入「对局」统计
       loop();
     },
@@ -396,6 +400,7 @@ export const useGame = create<Store>((set, get) => {
         onlineView: null,
         lobby: null,
         conn: 'idle',
+        onlineReady: false,
         netError: null,
         lastEvents: [],
         lastDie: null,
@@ -410,6 +415,7 @@ export const useGame = create<Store>((set, get) => {
 
     human: (cmd: Command) => {
       if (get().mode === 'online') {
+        if (!get().onlineReady || get().conn !== 'open') return;
         net?.command(cmd);
         return;
       }
@@ -430,6 +436,7 @@ export const useGame = create<Store>((set, get) => {
     // 真人「放行」：表态不质疑。若全场都已表态，窗口立即结束、继续出牌（不必等满倒计时）。
     pass: () => {
       if (get().mode === 'online') {
+        if (!get().onlineReady || get().conn !== 'open') return;
         net?.pass();
         return;
       }
@@ -452,6 +459,7 @@ export const useGame = create<Store>((set, get) => {
         onlineView: null,
         lobby: null,
         conn: 'connecting',
+        onlineReady: false,
         netError: null,
         lastEvents: [],
         lastDie: null,
@@ -459,6 +467,7 @@ export const useGame = create<Store>((set, get) => {
         thinking: null,
       });
       let noticeTimer: ReturnType<typeof setTimeout> | null = null;
+      let lastSyncKey: string | null = null;
       const client: NetClient = new NetClient({
         onPlayerLeft: (msg: PlayerLeftMsg) => {
           if (net !== client) return;
@@ -468,7 +477,7 @@ export const useGame = create<Store>((set, get) => {
         },
         onStatus: (status: ConnStatus) => {
           if (net !== client) return;
-          set({ conn: status });
+          set({ conn: status, ...(status !== 'open' ? { onlineReady: false } : {}) });
         },
         onError: (message: string) => {
           if (net !== client) return;
@@ -476,6 +485,7 @@ export const useGame = create<Store>((set, get) => {
         },
         onJoined: (msg: JoinedMsg) => {
           if (net !== client) return;
+          if (!msg.started) lastSyncKey = null;
           set({
             lobby: {
               roomId: msg.roomId,
@@ -488,6 +498,11 @@ export const useGame = create<Store>((set, get) => {
               weatherChance: msg.weatherChance,
             },
             netError: null,
+            onlineReady: !msg.started,
+            ...(!msg.started ? {
+              onlineView: null, lastEvents: [], lastDie: null,
+              penaltySeat: null, thinking: null, turnDeadline: null,
+            } : {}),
           });
         },
         onRoom: (msg: RoomMsg) => {
@@ -508,27 +523,22 @@ export const useGame = create<Store>((set, get) => {
         },
         onSync: (msg: SyncMsg) => {
           if (net !== client) return;
-          const die = extractDie(msg.events);
-          if (die) {
-            set({ lastDie: die, lastEvents: msg.events.filter((e) => e.type === 'DiceRolled') });
-            if (diceAnimTimer) clearTimeout(diceAnimTimer);
-            diceAnimTimer = setTimeout(() => {
-              diceAnimTimer = null;
-              set((st) => ({
-                onlineView: msg.view,
-                lastEvents: msg.events.filter((e) => e.type !== 'DiceRolled'),
-                penaltySeat: trackPenalty(msg.events, st.penaltySeat),
-                thinking: msg.view.players[msg.view.current]?.isAI ? msg.view.current : null,
-                turnDeadline: msg.turnDeadline ?? null,
-              }));
-            }, DICE_ANIM_MS);
-            return;
-          }
+          // Server snapshots are authoritative immediately. Animation components own
+          // their display lifetimes; no delayed callback may write an older snapshot.
+          // A deadline or connection metadata update may repeat the event batch.
+          // The log advances with game actions, but not with seat reconnections.
+          const key = JSON.stringify([msg.view.log, msg.events]);
+          const duplicate = key === lastSyncKey;
+          lastSyncKey = key;
           set((st) => ({
+            onlineReady: true,
+            netError: null,
             onlineView: msg.view,
-            lastEvents: msg.events,
-            lastDie: nextDie(msg.events, st.lastDie),
-            penaltySeat: trackPenalty(msg.events, st.penaltySeat),
+            ...(duplicate ? {} : {
+              lastEvents: msg.events,
+              lastDie: nextDie(msg.events, st.lastDie),
+              penaltySeat: trackPenalty(msg.events, st.penaltySeat),
+            }),
             thinking: msg.view.players[msg.view.current]?.isAI ? msg.view.current : null,
             turnDeadline: msg.turnDeadline ?? null,
           }));
@@ -539,10 +549,12 @@ export const useGame = create<Store>((set, get) => {
     },
 
     startRoom: () => {
+      if (!get().onlineReady || get().conn !== 'open') return;
       net?.start();
     },
 
     setRoomWeather: (weather: boolean) => {
+      if (!get().onlineReady || get().conn !== 'open') return;
       // 房主切换：发给服务端，并乐观更新本地大厅（服务端会广播 RoomMsg 回正）
       net?.setRoomCfg({ weather });
       const lb = get().lobby;
@@ -550,6 +562,7 @@ export const useGame = create<Store>((set, get) => {
     },
 
     setRoomChance: (weatherChance: number) => {
+      if (!get().onlineReady || get().conn !== 'open') return;
       net?.setRoomCfg({ weatherChance });
       const lb = get().lobby;
       if (lb) set({ lobby: { ...lb, weatherChance } });
@@ -563,6 +576,7 @@ export const useGame = create<Store>((set, get) => {
         onlineView: null,
         lobby: null,
         conn: 'idle',
+        onlineReady: false,
         netError: null,
         lastEvents: [],
         lastDie: null,
@@ -572,6 +586,7 @@ export const useGame = create<Store>((set, get) => {
         notice: null,
       });
     },
+    dismissNetError: () => set({ netError: null }),
   };
 });
 
@@ -581,4 +596,8 @@ export function useMyView(): PlayerView | null {
   const onlineView = useGame((s) => s.onlineView);
   if (mode === 'online') return onlineView;
   return state ? viewFor(state, 0) : null;
+}
+
+export function useCanAct(): boolean {
+  return useGame((s) => s.mode === 'local' || (s.conn === 'open' && s.onlineReady));
 }

@@ -27,6 +27,7 @@ import {
   WEATHER_META,
 } from './types';
 import { nextRng, rollDie, shuffle } from './rng';
+import { isClaim, isCommand } from './validation';
 
 export class GameError extends Error {}
 // 函数声明而非箭头：能被 TS 控制流分析识别为 never 收窄。
@@ -39,7 +40,7 @@ export const val = (num: number): number => (num === 0 ? 10 : num);
 
 /** 一张宣称对当前梯顶是否合法（与真实牌无关，宣称可撒谎）。 */
 export function isLegalClaim(ladderTop: Claim | null, claim: Claim, isFirst: boolean): boolean {
-  if (claim.num < 0 || claim.num > 9) return false;
+  if (!isClaim(claim)) return false;
   if (isFirst || ladderTop === null) {
     return claim.num >= 1 && claim.num <= 3; // 首家：盖牌宣称某色 1..3
   }
@@ -545,6 +546,8 @@ export function buildTutorialDeck(): Card[] {
 // apply：吃一条命令，吐出新状态 + 事件
 // ============================================================
 export function apply(prev: GameState, seat: number, cmd: Command): { state: GameState; events: GameEvent[] } {
+  if (!isCommand(cmd)) illegal('无效的游戏命令');
+  if (!Number.isInteger(seat) || seat < 0 || seat >= prev.players.length) illegal('无效的座位');
   const s: GameState = structuredClone(prev);
   const events: GameEvent[] = [];
   const ph = s.phase;

@@ -29,14 +29,18 @@ function wsUrl(): string {
   return `${proto}://${location.host}/ws`;
 }
 
+let sessionToken: string | null = null;
+
 export function loadToken(): string {
+  if (sessionToken) return sessionToken;
   const key = 'yuanhe.token';
-  let t = localStorage.getItem(key);
-  if (!t) {
-    t = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-    localStorage.setItem(key, t);
-  }
-  return t;
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) return (sessionToken = saved);
+  } catch { /* Private browsing may deny storage; keep the identity in memory. */ }
+  sessionToken = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  try { localStorage.setItem(key, sessionToken); } catch { /* Reconnects still reuse the in-memory token. */ }
+  return sessionToken;
 }
 
 export class NetClient {
@@ -96,8 +100,16 @@ export class NetClient {
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       this.ws = null;
+      // A newer tab owns this token now. Reconnecting here would steal it back
+      // and make both tabs disconnect each other indefinitely.
+      if (event.code === 4001) {
+        this.closedByUser = true;
+        this.handlers.onStatus('closed');
+        this.handlers.onError('此座位已在其他页面连接，请关闭重复页面。');
+        return;
+      }
       if (this.closedByUser) {
         this.handlers.onStatus('closed');
         return;

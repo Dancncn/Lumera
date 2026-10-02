@@ -42,7 +42,9 @@ interface Stage {
   afterPlayer?: () => void;
 }
 
-function makeStages(): Stage[] {
+type Schedule = (action: () => void, delay: number) => void;
+
+function makeStages(schedule: Schedule): Stage[] {
   const { stageGame, stageCmd } = useGame.getState();
 
   return [
@@ -64,7 +66,7 @@ function makeStages(): Stage[] {
         return !!s && s.phase.kind === 'respond';
       },
       afterPlayer() {
-        setTimeout(() => useGame.getState().stageCmd(1, { type: 'Accept' }), 800);
+        schedule(() => useGame.getState().stageCmd(1, { type: 'Accept' }), 800);
       },
     },
 
@@ -92,10 +94,10 @@ function makeStages(): Stage[] {
           const s = useGame.getState().state;
           if (s && s.phase.kind === 'penalty' && s.players[s.phase.roller].isAI) {
             const ns = [3, 1, 2, 4, 5, 6].slice(0, s.phase.rollsRemaining);
-            setTimeout(() => useGame.getState().stageCmd(1, { type: 'ChooseNumber', ns }), 1000);
+            schedule(() => useGame.getState().stageCmd(1, { type: 'ChooseNumber', ns }), 1000);
           }
         };
-        setTimeout(check, 300);
+        schedule(check, 300);
       },
     },
 
@@ -127,7 +129,7 @@ function makeStages(): Stage[] {
         return !!s && s.phase.kind === 'respond';
       },
       afterPlayer() {
-        setTimeout(() => useGame.getState().stageCmd(1, { type: 'Accept' }), 800);
+        schedule(() => useGame.getState().stageCmd(1, { type: 'Accept' }), 800);
       },
     },
 
@@ -187,7 +189,7 @@ function makeStages(): Stage[] {
         return !!s && s.phase.kind === 'respond';
       },
       afterPlayer() {
-        setTimeout(() => useGame.getState().stageCmd(1, { type: 'Accept' }), 800);
+        schedule(() => useGame.getState().stageCmd(1, { type: 'Accept' }), 800);
       },
     },
   ];
@@ -199,8 +201,16 @@ type Phase = 'intro' | 'play' | 'result';
 
 export function TutorialStages({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const { t } = useT();
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const schedule: Schedule = (action, delay) => {
+    const timer = setTimeout(() => {
+      timers.current.delete(timer);
+      action();
+    }, delay);
+    timers.current.add(timer);
+  };
   const stagesRef = useRef<Stage[] | null>(null);
-  if (!stagesRef.current) stagesRef.current = makeStages();
+  if (!stagesRef.current) stagesRef.current = makeStages(schedule);
   const stages = stagesRef.current;
 
   const [idx, setIdx] = useState(0);
@@ -210,6 +220,11 @@ export function TutorialStages({ onDone, onSkip }: { onDone: () => void; onSkip:
   const state = useGame((s) => s.state);
 
   const stage = stages[idx];
+
+  useEffect(() => () => {
+    for (const timer of timers.current) clearTimeout(timer);
+    timers.current.clear();
+  }, [idx]);
 
   // setup game when entering play phase
   useEffect(() => {
@@ -225,7 +240,7 @@ export function TutorialStages({ onDone, onSkip }: { onDone: () => void; onSkip:
     if (stage.isDone()) {
       setDoneHandled(true);
       if (stage.afterPlayer) stage.afterPlayer();
-      setTimeout(() => setPhase('result'), 1200);
+      schedule(() => setPhase('result'), 1200);
     }
   }, [state, phase, doneHandled]);
 

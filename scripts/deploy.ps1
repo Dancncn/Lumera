@@ -1,54 +1,49 @@
 param(
-  [Parameter(Mandatory = $true)][string]$VpsHost,
-  [Parameter(Mandatory = $true)][string]$Domain,
-  [string]$User = 'root',
-  [string]$RemoteDir = '/opt/Lumera'
+  [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9.-]*$')][string]$VpsHost,
+  [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9.-]*$')][string]$Domain,
+  [ValidatePattern('^[A-Za-z_][A-Za-z0-9_-]*$')][string]$User = 'root',
+  [ValidatePattern('^/[A-Za-z0-9_/-]+$')][string]$RemoteDir = '/opt/Lumera'
 )
 
 $ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-Write-Host '== 本地构建 ==' -ForegroundColor Cyan
-& "$PSScriptRoot\build.bat"
-if ($LASTEXITCODE -ne 0) { throw '构建失败，已中止部署' }
+function Invoke-Checked {
+  param([string]$Command, [string[]]$Arguments)
+  & $Command @Arguments
+  if ($LASTEXITCODE -ne 0) { throw "$Command failed (exit $LASTEXITCODE)" }
+}
+
+$revision = (& git rev-parse --verify HEAD)
+if ($LASTEXITCODE -ne 0) { throw 'Cannot read Git revision' }
+$changes = (& git status --porcelain)
+if ($LASTEXITCODE -ne 0) { throw 'Cannot read Git status' }
+if ($changes) { throw 'Commit or stash local changes before deploying an identifiable revision.' }
+$releaseId = $revision.Substring(0, 12) + '-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+
+Write-Host '== Install locked dependencies and check the release ==' -ForegroundColor Cyan
+Invoke-Checked 'npm.cmd' @('--prefix', 'web', 'ci')
+Invoke-Checked 'npm.cmd' @('--prefix', 'server', 'ci')
+Invoke-Checked "$PSScriptRoot\verify.bat" @()
+[IO.File]::WriteAllText((Join-Path $root 'server/dist/REVISION'), "$revision`n", [Text.UTF8Encoding]::new($false))
 
 $target = "$User@$VpsHost"
-$staging = '/tmp/lumera-deploy'
+$staging = '/tmp/lumera-deploy-' + [Guid]::NewGuid().ToString('N')
+Write-Host "== Uploading release $releaseId to $target ==" -ForegroundColor Cyan
+Invoke-Checked 'ssh' @($target, "mkdir -m 700 '$staging'")
+try {
+  Invoke-Checked 'scp' @('server/dist/server.js', 'server/dist/REVISION', "${target}:$staging/")
+  Invoke-Checked 'scp' @('-r', 'web/dist', "${target}:$staging/public")
+  Invoke-Checked 'scp' @('deploy/release.sh', 'deploy/Lumera.service', "${target}:$staging/")
+  $sudoPrefix = if ($User -eq 'root') { '' } else { 'sudo ' }
+  Invoke-Checked 'ssh' @($target, "${sudoPrefix}bash '$staging/release.sh' '$RemoteDir' '$releaseId' '$staging'")
+} finally {
+  # Cleanup failure must not hide the actual deployment result.
+  try { Invoke-Checked 'ssh' @($target, "rm -rf -- '$staging'") }
+  catch { Write-Warning "Could not remove remote staging directory $staging : $_" -WarningAction Continue }
+}
 
-Write-Host "== 上传到 $target ==" -ForegroundColor Cyan
-ssh $target "rm -rf $staging && mkdir -p $staging"
-scp server/dist/server.js "${target}:$staging/server.js"
-scp -r server/dist/public "${target}:$staging/"
-scp deploy/Lumera.service "${target}:$staging/Lumera.service"
-
-$remote = @"
-set -e
-command -v node >/dev/null 2>&1 || { echo '远端未安装 node，请先按 deploy/README.md 安装'; exit 1; }
-SUDO=''
-if [ "`$(id -u)" -ne 0 ]; then
-  SUDO='sudo'
-  command -v sudo >/dev/null 2>&1 || { echo '当前非 root 且无 sudo，无法部署'; exit 1; }
-fi
-id lumera >/dev/null 2>&1 || `$SUDO useradd --system --no-create-home --shell /usr/sbin/nologin lumera
-`$SUDO mkdir -p $RemoteDir
-`$SUDO rm -rf $RemoteDir/public
-`$SUDO cp $staging/server.js $RemoteDir/server.js
-`$SUDO cp -r $staging/public $RemoteDir/public
-`$SUDO chown -R lumera:lumera $RemoteDir
-`$SUDO cp $staging/Lumera.service /etc/systemd/system/Lumera.service
-`$SUDO systemctl daemon-reload
-`$SUDO systemctl enable Lumera >/dev/null 2>&1 || true
-`$SUDO systemctl restart Lumera
-if [ -d /etc/caddy ]; then
-  if [ -f /etc/caddy/Caddyfile ]; then `$SUDO cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak.`$(date +%s); fi
-  printf '%s {\n    encode zstd gzip\n    reverse_proxy 127.0.0.1:8787\n}\n' '$Domain' | `$SUDO tee /etc/caddy/Caddyfile >/dev/null
-  `$SUDO systemctl reload caddy 2>/dev/null || `$SUDO systemctl restart caddy
-fi
-rm -rf $staging
-echo '--- Lumera 状态 ---'
-`$SUDO systemctl --no-pager --lines=4 status Lumera | sed -n '1,6p'
-"@
-
-$remote | ssh $target 'bash -s'
-Write-Host "== 部署完成：https://$Domain ==" -ForegroundColor Green
+Write-Host "== Application release $releaseId is healthy on 127.0.0.1:8787 ==" -ForegroundColor Green
+Write-Host "Configure https://$Domain using deploy/README.md. Existing Caddy/nginx configuration was not changed."

@@ -6,7 +6,7 @@
 
 ## 架构
 
-权威状态机只有一份，用 TypeScript 写在 `web/src/engine/`：`apply(state, seat, cmd) -> {state, events}` 进命令出事件，`viewFor(state, seat) -> PlayerView` 把真相投影成某座位有权看到的过滤视图。真实手牌、牌库、盖着的牌只活在引擎状态里，任何参与者（人或 AI）都只能拿到 `viewFor` 的结果——**结构上无法作弊**。
+权威状态机只有一份，用 TypeScript 写在 `web/src/engine/`：`apply(state, seat, cmd) -> {state, events}` 进命令出事件，`viewFor(state, seat) -> PlayerView` 把真相投影成某座位有权看到的过滤视图。联机时真实手牌、牌库、盖牌保留在服务器；AI 和客户端使用过滤视图。网络入口与引擎分别校验外部输入，玩家操作还需匹配连接绑定的房间和身份凭证。
 
 同一套引擎：
 
@@ -38,7 +38,9 @@ server/             Node + ws 多房间联机后端（复用 ../web 的引擎与
   src/server.ts     http 静态 + WebSocket，路由 socket 进房间
   src/static.ts     同源静态服务
   src/stats.ts      在线/对局统计
-  test/online.ts    端到端：双房间并发跑完整局，断言按座位隔离、无信息泄露
+  test/online.ts    三房间并发完整对局、座位视图与天气配置验证
+  test/security.ts 畸形消息、身份恢复、连接绑定与房间生命周期回归
+  test/smoke.ts     独立生产包的 HTTP / 静态资源 / WebSocket 验证
   test/resilience.ts 断线韧性
   test/load.ts      压测
   test/live.ts      线上连通
@@ -47,6 +49,8 @@ deploy/             systemd 单元 + Caddyfile + 部署指南 + deploy-example.s
 ```
 
 ## 本地开发
+
+使用 Node.js 22 或更新版本（`.node-version` 为 22；CI 检查 22 与 24）。两个包均提交 lockfile，安装使用 `npm ci`。
 
 ```bat
 scripts\setup.bat      :: 装依赖（web + server）
@@ -72,14 +76,20 @@ scripts\deploy.ps1 -VpsHost <IP> -Domain <域名>   :: 一键部署到香港 VPS
 ## 验证
 
 ```bat
-cd web && npm run sim          :: 引擎无头模拟（1200 局：牌张守恒 / 无泄露 / 必然终局）
-cd web && npm run sim:weather  :: 混沌天气 DLC 无头模拟（1000 局 + 确定性复现）
-cd server && npm test          :: 联机端到端（双房间并发、按座位隔离、终局排名）+ 断线韧性
+cd web
+npx playwright install chromium  :: 首次安装浏览器测试运行时
+cd ..
+scripts\verify.bat                :: 在仓库根目录执行完整验证
 ```
+
+也可分别在 `web` 执行 `npm run typecheck`、`npm run test:typecheck`、`npm run test:engine`、`npm run test:ui`、`npm run sim`、`npm run sim:weather`，在 `server` 执行 `npm run typecheck`、`npm test`。两端构建完成后，在 `server` 执行 `npm run test:smoke` 验证独立生产包。Linux 下 `bash deploy/test-release.sh` 离线验证发布与回滚，不连接线上。
+
+经典模拟运行 1,200 局；天气模拟运行 1,000 局并比较 24 组完整状态/事件轨迹，任何不一致均使检查失败。模拟中的隐藏牌检查是抽样回归保护，不能替代输入校验、身份验证和浏览器测试。GitHub Actions 自动运行上述检查。
+
+房间状态仅在内存，服务重启会中断对局；重连依赖浏览器保存的原身份凭证，昵称不能恢复座位。服务端统计文件与浏览器本地历史的备份边界，以及发布与回滚步骤，见 [部署指南](deploy/README.md)。
 
 ## 许可证
 
 [AGPL-3.0](LICENSE) © 2026 Dan Arnoux。
 
 自由学习、修改、再分发；但**衍生版——包括改后作为网络服务对外提供的版本——必须同样以 AGPL-3.0 公开源码**（这正是给联机/网页游戏选 AGPL 而非 GPL 的原因：堵住"托管不开源"）。拿去当学习范本、二次创作完全欢迎；若想闭源或商业使用，请联系作者获取商业授权。
-

@@ -9,7 +9,7 @@ const ROOM_DIFFICULTY: Difficulty = (process.env.YUANHE_AI_DIFFICULTY as Difficu
 export interface Conn {
   id: number;
   send(msg: ServerMsg): void;
-  close(): void;
+  close(code?: number, reason?: string): void;
 }
 
 interface Seat {
@@ -186,10 +186,17 @@ export class Room {
     for (const s of this.seats) this.syncSeat(s);
   }
 
-  join(conn: Conn, token: string, name: string | undefined, players: number | undefined): void {
+  ownsConnection(conn: Conn, token: string): boolean {
+    return this.seats.some((seat) => seat.token === token && seat.conn === conn);
+  }
+
+  join(conn: Conn, token: string, name: string | undefined, players: number | undefined): boolean {
     const existing = this.seats.find((s) => s.token === token);
     if (existing) {
+      const previous = existing.conn;
       existing.conn = conn;
+      // Replace ownership before closing: the old socket's close event cannot detach the new one.
+      if (previous && previous !== conn) previous.close(4001, 'Seat connected from another page');
       this.clearGrace();
       if (this.state) this.state.players[existing.seat].isAI = false;
       if (!this.hostToken) this.hostToken = token;
@@ -206,44 +213,18 @@ export class Room {
       });
       if (this.state) this.syncSeat(existing);
       this.broadcastRoom();
-      this.drive();
-      return;
+      if (previous !== conn) this.drive();
+      return true;
     }
 
     if (this.started) {
-      const joinName = cleanName(name, '');
-      const nameMatch = joinName
-        ? this.seats.find((s) => s.human && s.conn === null && s.name === joinName)
-        : null;
-      if (nameMatch) {
-        nameMatch.token = token;
-        nameMatch.conn = conn;
-        this.clearGrace();
-        if (this.state) this.state.players[nameMatch.seat].isAI = false;
-        if (!this.hostToken) this.hostToken = token;
-        conn.send({
-          t: 'joined',
-          roomId: this.id,
-          you: nameMatch.seat,
-          capacity: this.capacity,
-          host: this.hostToken === token,
-          started: true,
-          seats: this.seatInfos(),
-          weather: this.weather,
-          weatherChance: this.weatherChance,
-        });
-        if (this.state) this.syncSeat(nameMatch);
-        this.broadcastRoom();
-        this.drive();
-        return;
-      }
       this.err(conn, '该房间对局已开始，无法加入');
-      return;
+      return false;
     }
     const free = this.seats.find((s) => !s.human);
     if (!free) {
       this.err(conn, '房间已满');
-      return;
+      return false;
     }
     free.human = true;
     free.token = token;
@@ -264,11 +245,19 @@ export class Room {
       weatherChance: this.weatherChance,
     });
     this.broadcastRoom();
+    return true;
+  }
+
+  private requireHost(token: string): boolean {
+    if (this.hostToken === token) return true;
+    const conn = this.seats.find((seat) => seat.token === token)?.conn;
+    if (conn) this.err(conn, '只有房主可以执行此操作');
+    return false;
   }
 
   // 房主在大厅实时调房间设置：仅校验房主；按字段部分更新「下一次建局」的设置（不影响进行中的对局），广播给全员。
   setRoomCfg(token: string, cfg: { weather?: boolean; weatherChance?: number }): void {
-    if (this.hostToken !== token) return;
+    if (!this.requireHost(token)) return;
     let changed = false;
     if (cfg.weather !== undefined && cfg.weather !== this.weather) {
       this.weather = cfg.weather;
@@ -285,13 +274,13 @@ export class Room {
   }
 
   start(token: string): void {
+    if (!this.requireHost(token)) return;
     if (this.started) return;
-    if (this.hostToken !== token) return;
     this.deal();
   }
 
   restart(token: string): void {
-    if (this.hostToken !== token) return;
+    if (!this.requireHost(token)) return;
     this.deal();
   }
 
@@ -336,6 +325,12 @@ export class Room {
     if (!this.state) return;
     const seat = this.seats.find((s) => s.token === token);
     if (!seat) return;
+    // On the wire Accept has the same meaning as pass: only this player has consented.
+    // The room alone issues the engine's final Accept after everybody has responded.
+    if (this.state.phase.kind === 'respond' && command.type === 'Accept') {
+      this.pass(token);
+      return;
+    }
     // 应对阶段：任何在场的非出牌方都能质疑，不限下家。
     if (this.state.phase.kind === 'respond' && command.type === 'Challenge') {
       if (this.state.phase.player === seat.seat || this.state.players[seat.seat].out) {
@@ -361,6 +356,10 @@ export class Room {
       this.lastEvents = res.events;
     } catch (e) {
       if (conn && e instanceof GameError) this.err(conn, e.message);
+      if (!(e instanceof GameError)) {
+        console.error('Unexpected game command error', e);
+        if (conn) this.err(conn, '操作未完成，请重试');
+      }
       return;
     }
     this.observeAll(this.lastEvents);
@@ -534,6 +533,11 @@ export class Room {
     if (!seat) return;
     seat.conn = null;
     if (seat.token) this.reassignHostIfLeaving(seat.token);
+    if (!this.started) {
+      seat.human = false;
+      seat.token = null;
+      seat.name = AI_NAMES[seat.seat % AI_NAMES.length];
+    }
     if (this.state && this.state.phase.kind !== 'over') {
       this.state.players[seat.seat].isAI = true;
       this.broadcastRoom();

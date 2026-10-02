@@ -4706,3 +4706,7 @@ kbd {
   .seat-skipped::after { animation: none; opacity: 1; }
   .reveal-spot-card, .reveal-spot-dim { animation: none !important; }
 }
+fieldset.actionbar, fieldset.room-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+fieldset.actionbar:disabled { opacity: 0.65; }
+.network-status, .network-error { padding: 10px 16px; text-align: center; color: #6a4120; background: #fff0d8; }
+.network-error { display: flex; align-items: center; justify-content: center; gap: 12px; color: #8a2929; }

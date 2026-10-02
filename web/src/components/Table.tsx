@@ -3,7 +3,7 @@ import { PlayerView } from '../engine/types';
 import { useT } from '../i18n';
 import { useSfx } from '../hooks/useSfx';
 import { sfx } from '../sfx';
-import { useGame } from '../store/gameStore';
+import { useGame, useCanAct } from '../store/gameStore';
 import { ActionArrows } from './ActionArrows';
 import { ActionBar } from './ActionBar';
 import { Center } from './Center';
@@ -57,6 +57,10 @@ export function Table({ view }: { view: PlayerView }) {
   const mode = useGame((s) => s.mode);
   const tutorial = useGame((s) => s.tutorial);
   const notice = useGame((s) => s.notice);
+  const canAct = useCanAct();
+  const conn = useGame((s) => s.conn);
+  const netError = useGame((s) => s.netError);
+  const dismissNetError = useGame((s) => s.dismissNetError);
   const { t } = useT();
   const over = view.prompt.kind === 'over';
   const [confirmQuit, setConfirmQuit] = useState(false);
@@ -117,6 +121,17 @@ export function Table({ view }: { view: PlayerView }) {
           </div>
         </div>
       </header>
+      {mode === 'online' && !canAct && (
+        <div className="network-status" role="status">
+          {t(conn === 'closed' ? '连接已结束，请退出本局后重新进入。' : conn === 'open' ? '已连接，正在同步对局…' : '连接已断开，正在重连… 暂时无法操作。')}
+        </div>
+      )}
+      {netError && (
+        <div className="network-error" role="alert">
+          <span>{t(netError)}</span>
+          <button className="btn btn-ghost" type="button" onClick={dismissNetError}>{t('关闭')}</button>
+        </div>
+      )}
 
       <main className="board">
         <Seats view={view} />

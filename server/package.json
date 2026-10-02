@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node18 --outfile=dist/server.js --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
+    "build": "npm run typecheck && esbuild src/server.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/server.js --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "tsx test/online.ts && tsx test/resilience.ts"
+    "test": "tsx test/security.ts && tsx test/online.ts && tsx test/resilience.ts",
+    "test:smoke": "tsx test/smoke.ts"
   },
+  "engines": { "node": ">=22" },
   "dependencies": {
     "ws": "^8.18.0"
   },

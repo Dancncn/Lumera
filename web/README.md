@@ -1,67 +1,43 @@
-# 源 · Lumera —— 人机单机 Demo
+# 源河 · Lumera 前端与共享引擎
 
-数字阶梯牌面 +「盖牌宣称 + 可撒谎 + 被质疑」博弈的浏览器人机 demo。
-皮是西方古典的，骨是「源—四力—回流」的东方循环。
+React + Vite + TypeScript 前端，支持单机人机和 WebSocket 联机。规则引擎由浏览器与 `server/` 共用；AI 使用玩家过滤视图，包含性格、难度与天气判断。产品功能与启动总览见 [根 README](../README.md)。
 
-## 这是什么 / 不是什么
+## 运行与验证
 
-这是按技术方案评审建议做的 **demo 形态**：纯 TypeScript 引擎 + React/Vite，全部跑在浏览器里，
-**零后端、零 WASM、零类型生成**。它保留了原架构里真正有价值、且与语言无关的「思想」：
-
-- **权威状态机 + 按座位过滤视图**：真相只在 `GameState` 里；`viewFor(state, seat)` 投影出每个座位有权看到的部分。AI 和真人拿同一份 `PlayerView`，结构上看不到底牌。
-- **确定性引擎 + 注入可种子化 RNG**：`apply(state, seat, cmd) -> {state, events}` 是纯函数，给定种子可完全复现。
-- **平衡数值抽进 `GameConfig`**，与状态机隔离。
-
-它**不是**完整产品：没有联机、没有命运之轮（单局不触发）、AI 是朴素启发式。这些是「玩法验证通过后的第二批」。
-
-> 说明：单机里「防作弊」是伪命题（真相本就在你自己的浏览器内存里）。`viewFor` 这层投影在 demo 里只是
-> 「整洁分层 + 给 AI 喂同构视图」，它真正的安全意义要到联机阶段（引擎搬到服务器）才兑现。
-
-## 运行
+使用 Node.js 22 或更新版本；从本目录运行：
 
 ```bash
-cd web
-npm install
-npm run dev        # 浏览器打开 http://localhost:5300
+npm ci
+npm run dev                   # http://localhost:5300
+npm run typecheck
+npm run test:typecheck        # 测试与测试配置的类型检查
+npm run test:engine           # 输入校验、规则与状态回归
+npx playwright install chromium
+npm run test:ui               # 真实 Chromium 浏览器回归
+npm run sim                  # 1200 局经典模拟
+npm run sim:weather          # 天气模拟、完整轨迹复现与参数扫描
+npm run build
 ```
 
-其它脚本：
+单机不需要后端。联机开发时还需在 `../server` 运行 `npm ci` 和 `npm run dev`，默认 WebSocket 地址为当前主机的 `8787` 端口。生产构建默认使用同源 `/ws`；需要分离部署时，在构建前设置 `VITE_WS_URL`。
 
-```bash
-npm run sim        # 无头模拟器：跑 1200 局，断言牌张守恒 / 无信息泄露 / 必然终局
-npm run build      # tsc 类型检查 + vite 生产构建
-npm run typecheck  # 仅类型检查
-```
+## 修改落点
 
-## 工程结构
+| 目录 | 职责 |
+| --- | --- |
+| `src/engine/` | 状态机、可调规则、种子 RNG、AI、命令校验与模拟器；不依赖 React 或网络 |
+| `src/store/` | 单机/联机状态、AI 与动画时序、教程调度 |
+| `src/net/` | 共享协议、连接与重连、遥测、本地对局记录 |
+| `src/components/` | 从玩家视图渲染界面并发送命令 |
+| `test/` | 引擎及浏览器回归测试 |
 
-```
-web/src/
-├── engine/            纯逻辑，无 React、无 IO（可平移回 Rust / 搬上 Node 服务器）
-│   ├── types.ts       Card / Claim / Command / GameEvent / GameState / PlayerView / GameConfig
-│   ├── rng.ts         mulberry32 种子 RNG、洗牌、掷骰
-│   ├── deck.ts        牌库构造
-│   ├── game.ts        状态机核心：apply / viewFor / 合法性 / 推进 / 受罚子流程
-│   ├── ai.ts          朴素 AI（只吃 viewFor）
-│   └── sim.ts         无头对抗性验证
-├── store/gameStore.ts Zustand：持有权威状态、AI 驱动循环（异步一律 getState 现取）
-└── components/        React UI（皮西骨东美术）
-```
+先阅读 `engine/types.ts`，再跟踪 `createGame → apply → viewFor`。随后阅读 `gameStore.ts` 的单机与联机路径；两端共用规则，但本地 store 与服务端 Room 分别调度行动和反应窗口，修改时序后必须验证两种模式。
 
-核心纪律（与原架构一致）：所有规则判定只活在 `engine/` 里；`store` 和 `components` 只渲染视图、发命令。
+## 规则与数据边界
 
-> 延伸阅读：整体架构（含联机后端）见 [../docs/architecture.md](../docs/architecture.md)；`ai.ts` 的性格档案、诈牌/质疑概率模型与拟人节奏，详见 [../docs/ai-system.md](../docs/ai-system.md)。
-
-## 已实现的规则（对照 `docs/game-rules.md`）
-
-盖牌宣称可撒谎、数字梯子只升不降（同色更大 / 同数字换色，0=该色最大）、质疑摊牌逐项比对、
-万能牌恒判真、功能牌（转向/禁止）作为附加动作、俄罗斯轮盘累进受罚 + 中枪保护期、
-打 0 终结本梯领计分卡（牌堆不清空）、清空手牌「跑成了」吞牌堆、牌库摸空结算。
-
-## 第八节未定项在 demo 里的取舍
-
-- `+2/+4` 不作为可出的牌，仅作打 0 的计分卡（面值计分）。
-- 谁起新梯：直接采用规则定稿的分流（质疑后受罚方 / 中枪→下家 / 打0→下家 / 跑成→下家）。
-- 补牌：跑成成功补满到起手张数（`GameConfig.refillTo` = 6）；撒谎打最后一张被抓（不算跑成）只补 `GameConfig.refillAfterCaughtLast` = 2 张（经 3 万局实验确定的临界值：补 1 张会退化成「下回合又冲跑成」，补满 6 等于整手重置过罚）。
-- 开局保底：起手功能牌≤`GameConfig.maxFunctionalInOpener` = 1 张，发牌后超额功能牌与牌库底部数字牌对调（仅随机局生效，固定牌序/2 人局跳过）。实测无保底时 3/4 人局约 26% 起手是 2+ 功能牌的堵手烂牌、开局挨抓率高 1.26×；保底削开局运气方差、不改总挨抓量。
-- 命运之轮：单局不触发，未实现。
+- 经典模式见 [游戏规则](../docs/game-rules.md)，可选天气见 [天气模式](../docs/weather-mode.md)，AI 见 [人机系统](../docs/ai-system.md)。
+- 打出 0 的奖励直接计入计分区，不再使用独立计分卡。
+- 联机时权威状态在服务器，客户端只接收自己的 `PlayerView`；单机时真实状态位于本地浏览器内存。
+- 身份凭证用于断线恢复，不使用昵称找回座位；清除浏览器存储会丢失恢复凭证。
+- 对局历史仅保存在本机 `localStorage`，最多 60 条，不上传服务器。
+- 跨局的「命运之轮」尚未实现。

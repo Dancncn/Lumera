@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Card, Claim, Color, COLORS, COLOR_META, PlayerView } from '../engine/types';
 import { legalClaims, val } from '../engine/game';
 import { useT } from '../i18n';
-import { useGame, Mode } from '../store/gameStore';
+import { useGame, useCanAct } from '../store/gameStore';
 import { CardFace, ClaimChip } from './Card';
 import { ClaimPicker } from './ClaimPicker';
 import { DiceFace } from './DiceFace';
@@ -48,6 +48,7 @@ function recommendedClaim(card: Card, claims: Claim[]): Claim | null {
 }
 
 export function ActionBar({ view }: { view: PlayerView }) {
+  const canAct = useCanAct();
   const human = useGame((s) => s.human);
   const pass = useGame((s) => s.pass);
   const tutorial = useGame((s) => s.tutorial);
@@ -72,7 +73,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
       : null;
 
   function onCardClick(card: Card) {
-    if (!myTurnPlay) return;
+    if (!canAct || !myTurnPlay) return;
     if (needsReveal) {
       human({ type: 'RevealCard', cardId: card.id });
       return;
@@ -85,7 +86,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
   }
 
   function onClaimClick(claim: Claim) {
-    if (selId == null) return;
+    if (!canAct || selId == null) return;
     human({ type: 'PlayCard', cardId: selId, claim });
     setSelId(null);
   }
@@ -93,6 +94,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
   // ---- 快捷键（杀戮尖塔式）：数字选牌/选宣称、回车出牌、空格接受、D 质疑、1–6 掷骰 ----
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (!canAct) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (document.querySelector('.overlay')) return; // 有弹窗时不抢键
       const k = e.key.toLowerCase();
@@ -134,10 +136,10 @@ export function ActionBar({ view }: { view: PlayerView }) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [view, selId]);
+  }, [view, selId, canAct]);
 
   return (
-    <div className="actionbar">
+    <fieldset className="actionbar" disabled={!canAct}>
       <Prompt view={view} />
 
       {myTurnPlay && needsReveal && (
@@ -201,7 +203,7 @@ export function ActionBar({ view }: { view: PlayerView }) {
           ))}
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -244,6 +246,7 @@ function HandSummary({ hand }: { hand: Card[] }) {
 }
 
 function PenaltyPick({ need, dice }: { need: number; dice: number }) {
+  const canAct = useCanAct();
   const human = useGame((s) => s.human);
   const { t } = useT();
   const [picked, setPicked] = useState<number[]>([]);
@@ -271,6 +274,7 @@ function PenaltyPick({ need, dice }: { need: number; dice: number }) {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (!canAct) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (document.querySelector('.overlay')) return;
       const k = e.key.toLowerCase();
@@ -285,7 +289,7 @@ function PenaltyPick({ need, dice }: { need: number; dice: number }) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [picked, need]);
+  }, [picked, need, canAct]);
 
   return (
     <div className="prompt prompt-penalty">

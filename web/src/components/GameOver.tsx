@@ -3,7 +3,7 @@ import { PlayerView } from '../engine/types';
 import { useT } from '../i18n';
 import { saveRecord } from '../net/history';
 import { playerColor } from '../playerColors';
-import { useGame } from '../store/gameStore';
+import { useGame, useCanAct } from '../store/gameStore';
 
 const DIFF_LABEL: Record<string, string> = { easy: '新手', normal: '常规', hard: '老练', master: '大师' };
 
@@ -13,6 +13,8 @@ export function GameOver({ view }: { view: PlayerView }) {
   const tutorial = useGame((s) => s.tutorial);
   const startTutorial = useGame((s) => s.startTutorial);
   const mode = useGame((s) => s.mode);
+  const host = useGame((s) => s.lobby?.host ?? false);
+  const canAct = useCanAct();
   const difficulty = useGame((s) => s.difficulty);
   const { t, tn } = useT();
   const ranking = view.ranking ?? [];
@@ -94,9 +96,11 @@ export function GameOver({ view }: { view: PlayerView }) {
             </>
           ) : (
             <>
-              <button className="start-go" type="button" onClick={() => newGame(players, difficulty)}>
-                {t('再来一局')}
-              </button>
+              {mode === 'local' || host ? (
+                <button className="start-go" type="button" disabled={!canAct} onClick={() => newGame(players, difficulty)}>
+                  {t('再来一局')}
+                </button>
+              ) : <p role="status">{t('等待房主开始下一局')}</p>}
               <button className="start-ghost" type="button" onClick={quitToMenu}>
                 {t('退出 · 改人数 / 难度')}
               </button>

@@ -11,13 +11,13 @@ if errorlevel 1 (
 
 echo 安装前端依赖 web ...
 pushd web
-call npm install
+call npm ci
 if errorlevel 1 ( popd & echo 前端依赖安装失败 & exit /b 1 )
 popd
 
 echo 安装服务器依赖 server ...
 pushd server
-call npm install
+call npm ci
 if errorlevel 1 ( popd & echo 服务器依赖安装失败 & exit /b 1 )
 popd
 
